@@ -394,7 +394,7 @@ class OpenShellBackend:
             "--no-keep",
             "--",
             "env",
-            "HOME=/home/verifier",
+            "HOME=/home/sandbox",
             "PYTHONPATH=/workspace/src",
             "PYTHONDONTWRITEBYTECODE=1",
             "PYTHONUNBUFFERED=1",

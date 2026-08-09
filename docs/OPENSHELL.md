@@ -45,7 +45,7 @@ The included policy uses:
 
 - `filesystem_policy.include_workdir: true` so the uploaded disposable workspace is accessible;
 - explicit system read paths and bounded writable paths;
-- the unprivileged `verifier` user and group created by `Dockerfile.verifier`;
+- the unprivileged `sandbox` user and group created by `Dockerfile.verifier`;
 - Landlock as a hard requirement;
 - an empty `network_policies` map, requesting default-deny egress.
 
@@ -72,7 +72,7 @@ openshell sandbox create \
   --no-keep \
   -- \
   env \
-    HOME=/home/verifier \
+    HOME=/home/sandbox \
     PYTHONPATH=/workspace/src \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
