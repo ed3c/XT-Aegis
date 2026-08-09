@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: XT-Aegis
+message: "If XT-Aegis supports your research or engineering work, cite this repository and the exact release."
+type: software
+authors:
+  - name: ed3c
+repository-code: "https://github.com/ed3c/XT-Aegis"
+url: "https://github.com/ed3c/XT-Aegis"
+license: MIT
+version: 0.1.0
+date-released: 2026-08-09
+keywords:
+  - AI agents
+  - deterministic execution
+  - prompt injection
+  - checkpointing
+  - rollback
+  - MCP

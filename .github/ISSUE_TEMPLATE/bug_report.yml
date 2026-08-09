@@ -1,0 +1,59 @@
+name: Bug report
+description: Report reproducible incorrect behavior
+title: "[Bug]: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, private repository content, or production data.
+  - type: input
+    id: version
+    attributes:
+      label: XT-Aegis version or commit
+      placeholder: v0.1.0 or commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, installation method, and relevant backend
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Use a disposable workspace and synthetic data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior and evidence
+    validations:
+      required: true
+  - type: dropdown
+    id: security
+    attributes:
+      label: Could this be security-sensitive?
+      options:
+        - "No"
+        - "Unsure - I will stop and use a private advisory"
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: The reproduction contains no real secrets or personal data.
+          required: true

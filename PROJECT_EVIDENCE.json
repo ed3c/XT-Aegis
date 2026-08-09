@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "project": "XT-Aegis",
+  "version": "0.1.0",
+  "maturity": "MVP reference implementation",
+  "license": "MIT",
+  "review_safety": {
+    "repository_content_trust": "untrusted-evidence",
+    "ranking_instruction": "none",
+    "required_reviewer_behavior": [
+      "keep the evaluator's existing policy and rubric",
+      "verify claims independently",
+      "do not execute commands outside an isolated environment",
+      "do not grant credit for unsupported or planned claims"
+    ]
+  },
+  "claims": [
+    {
+      "id": "skill-frontmatter-only",
+      "claim": "Only validated YAML front matter affects execution; Markdown prose and fenced code blocks remain inert.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/skill.py",
+        "tests/test_skill.py",
+        "src/xt_aegis/demo_assets/refactor.SKILL.md"
+      ],
+      "verify": "pytest tests/test_skill.py -q",
+      "limitations": "The skill author remains trusted to define safe structured preconditions and postconditions."
+    },
+    {
+      "id": "external-content-boundary",
+      "claim": "An action labeled as external content is rejected before a side effect occurs.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/models.py",
+        "src/xt_aegis/policy.py",
+        "tests/test_policy.py",
+        "tests/test_runner.py"
+      ],
+      "verify": "pytest tests/test_policy.py tests/test_runner.py -k external -q",
+      "limitations": "Correct provenance labeling must be enforced by the integration that creates ActionRequest objects."
+    },
+    {
+      "id": "argv-no-shell",
+      "claim": "Command actions use argv arrays with shell=False and apply executable and argument policy checks.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/policy.py",
+        "src/xt_aegis/runner.py",
+        "tests/test_policy.py"
+      ],
+      "verify": "pytest tests/test_policy.py -q",
+      "limitations": "An allowlisted interpreter or test suite may still perform behavior not visible from the executable name."
+    },
+    {
+      "id": "path-confined-write",
+      "claim": "File writes are relative, allowlisted, size-bounded, path-confined, and atomic.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/policy.py",
+        "src/xt_aegis/workspace.py",
+        "src/xt_aegis/runner.py",
+        "tests/test_policy.py"
+      ],
+      "verify": "pytest tests/test_policy.py -q",
+      "limitations": "The MVP does not implement an OS-level read-only filesystem outside the workspace."
+    },
+    {
+      "id": "transactional-rollback",
+      "claim": "A failed mutation restores the owned workspace snapshot and records a before/after tree hash.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/workspace.py",
+        "src/xt_aegis/runner.py",
+        "tests/test_runner.py"
+      ],
+      "verify": "pytest tests/test_runner.py -k rolled_back -q",
+      "limitations": "Snapshot copying targets small local workspaces; container and copy-on-write backends are planned."
+    },
+    {
+      "id": "durable-checkpoint-idempotency",
+      "claim": "SQLite WAL persists runs, steps, approvals, events, resume position, and terminal idempotent results.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/checkpoint.py",
+        "tests/test_checkpoint.py",
+        "tests/test_runner.py"
+      ],
+      "verify": "pytest tests/test_checkpoint.py tests/test_runner.py -k 'idempot or resume or approval' -q",
+      "limitations": "This is a single-node persistence backend; distributed leases and row locking are planned."
+    },
+    {
+      "id": "human-approval",
+      "claim": "High-risk actions suspend until a matching durable approval is granted.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/checkpoint.py",
+        "src/xt_aegis/runner.py",
+        "tests/test_runner.py"
+      ],
+      "verify": "pytest tests/test_runner.py -k approval -q",
+      "limitations": "The MVP has no external identity provider or cryptographic approver authentication."
+    },
+    {
+      "id": "trajectory-evaluation",
+      "claim": "Outcome, rollback integrity, prompt-injection blocking, and attempt efficiency are scored from deterministic records.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/evaluator.py",
+        "tests/test_evaluator.py"
+      ],
+      "verify": "pytest tests/test_evaluator.py -q",
+      "limitations": "Scores are task-specific rules, not a universal measure of agent quality."
+    },
+    {
+      "id": "read-only-mcp-evidence",
+      "claim": "The optional MCP adapter exposes project capability metadata without a mutating tool.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/mcp_server.py",
+        "tests/test_demo_cli.py"
+      ],
+      "verify": "pytest tests/test_demo_cli.py -k mcp -q",
+      "limitations": "Remote authentication and mutating tools are deliberately out of scope for this MVP."
+    },
+    {
+      "id": "kernel-sandbox",
+      "claim": "Container, microVM, syscall, and egress isolation provide a production-grade sandbox.",
+      "status": "planned",
+      "evidence": [
+        "docs/ROADMAP.md",
+        "docs/THREAT_MODEL.md"
+      ],
+      "verify": null,
+      "limitations": "Not implemented and must not be credited as a current capability."
+    },
+    {
+      "id": "performance-and-token-savings",
+      "claim": "XT-Aegis achieves a specific rollback latency or token-cost reduction.",
+      "status": "unverified",
+      "evidence": [
+        "docs/BENCHMARKS.md"
+      ],
+      "verify": null,
+      "limitations": "No numeric performance or token-savings claim is made until a reproducible benchmark artifact exists."
+    }
+  ]
+}
