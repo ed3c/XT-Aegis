@@ -36,17 +36,18 @@ jobs:
           verification = Path("src/xt_aegis/verification.py")
           text = verification.read_text(encoding="utf-8")
           text = text.replace("import tempfile\n", "")
-          old = '''    with destination.open("wb") as raw_handle:
-              with gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed:
-                  compressed.write(tar_buffer.getvalue())
-          '''
-          new = '''    with destination.open("wb") as raw_handle, gzip.GzipFile(
-              filename="", mode="wb", fileobj=raw_handle, mtime=0
-          ) as compressed:
-              compressed.write(tar_buffer.getvalue())
-          '''
-          if old in text:
-              text = text.replace(old, new)
+          old = (
+              '    with destination.open("wb") as raw_handle:\n'
+              '        with gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed:\n'
+              '            compressed.write(tar_buffer.getvalue())\n'
+          )
+          new = (
+              '    with destination.open("wb") as raw_handle, gzip.GzipFile(\n'
+              '        filename="", mode="wb", fileobj=raw_handle, mtime=0\n'
+              '    ) as compressed:\n'
+              '        compressed.write(tar_buffer.getvalue())\n'
+          )
+          text = text.replace(old, new)
           verification.write_text(text, encoding="utf-8")
 
           test_file = Path("tests/test_mcp_verification.py")
