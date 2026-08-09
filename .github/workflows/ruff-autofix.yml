@@ -29,8 +29,27 @@ jobs:
       - run: python -m pip install "ruff==0.16.2"
       - name: Apply Ruff fixes
         run: |
-          ruff check . --fix --unsafe-fixes
+          ruff check . --fix --unsafe-fixes || true
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/xt_aegis/policy.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''        if executable in {"python", "python3", "node", "ruby", "perl", "bash", "sh"}:
+              if any(argument in _INTERPRETER_INLINE_CODE_FLAGS for argument in command.argv[1:]):
+                  reasons.append("inline interpreter code is disabled; use reviewed files or modules")
+          '''
+          new = '''        if executable in {"python", "python3", "node", "ruby", "perl", "bash", "sh"} and any(
+              argument in _INTERPRETER_INLINE_CODE_FLAGS for argument in command.argv[1:]
+          ):
+              reasons.append("inline interpreter code is disabled; use reviewed files or modules")
+          '''
+          if old not in text:
+              raise SystemExit("expected nested policy condition was not found")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
           ruff format .
+          ruff check .
       - name: Commit fixes
         run: |
           git config user.name "github-actions[bot]"
