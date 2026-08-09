@@ -353,6 +353,7 @@ class OpenShellBackend:
     def preview(self, recipe: VerificationRecipe, root: Path) -> list[str]:
         executable = shutil.which("openshell") or "openshell"
         image = os.getenv("XT_AEGIS_OPENSHELL_IMAGE", _DEFAULT_IMAGE)
+        root_string = str(root.resolve())
         return [
             executable,
             "sandbox",
@@ -365,7 +366,33 @@ class OpenShellBackend:
             "1",
             "--memory",
             "1Gi",
+            "--no-auto-providers",
+            "--approval-mode",
+            "manual",
+            "--no-tty",
+            "--upload",
+            f"{root_string}:/workspace",
+            "--env",
+            "PYTHONPATH=/workspace/src",
+            "--env",
+            "PYTHONDONTWRITEBYTECODE=1",
+            "--env",
+            "PYTHONUNBUFFERED=1",
+            "--env",
+            "COVERAGE_FILE=/tmp/.coverage",
+            "--env",
+            "RUFF_CACHE_DIR=/tmp/ruff-cache",
+            "--env",
+            "MYPY_CACHE_DIR=/tmp/mypy-cache",
             "--no-keep",
+            "--",
+            "python",
+            "-m",
+            "xt_aegis.sandbox_exec",
+            "--root",
+            "/workspace",
+            "--cwd",
+            recipe.cwd,
             "--",
             *recipe.argv,
         ]
