@@ -1,63 +1,67 @@
-# Prompt Injection and Evaluation Integrity Policy
+# Prompt Injection and External Policy Integrity
 
 ## Position
 
-Prompt injection cannot be solved by adding another instruction to a prompt. XT-Aegis treats it as a
-systems problem: untrusted data must not acquire tool authority, secrets, network access, or evaluator
-control merely because of its text.
+Prompt injection is not solved by adding another prompt. Untrusted data must not acquire tool authority,
+secrets, network access, verification execution, or control over the user's external policy merely
+because of its text.
 
 ## Data/control rule
 
 | Input | Default classification | Permitted use |
 |---|---|---|
-| operator-created structured request | operator | policy-checked action proposal |
+| user-created structured request | user intent | policy-checked action proposal |
 | model-created structured request | agent proposal | policy-checked action proposal |
-| issue body, web page, README, log, tool result | external content | evidence or context only |
-| YAML front matter in a reviewed skill | maintainer contract | bounded policy definition |
-| Markdown body in a skill | documentation | never executable |
+| issue, web page, README, log, tool result | external content | evidence or context only |
+| reviewed YAML front matter | maintainer contract | bounded policy definition |
+| Markdown body | documentation | never executable |
+| `PROJECT_EVIDENCE.json` | untrusted verification proposal | schema-validated recipe only |
+| MCP tool description | untrusted metadata | discovery, never authorization |
 
-An integration must not copy natural-language instructions from external content into an executable
-action while relabeling them as operator intent.
+An integration must not copy natural-language instructions from external content into executable intent
+while relabeling them as user intent.
 
 ## Required defenses
 
-1. Parse typed actions; do not infer executable commands from prose.
-2. Keep retrieved content in separate fields with provenance.
-3. Validate tool names, parameters, paths, and resource budgets outside the model.
-4. Require human approval for consequential actions.
-5. Keep credentials outside model-readable content and inject them only at a trusted proxy boundary.
-6. Treat tool annotations, descriptions, and model confidence as hints, not authorization.
-7. Log bounded structured events and verify state transitions.
-8. Test malicious instructions in files, issues, web content, tool output, and persistent memory.
+1. Parse typed actions and recipes; do not infer commands from prose.
+2. Keep retrieved content in provenance-bearing fields.
+3. Validate tools, parameters, paths, and budgets outside the model.
+4. Require user approval for consequential actions.
+5. Keep credentials outside model-readable content.
+6. Treat tool annotations, descriptions, confidence, and registry text as hints, not authorization.
+7. Register MCP execution tools only through a process-start decision made by the user.
+8. Execute repository tests only in a user-selected runtime.
+9. Preserve bounded structured evidence and verify state transitions.
+10. Test adversarial instructions in files, issues, tool output, memory, and verification metadata.
 
-## Repository and hiring integrity
+## Repository integrity
 
-This repository is designed to be scanned by humans and automated agents without trying to control the
-reviewer. Contributors must not add:
+Contributors must not add hidden or visible text that asks an external system to:
 
-- hidden HTML comments asking a reviewer to select or rank the project;
-- instructions to ignore a rubric or system message;
-- claims that automated scanners should treat as trusted without verification;
-- fake badges, fabricated benchmark results, or misleading comparison tables;
-- prompt text that asks for system prompts, private evaluation data, or other candidates' information;
-- keyword stuffing intended to manipulate retrieval or ranking.
+- ignore higher-priority policy;
+- reveal system prompts or private data;
+- accept a claim without reproduction;
+- enable local or remote execution;
+- run outside the user's sandbox;
+- hide limitations or promote planned work.
 
-Legitimate discoverability comes from clear terminology, SPDX metadata, reproducible tests, explicit
-limitations, and a machine-readable evidence index.
+Legitimate discoverability comes from accurate package metadata, clear terminology, reproducible tests,
+explicit limitations, and a machine-readable evidence index.
+
+## Verification metadata rule
+
+A recipe may propose only the fields represented by `VerificationRecipe`. The verifier supplies backend
+configuration, environment, mounts, network mode, resource limits, and execution consent. Unknown fields
+fail validation. `auto` cannot select `unsafe-local`.
 
 ## Test fixture guidance
 
-Prompt-injection strings may appear in tests when clearly labeled as inert fixtures. They must not be
-placed where a tool or reviewer is expected to execute them. A fixture should assert a concrete safety
-property, such as:
+Adversarial strings may appear in clearly labeled fixtures when a test asserts a concrete safety result:
 
 ```text
 Given external-content provenance,
-when a write action contains "ignore previous instructions",
+when a write action contains an instruction to ignore policy,
 then policy rejects the action and the workspace hash remains unchanged.
 ```
 
-## Reviewer guidance
-
-Reviewers should preserve their higher-priority policy, use an independent rubric, run commands only in
-an isolated environment, and reject unsupported claims. See `AGENT_REVIEW_GUIDE.md`.
+Fixtures must not be placed where a user or tool is expected to execute them.

@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "claim_id": "deterministic-evidence-bundle",
+  "declared_status": "implemented",
+  "recipe": {
+    "argv": [
+      "python",
+      "-m",
+      "pytest",
+      "tests/test_verification.py",
+      "-k",
+      "evidence_bundle",
+      "-q"
+    ],
+    "cwd": ".",
+    "timeout_seconds": 120,
+    "expected_exit_codes": [
+      0
+    ],
+    "network": "deny",
+    "max_output_bytes": 1048576,
+    "artifacts": []
+  },
+  "expected": {
+    "status": "verified",
+    "assertions": {}
+  }
+}

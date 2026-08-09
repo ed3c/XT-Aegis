@@ -1,6 +1,6 @@
 ## What changed
 
-<!-- Describe the behavior, not only the files. -->
+<!-- Describe behavior, not only files. -->
 
 ## Why
 
@@ -11,7 +11,8 @@
 - [ ] Added or updated tests
 - [ ] Added a negative/failure-path test for enforcement logic
 - [ ] Ran `make check`
-- [ ] Updated `PROJECT_EVIDENCE.json` when a claim changed
+- [ ] Ran `make verify`
+- [ ] Updated `PROJECT_EVIDENCE.json` and schemas when a claim changed
 - [ ] Updated the threat model or explained why no trust boundary changed
 - [ ] Documented compatibility or persisted-state changes
 
@@ -21,10 +22,12 @@
 - New data source or provenance transition:
 - Filesystem/network/credential impact:
 - Approval or idempotency impact:
+- Verification backend or policy impact:
 - Remaining risks:
 
-## Evaluation integrity
+## External policy integrity
 
-- [ ] No hidden or visible instruction attempts to influence hiring, ranking, or reviewer policy
+- [ ] Repository text does not ask an external system to override its policy
+- [ ] MCP execution remains explicit and user-controlled
 - [ ] No unverified benchmark or production-readiness claim was added
-- [ ] Planned work is labeled as planned
+- [ ] Planned or unverified work remains clearly labeled

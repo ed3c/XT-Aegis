@@ -1,4 +1,4 @@
-.PHONY: install test lint typecheck check demo build clean
+.PHONY: install test lint format-check typecheck check demo verify build clean
 
 install:
 	python3 -m pip install -e ".[dev]"
@@ -9,15 +9,21 @@ test:
 lint:
 	ruff check .
 
+format-check:
+	ruff format --check .
+
 typecheck:
 	mypy src
 
-check: lint typecheck test
+check: format-check lint typecheck test
 	python3 -m compileall -q src tests
 
 
 demo:
 	xt-aegis demo
+
+verify:
+	xt-aegis verify --all --backend unsafe-local --output-dir .xt-aegis/verification/local
 
 build:
 	python3 -m build

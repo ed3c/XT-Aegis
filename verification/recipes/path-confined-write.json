@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "claim_id": "path-confined-write",
+  "declared_status": "implemented",
+  "recipe": {
+    "argv": [
+      "python",
+      "-m",
+      "pytest",
+      "tests/test_policy.py",
+      "-q"
+    ],
+    "cwd": ".",
+    "timeout_seconds": 120,
+    "expected_exit_codes": [
+      0
+    ],
+    "network": "deny",
+    "max_output_bytes": 1048576,
+    "artifacts": []
+  },
+  "expected": {
+    "status": "verified",
+    "assertions": {}
+  }
+}

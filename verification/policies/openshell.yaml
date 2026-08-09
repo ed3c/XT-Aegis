@@ -1,0 +1,27 @@
+version: 1
+
+# The current repository is included as the sandbox working directory. Verification
+# recipes remain argv-only and are additionally constrained by PROJECT_EVIDENCE.json.
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /proc
+    - /dev/urandom
+    - /etc
+    - /var/log
+  read_write:
+    - /sandbox
+    - /tmp
+    - /dev/null
+
+landlock:
+  compatibility: hard_requirement
+
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+
+# Empty means default-deny egress. Verification recipes cannot add entries.
+network_policies: {}

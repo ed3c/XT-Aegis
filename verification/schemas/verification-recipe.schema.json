@@ -1,0 +1,71 @@
+{
+  "$defs": {
+    "NetworkMode": {
+      "description": "Network authority requested by a verification recipe.",
+      "enum": [
+        "deny"
+      ],
+      "title": "NetworkMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A bounded argv-only verification command.",
+  "properties": {
+    "argv": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Argv",
+      "type": "array"
+    },
+    "cwd": {
+      "default": ".",
+      "title": "Cwd",
+      "type": "string"
+    },
+    "timeout_seconds": {
+      "default": 120,
+      "maximum": 900,
+      "minimum": 1,
+      "title": "Timeout Seconds",
+      "type": "integer"
+    },
+    "expected_exit_codes": {
+      "items": {
+        "type": "integer"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "title": "Expected Exit Codes",
+      "type": "array"
+    },
+    "network": {
+      "$ref": "#/$defs/NetworkMode",
+      "default": "deny"
+    },
+    "max_output_bytes": {
+      "default": 1048576,
+      "maximum": 16777216,
+      "minimum": 1024,
+      "title": "Max Output Bytes",
+      "type": "integer"
+    },
+    "artifacts": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Artifacts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "argv"
+  ],
+  "title": "VerificationRecipe",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

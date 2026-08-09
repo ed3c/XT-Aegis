@@ -1,0 +1,22 @@
+FROM python:3.12-slim
+
+LABEL org.opencontainers.image.source="https://github.com/ed3c/XT-Aegis"
+LABEL org.opencontainers.image.description="XT-Aegis local MCP verifier and bounded verification runtime"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL io.modelcontextprotocol.server.name="io.github.ed3c/xt-aegis-verifier"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /opt/xt-aegis
+COPY LICENSE README.md pyproject.toml ./
+COPY src ./src
+RUN python -m pip install --upgrade pip && python -m pip install ".[dev,mcp]"
+
+RUN useradd --create-home --uid 10001 verifier
+USER verifier
+WORKDIR /workspace
+
+CMD ["xt-aegis-mcp"]

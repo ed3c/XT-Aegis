@@ -11,71 +11,78 @@ harness with a deterministic SOP execution kernel. The brief emphasized:
 - typed agent messages and idempotency;
 - SKILL contracts and AST-aware loading;
 - outcome and trajectory evaluation;
-- DevOps refactor demonstrations with rollback;
-- OpenTelemetry or trajectory tracing.
+- destructive-change recovery demonstrations;
+- OpenTelemetry or trajectory tracing;
+- a sandbox runtime such as OpenShell.
 
-Version 0.1 implements the smallest set that can be tested honestly on a local machine.
+Versions 0.1 and 0.2 implement only behavior that can be tested and described with explicit limitations.
 
 ## Preserved ideas
 
 | Source idea | XT-Aegis implementation |
 |---|---|
 | Neural-Core / SOP-Core separation | model proposals are `ActionRequest`; deterministic code owns policy and side effects |
-| long-lived state | SQLite WAL runs, steps, approvals, events, resume position |
+| long-lived state | SQLite WAL runs, steps, approvals, events, and resume position |
 | K-anchor assertions | typed preconditions and postconditions with expected exit codes |
-| transactional failure recovery | owned workspace snapshot and full-tree hash validation |
+| transactional recovery | owned workspace snapshot and full-tree hash validation |
 | prompt-injection defense | provenance boundary and no Markdown command extraction |
 | idempotency | unique idempotency key and cached terminal result |
-| HITL | persistent suspended/approved/denied transition |
-| trajectory evaluation | deterministic rollback, injection-block, outcome, and efficiency score |
-| MCP integration | optional read-only evidence surface using the official SDK abstraction |
+| user approval | persistent suspended/approved/denied transition |
+| trajectory evaluation | deterministic rollback, injection-block, outcome, and efficiency scores |
+| MCP integration | read-only discovery by default; local execution only after user opt-in |
+| security runtime | OpenShell and rootless OCI verification adapters |
+| external evidence | versioned registry, stable results, policy digests, and deterministic bundle |
 
 ## Changed or rejected ideas
 
-### No "active prompt hijacking"
+### No forced host instructions
 
-The brief suggested writing agent instruction files that force tools to load a cache first. This project
-rejects that framing. Repository instructions must not try to override a host policy, evaluator, or
-reviewer. `AGENTS.md` is scoped to contribution commands and safety invariants only.
+The brief suggested writing tool instruction files that force a host to load a cache. XT-Aegis rejects
+that authority model. Repository text cannot override a user's host policy. `AGENTS.md` is limited to
+contribution commands and safety invariants.
 
 ### No command extraction from Markdown AST
 
-Tree-sitter can parse Markdown reliably, but extracting executable fenced blocks creates an avoidable
-trust problem. XT-Aegis compiles strict YAML front matter and keeps the body inert. AST/LSP adapters may
-be added later for code understanding, not for granting authority to prose.
+Tree-sitter can parse Markdown, but extracting executable fenced blocks creates an avoidable trust
+problem. XT-Aegis compiles strict YAML front matter and keeps the body inert. AST/LSP adapters may be
+added for code understanding, not for granting authority to prose.
 
-### No destructive Git rollback in the caller's checkout
+### No destructive Git rollback in the user's checkout
 
-The brief used `git reset --hard` and `git clean`. The MVP instead creates and owns a temporary workspace.
-This is slower but safer for a public demonstration. A Git backend must prove scope, nested-repository,
-untracked-file, symlink, and worktree behavior before release.
+The brief used `git reset --hard` and `git clean`. The local MVP creates and owns a temporary workspace.
+A future Git backend must prove scope, nested-repository, untracked-file, symlink, and worktree behavior.
 
-### No unverified 10 ms, 88%, 90%, or asymptotic claims
+### No unverified numeric or asymptotic results
 
-The brief used illustrative rollback, token, and error-convergence numbers. XT-Aegis does not publish
-them as results. `docs/BENCHMARKS.md` defines the evidence needed before any number enters the README.
+Illustrative rollback, token, and error-convergence numbers from the brief are not published as project
+results. `docs/BENCHMARKS.md` defines the evidence needed before any numeric claim is added.
 
-### No ad hoc protocol implementation
+### No hand-written MCP protocol variant
 
-The brief included hand-written MCP-like HTTP routing. The project uses the official SDK abstraction for
-an optional read-only adapter instead of inventing protocol headers or lifecycle behavior. Remote
-mutation remains disabled.
+The project uses the official MCP SDK and current stdio / Streamable HTTP transports. It does not invent
+protocol headers or remove required lifecycle behavior based on an unverified draft.
 
-### "ZTEP" is project terminology, not a standard
+### No public anonymous executor
 
-The repository uses conventional terms such as policy engine, approval gate, isolated workspace,
-transaction, egress enforcement, and credential proxy. A project-specific acronym must not be presented
-as an industry standard.
+The MCP server is read-only by default. Local verification tools require the user to start the process
+with `--allow-execution`. A remote mutating service remains planned until identity, authorization,
+sandbox, egress, and audit requirements are implemented.
+
+### Project terminology is not presented as a standard
+
+The repository uses conventional terms such as policy engine, approval gate, sandbox backend,
+transaction, egress enforcement, and credential proxy. Project-specific names do not imply industry
+standardization.
 
 ## Deferred ideas
 
-- PostgreSQL checkpoints and distributed locks;
-- container/QuickJS/microVM sandbox adapters;
-- external Auth Proxy and syscall-level egress policy;
+- runtime conformance on supported OpenShell and rootless OCI hosts;
+- PostgreSQL checkpoints and distributed leases;
+- external credential broker and fine-grained egress policy;
 - OpenTelemetry/Phoenix export;
-- OpenWiki/static knowledge cache integration;
+- static knowledge cache integration;
 - local model self-correction loop;
 - branch search and parallel child sandboxes;
 - episodic memory and integrity-aware retrieval.
 
-Each deferred feature is listed as planned until code, negative tests, and reproducible evidence exist.
+Each deferred feature remains planned until code, negative tests, and reproducible evidence exist.

@@ -1,0 +1,296 @@
+{
+  "$defs": {
+    "BackendName": {
+      "description": "Execution backends exposed by the verification CLI.",
+      "enum": [
+        "auto",
+        "openshell",
+        "docker",
+        "podman",
+        "unsafe-local"
+      ],
+      "title": "BackendName",
+      "type": "string"
+    },
+    "ExpectedVerification": {
+      "additionalProperties": false,
+      "description": "Expected high-level outcome for a claim recipe.",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/VerificationStatus",
+          "default": "verified"
+        },
+        "assertions": {
+          "additionalProperties": true,
+          "title": "Assertions",
+          "type": "object"
+        }
+      },
+      "title": "ExpectedVerification",
+      "type": "object"
+    },
+    "NetworkMode": {
+      "description": "Network authority requested by a verification recipe.",
+      "enum": [
+        "deny"
+      ],
+      "title": "NetworkMode",
+      "type": "string"
+    },
+    "RegistryClaimStatus": {
+      "description": "Implementation status declared by the project.",
+      "enum": [
+        "implemented",
+        "verified-in-ci",
+        "planned",
+        "unverified"
+      ],
+      "title": "RegistryClaimStatus",
+      "type": "string"
+    },
+    "VerificationClaim": {
+      "additionalProperties": false,
+      "description": "One claim and the evidence required to verify it.",
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]{1,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "claim": {
+          "minLength": 1,
+          "title": "Claim",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/RegistryClaimStatus"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "verification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VerificationRecipe"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExpectedVerification"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "claim",
+        "status",
+        "evidence"
+      ],
+      "title": "VerificationClaim",
+      "type": "object"
+    },
+    "VerificationContract": {
+      "additionalProperties": false,
+      "description": "Repository-wide safety limits for recipe execution.",
+      "properties": {
+        "executable_allowlist": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Executable Allowlist",
+          "type": "array"
+        },
+        "default_backend": {
+          "$ref": "#/$defs/BackendName",
+          "default": "auto"
+        },
+        "strong_backends": {
+          "items": {
+            "$ref": "#/$defs/BackendName"
+          },
+          "title": "Strong Backends",
+          "type": "array"
+        },
+        "unsafe_local_requires_explicit_opt_in": {
+          "default": true,
+          "title": "Unsafe Local Requires Explicit Opt In",
+          "type": "boolean"
+        },
+        "environment_allowlist": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Environment Allowlist",
+          "type": "array"
+        }
+      },
+      "required": [
+        "executable_allowlist"
+      ],
+      "title": "VerificationContract",
+      "type": "object"
+    },
+    "VerificationRecipe": {
+      "additionalProperties": false,
+      "description": "A bounded argv-only verification command.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Argv",
+          "type": "array"
+        },
+        "cwd": {
+          "default": ".",
+          "title": "Cwd",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 120,
+          "maximum": 900,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        },
+        "expected_exit_codes": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Expected Exit Codes",
+          "type": "array"
+        },
+        "network": {
+          "$ref": "#/$defs/NetworkMode",
+          "default": "deny"
+        },
+        "max_output_bytes": {
+          "default": 1048576,
+          "maximum": 16777216,
+          "minimum": 1024,
+          "title": "Max Output Bytes",
+          "type": "integer"
+        },
+        "artifacts": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Artifacts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "argv"
+      ],
+      "title": "VerificationRecipe",
+      "type": "object"
+    },
+    "VerificationStatus": {
+      "description": "Outcome produced by an independent verification attempt.",
+      "enum": [
+        "verified",
+        "failed",
+        "unsupported",
+        "policy_denied",
+        "inconclusive",
+        "error"
+      ],
+      "title": "VerificationStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Versioned claim-to-recipe registry.",
+  "properties": {
+    "$schema": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "$Schema"
+    },
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "project": {
+      "title": "Project",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    },
+    "maturity": {
+      "title": "Maturity",
+      "type": "string"
+    },
+    "license": {
+      "title": "License",
+      "type": "string"
+    },
+    "repository": {
+      "title": "Repository",
+      "type": "string"
+    },
+    "verification_contract": {
+      "$ref": "#/$defs/VerificationContract"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/VerificationClaim"
+      },
+      "minItems": 1,
+      "title": "Claims",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "project",
+    "version",
+    "maturity",
+    "license",
+    "repository",
+    "verification_contract",
+    "claims"
+  ],
+  "title": "EvidenceRegistry",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
