@@ -7,6 +7,7 @@ on:
       - "src/xt_aegis/sandbox_exec.py"
       - "tests/test_verification.py"
       - "tests/test_sandbox_exec.py"
+      - "tests/test_openshell_assets.py"
       - "verification/policies/openshell.yaml"
       - "Dockerfile.verifier"
       - ".github/workflows/openshell-conformance.yml"
@@ -23,6 +24,7 @@ env:
   OPENSHELL_VERSION: "v0.0.52"
   OPENSHELL_INSTALLER_COMMIT: "7873f61"
   OPENSHELL_TELEMETRY_ENABLED: "false"
+  OPENSHELL_BASE_IMAGE: "ghcr.io/nvidia/openshell-community/sandboxes/base:latest"
   XT_AEGIS_OPENSHELL_IMAGE: "xt-aegis-verifier:conformance"
 
 jobs:
@@ -62,8 +64,17 @@ jobs:
         run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,mcp]"
 
       - name: Build source-matched verifier image
+        shell: bash
         run: |
-          docker build --file Dockerfile.verifier --tag "${XT_AEGIS_OPENSHELL_IMAGE}" .
+          set -euo pipefail
+          docker build \
+            --pull \
+            --build-arg "OPENSHELL_BASE_IMAGE=${OPENSHELL_BASE_IMAGE}" \
+            --file Dockerfile.verifier \
+            --tag "${XT_AEGIS_OPENSHELL_IMAGE}" \
+            .
+          docker image inspect "${OPENSHELL_BASE_IMAGE}" \
+            > verification-out/runtime/openshell-base-image.json
           docker image inspect "${XT_AEGIS_OPENSHELL_IMAGE}" \
             > verification-out/runtime/verifier-image.json
 
