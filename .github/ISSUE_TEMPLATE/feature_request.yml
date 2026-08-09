@@ -1,0 +1,47 @@
+name: Feature request
+description: Propose a bounded capability or architecture change
+title: "[Feature]: "
+labels: [enhancement, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and user
+      description: State the concrete failure or limitation before proposing a tool or framework.
+    validations:
+      required: true
+  - type: textarea
+    id: invariants
+    attributes:
+      label: Safety and correctness invariants
+      description: What must remain true during success, failure, retry, and recovery?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed design
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and trade-offs
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Verification plan
+      description: Include negative tests, fault injection, and benchmark requirements where relevant.
+    validations:
+      required: true
+  - type: checkboxes
+    id: integrity
+    attributes:
+      label: Evaluation integrity
+      options:
+        - label: This request does not ask reviewers or ranking agents to alter their policy or select the project.
+          required: true
+        - label: I will label unimplemented work as planned.
+          required: true

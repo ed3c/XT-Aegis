@@ -1,0 +1,21 @@
+name: Documentation issue
+description: Report unclear, missing, or misleading documentation
+title: "[Docs]: "
+labels: [documentation, triage]
+body:
+  - type: textarea
+    id: location
+    attributes:
+      label: Document and section
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is unclear or inaccurate?
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: Suggested correction or evidence

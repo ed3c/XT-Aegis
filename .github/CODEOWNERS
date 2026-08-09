@@ -1,0 +1,7 @@
+* @ed3c
+
+/SECURITY.md @ed3c
+/docs/THREAT_MODEL.md @ed3c
+/src/xt_aegis/policy.py @ed3c
+/src/xt_aegis/runner.py @ed3c
+/src/xt_aegis/workspace.py @ed3c

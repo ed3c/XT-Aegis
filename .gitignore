@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Environments
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# XT-Aegis runtime artifacts
+.xt-aegis/
+*.db
+*.db-shm
+*.db-wal
+
+# IDE and OS
+.DS_Store
+.idea/
+.vscode/
+
+# Secrets and keys
+*.pem
+*.key
+*.p12
+*.pfx
