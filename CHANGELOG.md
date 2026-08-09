@@ -5,6 +5,10 @@ project uses Semantic Versioning for published interfaces.
 
 ## [Unreleased]
 
+### Changed
+
+- pin the MCP Registry publisher and validate `server.json` in pull requests before release publication.
+
 ## [0.2.0] - 2026-08-09
 
 ### Added
