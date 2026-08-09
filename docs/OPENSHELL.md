@@ -24,9 +24,9 @@ kernel.
 The adapter does not ask the sandbox to verify only the source baked into the verifier image. It starts
 the OpenShell host command with the selected checkout as its working directory and uploads
 `.:/workspace`. OpenShell's Git-aware upload therefore places the checkout contents directly under
-`/workspace` while respecting `.gitignore` by default. The adapter then sets
-`PYTHONPATH=/workspace/src`, so the initial `xt_aegis.sandbox_exec` module and the claim tests both come
-from that uploaded source revision.
+`/workspace` while respecting `.gitignore` by default. The initial command sets
+`PYTHONPATH=/workspace/src`, so the `xt_aegis.sandbox_exec` module and the claim tests both come from
+that uploaded source revision.
 
 The launcher:
 
@@ -50,14 +50,15 @@ The included policy uses:
 - an empty `network_policies` map, requesting default-deny egress.
 
 The registry cannot add filesystem paths, network endpoints, credentials, mounts, providers, or arbitrary
-environment variables. The adapter passes `--no-auto-providers`, uses manual approval mode, disables a
-TTY, and injects only fixed cache and Python path variables. A user may provide another reviewed policy
-with `XT_AEGIS_OPENSHELL_POLICY`; the policy digest is recorded in every result.
+environment variables. The adapter passes `--no-auto-providers`, disables TTY allocation, and places a
+fixed set of cache and Python variables before the argv-only launcher by using the standard `env`
+executable. A user may provide another reviewed policy with `XT_AEGIS_OPENSHELL_POLICY`; the policy
+digest is recorded in every result.
 
 ## Exact invocation shape
 
 The host process first changes to the verification root. For each recipe the adapter then constructs an
-argv equivalent to:
+argv equivalent to the OpenShell v0.0.52 interface:
 
 ```text
 openshell sandbox create \
@@ -66,17 +67,19 @@ openshell sandbox create \
   --cpu 1 \
   --memory 1Gi \
   --no-auto-providers \
-  --approval-mode manual \
   --no-tty \
   --upload .:/workspace \
-  --env PYTHONPATH=/workspace/src \
-  --env PYTHONDONTWRITEBYTECODE=1 \
-  --env PYTHONUNBUFFERED=1 \
-  --env COVERAGE_FILE=/tmp/.coverage \
-  --env RUFF_CACHE_DIR=/tmp/ruff-cache \
-  --env MYPY_CACHE_DIR=/tmp/mypy-cache \
   --no-keep \
   -- \
+  env \
+    HOME=/home/verifier \
+    PYTHONPATH=/workspace/src \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPYCACHEPREFIX=/tmp/pycache \
+    COVERAGE_FILE=/tmp/.coverage \
+    RUFF_CACHE_DIR=/tmp/ruff-cache \
+    MYPY_CACHE_DIR=/tmp/mypy-cache \
   python -m xt_aegis.sandbox_exec \
     --root /workspace \
     --cwd <recipe cwd> \
@@ -104,13 +107,14 @@ xt-aegis evidence pack \
 
 `.github/workflows/openshell-conformance.yml` is a manual and pull-request workflow. It:
 
-1. creates an operator-owned gateway configuration that explicitly selects the Docker compute driver;
+1. creates a user-owned gateway configuration that explicitly selects the Docker compute driver;
 2. builds the verifier image from the selected source revision;
-3. installs a checksum-verified, pinned OpenShell release through the official installer;
+3. installs a checksum-recorded, pinned OpenShell release through the official installer;
 4. runs `doctor` and all implemented claim recipes through the OpenShell backend;
-5. records gateway configuration, Docker and image metadata, status, journal, and sandbox inventory;
-6. packs successful verification evidence or deterministic failure diagnostics;
-7. uploads the resulting archive as a GitHub Actions artifact.
+5. propagates verifier failures through every `tee` pipeline with `pipefail`;
+6. records gateway configuration, Docker and image metadata, status, journal, and sandbox inventory;
+7. packs successful verification evidence or deterministic failure diagnostics;
+8. uploads the resulting archive as a GitHub Actions artifact.
 
 The explicit Docker selection avoids silently relying on OpenShell's runtime auto-detection order. The
 workflow stores the same selection in both `gateway.toml` and the package-managed service environment
@@ -127,6 +131,7 @@ Repository tests prove that the adapter:
 - detects a missing executable or policy;
 - uploads the checkout root directly into `/workspace` instead of silently testing only image-baked code;
 - starts the host process at the selected verification root rather than at a recipe subdirectory;
+- uses only flags supported by the pinned OpenShell v0.0.52 interface;
 - disables automatic credential providers and interactive TTY allocation;
 - constructs a structured argv with a confined working-directory launcher;
 - does not accept a shell string or path-qualified executable;
