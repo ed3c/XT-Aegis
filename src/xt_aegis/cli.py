@@ -128,8 +128,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "demo":
-            summary = run_demo(args.output_dir)
-            print(json.dumps(summary, indent=2, sort_keys=True))
+            demo_summary = run_demo(args.output_dir)
+            print(json.dumps(demo_summary, indent=2, sort_keys=True))
             return 0
         if args.command == "compile-skill":
             compiled = SkillCompiler.compile(args.path)
@@ -154,17 +154,17 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if plan.get("executable") else 10
         if args.command == "verify":
             output_dir = args.output_dir or _timestamped_output_dir()
-            summary = verify_many(
+            verification_summary = verify_many(
                 claim_ids=None if args.all else args.claims,
                 backend_name=BackendName(args.backend),
                 registry_path=args.registry,
                 root=args.root,
                 output_dir=output_dir,
             )
-            payload = summary.model_dump(mode="json")
+            payload = verification_summary.model_dump(mode="json")
             payload["output_dir"] = str(output_dir.resolve())
             _print(payload, args.format)
-            return result_exit_code(summary.overall_status)
+            return result_exit_code(verification_summary.overall_status)
         if args.command == "evidence" and args.evidence_command == "pack":
             result = pack_evidence(args.input, args.output)
             _print(result, args.format)
