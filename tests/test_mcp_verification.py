@@ -65,10 +65,14 @@ def _write_registry(root: Path) -> Path:
     return path
 
 
-def test_mcp_is_read_only_by_default(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from mcp.server import fastmcp
+def test_current_mcp_sdk_builds_read_only_server(tmp_path: Path) -> None:
+    registry = _write_registry(tmp_path)
+    server = mcp_server.build_server(registry_path=registry)
+    assert server.__class__.__name__ in {"MCPServer", "FastMCP"}
 
-    monkeypatch.setattr(fastmcp, "FastMCP", FakeFastMCP)
+
+def test_mcp_is_read_only_by_default(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(mcp_server, "_load_mcp_server_class", lambda: FakeFastMCP)
     registry = _write_registry(tmp_path)
     server = mcp_server.build_server(registry_path=registry)
     assert isinstance(server, FakeFastMCP)
@@ -85,9 +89,7 @@ def test_mcp_is_read_only_by_default(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 def test_mcp_execution_tools_require_explicit_user_opt_in(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from mcp.server import fastmcp
-
-    monkeypatch.setattr(fastmcp, "FastMCP", FakeFastMCP)
+    monkeypatch.setattr(mcp_server, "_load_mcp_server_class", lambda: FakeFastMCP)
     registry = _write_registry(tmp_path)
     server = mcp_server.build_server(
         registry_path=registry,
@@ -104,9 +106,7 @@ def test_mcp_execution_tools_require_explicit_user_opt_in(
 def test_execution_enabled_mcp_rejects_non_loopback_host(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from mcp.server import fastmcp
-
-    monkeypatch.setattr(fastmcp, "FastMCP", FakeFastMCP)
+    monkeypatch.setattr(mcp_server, "_load_mcp_server_class", lambda: FakeFastMCP)
     registry = _write_registry(tmp_path)
     with pytest.raises(ValueError, match="loopback"):
         mcp_server.build_server(
