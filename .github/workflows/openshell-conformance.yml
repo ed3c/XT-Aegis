@@ -38,11 +38,35 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Prepare deterministic runtime configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification-out/runtime "$HOME/.config/openshell"
+          cat > "$HOME/.config/openshell/gateway.toml" <<'TOML'
+          [openshell]
+          version = 1
+
+          [openshell.gateway]
+          compute_drivers = ["docker"]
+          policy_validation_failure_mode = "fail_closed"
+
+          [openshell.drivers.docker]
+          image_pull_policy = "IfNotPresent"
+          TOML
+          printf '%s\n' 'OPENSHELL_DRIVERS=docker' > "$HOME/.config/openshell/gateway.env"
+          cp "$HOME/.config/openshell/gateway.toml" verification-out/runtime/gateway.toml
+          docker version > verification-out/runtime/docker-version.txt
+          docker info > verification-out/runtime/docker-info.txt
+
       - name: Install XT-Aegis
         run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,mcp]"
 
       - name: Build source-matched verifier image
-        run: docker build --file Dockerfile.verifier --tag "${XT_AEGIS_OPENSHELL_IMAGE}" .
+        run: |
+          docker build --file Dockerfile.verifier --tag "${XT_AEGIS_OPENSHELL_IMAGE}" .
+          docker image inspect "${XT_AEGIS_OPENSHELL_IMAGE}" \
+            > verification-out/runtime/verifier-image.json
 
       - name: Install pinned OpenShell release
         shell: bash
@@ -52,32 +76,35 @@ jobs:
           curl --fail --silent --show-error --location \
             "https://raw.githubusercontent.com/NVIDIA/OpenShell/${OPENSHELL_INSTALLER_COMMIT}/install.sh" \
             --output "${installer}"
+          sha256sum "${installer}" | tee verification-out/runtime/installer.sha256
           OPENSHELL_VERSION="${OPENSHELL_VERSION}" \
           OPENSHELL_ACK_BREAKING_UPGRADE=1 \
-            sh "${installer}"
-          openshell --version
+            sh "${installer}" 2>&1 \
+            | tee verification-out/runtime/openshell-install.log
+          openshell --version | tee verification-out/runtime/openshell-version.txt
 
       - name: Wait for local gateway
         shell: bash
         run: |
           set -euo pipefail
           for attempt in $(seq 1 30); do
-            if openshell status --output json > /tmp/openshell-status.json 2>/tmp/openshell-status.err; then
-              cat /tmp/openshell-status.json
+            if openshell status --output json \
+              > verification-out/runtime/openshell-status.json \
+              2> verification-out/runtime/openshell-status.err; then
+              cat verification-out/runtime/openshell-status.json
               exit 0
             fi
             sleep 2
           done
-          cat /tmp/openshell-status.err >&2
+          cat verification-out/runtime/openshell-status.err >&2
           exit 1
 
-      - name: Inspect backend without executing repository code
+      - name: Inspect backend without executing claim recipes
         run: |
-          mkdir -p verification-out/runtime
           xt-aegis doctor --backend openshell --format json \
             | tee verification-out/runtime/doctor.json
           openshell status --output json \
-            | tee verification-out/runtime/openshell-status.json
+            | tee verification-out/runtime/openshell-status-final.json
 
       - name: Verify implemented claims in OpenShell
         run: |
@@ -85,16 +112,44 @@ jobs:
             --output-dir verification-out \
             | tee verification-out/runtime/command-summary.json
 
-      - name: Pack deterministic evidence
+      - name: Capture gateway diagnostics
         if: always()
+        shell: bash
         run: |
-          if [ -d verification-out ]; then
-            xt-aegis evidence pack \
-              --input verification-out \
-              --output xt-aegis-openshell-evidence.tar.gz \
-              --format json \
-              | tee evidence-bundle.json
-          fi
+          set +e
+          systemctl --user status openshell-gateway --no-pager \
+            > verification-out/runtime/gateway-service.txt 2>&1
+          journalctl --user -u openshell-gateway --no-pager -n 300 \
+            > verification-out/runtime/gateway-journal.txt 2>&1
+          openshell gateway info --output json \
+            > verification-out/runtime/gateway-info.json 2> verification-out/runtime/gateway-info.err
+          openshell sandbox list --output json \
+            > verification-out/runtime/sandboxes.json 2> verification-out/runtime/sandboxes.err
+
+      - name: Pack deterministic verification evidence
+        if: success()
+        run: |
+          xt-aegis evidence pack \
+            --input verification-out \
+            --output xt-aegis-openshell-evidence.tar.gz \
+            --format json \
+            | tee evidence-bundle.json
+
+      - name: Pack deterministic failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar \
+            --sort=name \
+            --mtime='UTC 1970-01-01' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -czf xt-aegis-openshell-diagnostics.tar.gz \
+            verification-out
+          sha256sum xt-aegis-openshell-diagnostics.tar.gz \
+            | tee diagnostics-bundle.sha256
 
       - name: Upload conformance evidence
         if: always()
@@ -105,5 +160,7 @@ jobs:
             verification-out/
             xt-aegis-openshell-evidence.tar.gz
             evidence-bundle.json
+            xt-aegis-openshell-diagnostics.tar.gz
+            diagnostics-bundle.sha256
           if-no-files-found: warn
           retention-days: 14
