@@ -1,0 +1,109 @@
+name: OpenShell conformance
+
+on:
+  pull_request:
+    paths:
+      - "src/xt_aegis/verification.py"
+      - "src/xt_aegis/sandbox_exec.py"
+      - "tests/test_verification.py"
+      - "tests/test_sandbox_exec.py"
+      - "verification/policies/openshell.yaml"
+      - "Dockerfile.verifier"
+      - ".github/workflows/openshell-conformance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openshell-conformance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OPENSHELL_VERSION: "v0.0.52"
+  OPENSHELL_INSTALLER_COMMIT: "7873f61"
+  OPENSHELL_TELEMETRY_ENABLED: "false"
+  XT_AEGIS_OPENSHELL_IMAGE: "xt-aegis-verifier:conformance"
+
+jobs:
+  conformance:
+    name: OpenShell v0.0.52 / Docker driver
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install XT-Aegis
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,mcp]"
+
+      - name: Build source-matched verifier image
+        run: docker build --file Dockerfile.verifier --tag "${XT_AEGIS_OPENSHELL_IMAGE}" .
+
+      - name: Install pinned OpenShell release
+        shell: bash
+        run: |
+          set -euo pipefail
+          installer=/tmp/openshell-install.sh
+          curl --fail --silent --show-error --location \
+            "https://raw.githubusercontent.com/NVIDIA/OpenShell/${OPENSHELL_INSTALLER_COMMIT}/install.sh" \
+            --output "${installer}"
+          OPENSHELL_VERSION="${OPENSHELL_VERSION}" \
+          OPENSHELL_ACK_BREAKING_UPGRADE=1 \
+            sh "${installer}"
+          openshell --version
+
+      - name: Wait for local gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if openshell status --output json > /tmp/openshell-status.json 2>/tmp/openshell-status.err; then
+              cat /tmp/openshell-status.json
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/openshell-status.err >&2
+          exit 1
+
+      - name: Inspect backend without executing repository code
+        run: |
+          mkdir -p verification-out/runtime
+          xt-aegis doctor --backend openshell --format json \
+            | tee verification-out/runtime/doctor.json
+          openshell status --output json \
+            | tee verification-out/runtime/openshell-status.json
+
+      - name: Verify implemented claims in OpenShell
+        run: |
+          xt-aegis verify --all --backend openshell --format json \
+            --output-dir verification-out \
+            | tee verification-out/runtime/command-summary.json
+
+      - name: Pack deterministic evidence
+        if: always()
+        run: |
+          if [ -d verification-out ]; then
+            xt-aegis evidence pack \
+              --input verification-out \
+              --output xt-aegis-openshell-evidence.tar.gz \
+              --format json \
+              | tee evidence-bundle.json
+          fi
+
+      - name: Upload conformance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openshell-conformance-${{ github.sha }}
+          path: |
+            verification-out/
+            xt-aegis-openshell-evidence.tar.gz
+            evidence-bundle.json
+          if-no-files-found: warn
+          retention-days: 14
