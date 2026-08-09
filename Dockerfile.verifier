@@ -21,4 +21,8 @@ RUN /sandbox/.venv/bin/python -m pip install ".[dev,mcp]" \
 USER sandbox
 WORKDIR /sandbox
 
+# The OpenShell Community base is interactive and defaults to /bin/bash.
+# Clear that entrypoint so ordinary OCI commands and OpenShell's injected
+# supervisor command are executed directly rather than interpreted as shell text.
+ENTRYPOINT []
 CMD ["xt-aegis-mcp"]
