@@ -20,6 +20,7 @@ def test_openshell_policy_matches_verifier_image_contract() -> None:
     assert "/sandbox/.venv/bin/python -m pip install" in dockerfile
     assert "install -d -o sandbox -g sandbox /workspace" in dockerfile
     assert "USER sandbox" in dockerfile
+    assert "ENTRYPOINT []" in dockerfile
 
 
 def test_conformance_workflow_pins_driver_and_records_image_identity() -> None:
