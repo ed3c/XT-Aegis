@@ -45,7 +45,8 @@ jobs:
             > /tmp/xt-aegis-project.tar.gz.b64
           base64 --decode /tmp/xt-aegis-project.tar.gz.b64 > /tmp/xt-aegis-project.tar.gz
           tar -xzf /tmp/xt-aegis-project.tar.gz -C .
-          rm -rf .bootstrap .github/workflows/bootstrap.yml
+          rm -rf .bootstrap
+          rm -f .github/workflows/ci.yml .github/workflows/codeql.yml
 
       - name: Commit materialized project
         shell: bash
