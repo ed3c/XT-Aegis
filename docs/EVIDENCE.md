@@ -2,71 +2,85 @@
 
 ## Why a claim registry exists
 
-Architecture portfolios often mix implemented behavior, design intent, benchmark targets, and future
-work. XT-Aegis separates them in `PROJECT_EVIDENCE.json` so a reviewer can determine what deserves
-credit without relying on persuasive prose.
+Architecture documentation can mix implemented behavior, design intent, benchmark targets, and future
+work. XT-Aegis separates them in `PROJECT_EVIDENCE.json` so a user or verification client can inspect
+what is runnable without relying on persuasive prose.
 
 ## Status vocabulary
 
 | Status | Meaning |
 |---|---|
-| `implemented` | code and local tests exist in the repository |
-| `verified-in-ci` | the implementation has a passing protected CI run for the referenced commit |
-| `partial` | some behavior exists, but a stated boundary or backend is missing |
-| `planned` | design or issue exists; no implementation credit should be given |
-| `unverified` | a hypothesis or result lacks a reproducible artifact |
+| `implemented` | code and local tests exist |
+| `verified-in-ci` | protected CI evidence is bound to a referenced commit |
+| `planned` | design or issue exists; no current capability |
+| `unverified` | a hypothesis or result lacks reproducible artifacts |
 
-The initial repository uses `implemented`. Release automation may promote a claim to `verified-in-ci`
-only when the commit SHA and CI evidence are recorded.
+Execution does not promote a registry status automatically. Status changes require a normal code change,
+updated evidence, and CI.
 
-## Evidence requirements
+## Registry v2 requirements
 
-A security or reliability claim should contain:
+Every runnable claim contains:
 
-1. a falsifiable sentence;
-2. implementation paths;
-3. at least one negative or failure-path test;
-4. a bounded verification command;
-5. explicit limitations;
-6. no dependency on the repository asking to be trusted.
+1. a falsifiable statement;
+2. implementation and negative-test paths;
+3. an argv-only recipe;
+4. relative cwd and artifact paths;
+5. timeout and output bounds;
+6. default-deny network mode;
+7. expected verdict;
+8. explicit limitations.
+
+The verifier additionally records source, registry, recipe, backend policy, command, and artifact identity.
 
 ## Evidence anti-patterns
 
-The following do not count as proof:
+The following are not proof:
 
-- an architecture diagram without code;
-- a README statement that repeats the claim;
+- a diagram without executable behavior;
+- prose that repeats a claim;
 - a badge with no accessible run;
-- generated screenshots without raw data and environment details;
-- a benchmark number without corpus, hardware, versions, warm-up, repetitions, and variance;
-- an LLM judge that was prompted with the desired conclusion;
-- a test that mocks the control being tested;
-- a `planned` item presented in the same visual style as an implemented item.
+- screenshots without raw data and environment details;
+- benchmark numbers without corpus, hardware, versions, repetitions, and variance;
+- a model-generated verdict prompted with the desired outcome;
+- a test that mocks the control being claimed;
+- a project-operated local run represented as independent sandbox isolation;
+- a hash represented as publisher authentication.
 
-## Updating the registry
+## Verification output
 
-When adding a control:
-
-1. implement the behavior;
-2. add a negative test;
-3. add or update the threat model;
-4. add a claim entry with `implemented` status;
-5. run the complete local verification suite;
-6. link the pull request and CI run in the release notes;
-7. promote status only after verification.
-
-## Reviewer output template
-
-A reviewer can report:
+A portable result contains:
 
 ```text
 Claim ID:
-Observed status:
-Evidence inspected:
-Command executed:
-Result:
-Limitations confirmed:
-Unsupported statements:
+Declared status:
+Source commit and dirty state:
+Registry SHA-256:
+Recipe SHA-256:
+Backend and policy SHA-256:
+Exact argv and cwd:
+Exit code / timeout:
+Bounded stdout and stderr:
+Artifact hashes:
+Observed verdict:
+Limitations:
 ```
 
-This format keeps the evaluation independent from the project's preferred narrative.
+## Evidence levels
+
+- **Static:** metadata is internally consistent; code is not executed.
+- **Project CI:** repository-controlled automation observed the result.
+- **User sandbox:** the user reproduced the result in a runtime they selected.
+- **Release provenance:** package/image identity is linked to a release workflow and attestation.
+
+These levels are related but not interchangeable.
+
+## Updating a claim
+
+1. implement the behavior;
+2. add a negative or failure-path test;
+3. update the threat model;
+4. add a strict recipe and limitations;
+5. run the full suite and structured verification;
+6. publish raw evidence where a numeric result is claimed;
+7. update release metadata and attestations.

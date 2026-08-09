@@ -1,87 +1,90 @@
 # Roadmap
 
-The roadmap is ordered by risk reduction, not feature count. Planned work is not a current capability.
+The roadmap is ordered by risk reduction. Planned work is not a current capability.
 
-## v0.1 - Evidence-first local MVP
+## v0.1 - Evidence-first local runtime
 
 - [x] strict SKILL YAML contract compiler;
 - [x] external-content provenance boundary;
 - [x] atomic path-confined file writes;
-- [x] argv command execution with `shell=False`;
+- [x] argv execution with `shell=False`;
 - [x] precondition and postcondition assertions;
 - [x] owned snapshot rollback with integrity hash;
 - [x] SQLite WAL checkpoints and idempotency;
-- [x] durable human approval state;
+- [x] durable user approval state;
 - [x] deterministic outcome/trajectory evaluator;
 - [x] read-only optional MCP evidence server;
 - [x] MIT license, security policy, contribution guide, CI, CodeQL, and claim registry.
 
-## v0.2 - Observability and crash recovery
+## v0.2 - External Verification Plane
 
-- [ ] OpenTelemetry spans for policy, approval, action, assertion, rollback, and checkpoint operations;
-- [ ] OTLP export with secret-safe attributes;
-- [ ] process-kill fault tests at every state transition;
+- [x] `PROJECT_EVIDENCE.json` v2 with strict argv-only recipes;
+- [x] `doctor`, non-executing `plan`, `verify`, and deterministic `evidence pack` CLI commands;
+- [x] stable machine-readable verdicts and exit codes;
+- [x] fail-closed backend selection with no implicit local fallback;
+- [x] OpenShell adapter and default-deny policy;
+- [x] rootless Podman and Docker verifier-image adapters;
+- [x] read-only MCP discovery with user-enabled local execution mode;
+- [x] MCP Registry metadata, PyPI/OCI packaging, ownership markers, and release provenance workflows;
+- [x] CI evidence bundle for every protected change.
+
+**Current limit:** adapter tests prove command and policy construction. A real runtime host is still required
+to reproduce isolation guarantees.
+
+## v0.3 - Runtime conformance and crash recovery
+
+- [ ] OpenShell and rootless OCI conformance jobs on supported hosts;
+- [ ] host-secret, path escape, denied-egress, process bomb, memory, disk, and timeout corpus;
+- [ ] immutable image-digest matrix and runtime version manifest;
+- [ ] process-kill fault tests at every persisted transition;
 - [ ] explicit run cancellation and deadline propagation;
-- [ ] schema-versioned JSONL event format;
-- [ ] benchmark runner and raw artifact schema.
+- [ ] schema-versioned event replay without model context;
+- [ ] OpenTelemetry spans and OTLP export with secret-safe attributes.
 
-**Exit criteria:** a killed process resumes or fails safely from every persisted transition, and traces can
-be replayed without model context.
+**Exit criteria:** a supported strong backend blocks the adversarial corpus and a killed process resumes or
+fails safely from every persisted transition.
 
-## v0.3 - Strong local isolation
-
-- [ ] container backend with read-only root, dedicated writable mount, non-root user, seccomp, and dropped
-  capabilities;
-- [ ] CPU, memory, process, disk, and wall-time quotas;
-- [ ] default-deny egress proxy and destination allowlist;
-- [ ] external credential injection that never exposes secrets to the model or workspace;
-- [ ] symlink, mount, archive, and dependency-install adversarial tests.
-
-**Exit criteria:** a malicious allowlisted process cannot read host secrets, escape the workspace, or reach
-an unapproved destination in the supported deployment profile.
-
-## v0.4 - Distributed state and multi-agent coordination
+## v0.4 - Distributed state and coordination
 
 - [ ] PostgreSQL checkpoint backend;
-- [ ] optimistic state version and resource preconditions;
+- [ ] optimistic versions and resource preconditions;
 - [ ] per-resource leases with expiry and fencing tokens;
 - [ ] external side-effect idempotency adapter;
 - [ ] conflict and network-partition fault tests;
-- [ ] resumable HITL notifications.
+- [ ] resumable user approval notifications.
 
-**Exit criteria:** two agents cannot produce an undetected dirty write or repeat a protected external side
-effect during retry and failover tests.
+**Exit criteria:** concurrent agents cannot produce an undetected dirty write or repeat a protected remote
+side effect during retry and failover tests.
 
 ## v0.5 - Authenticated mutating MCP adapter
 
-- [ ] current-spec SDK adapter with stateless request handling;
 - [ ] authenticated subject and audience validation;
 - [ ] per-tool scopes and authorization policy;
-- [ ] approval binding to identity, exact arguments, expiry, and reason;
+- [ ] approval binding to user identity, exact arguments, expiry, and reason;
 - [ ] host/origin validation and deployment hardening;
 - [ ] request-level idempotency and bounded structured output;
-- [ ] security review and compatibility matrix.
+- [ ] security assessment and compatibility matrix.
 
-**Exit criteria:** mutating tools remain disabled unless every authorization, approval, sandbox, egress,
-and audit requirement is satisfied.
+**Exit criteria:** mutating tools remain absent unless every identity, authorization, approval, sandbox,
+egress, and audit requirement is satisfied.
 
 ## v1.0 - Production reference profile
 
 - [ ] documented supported deployment profile;
-- [ ] reproducible security and recovery test suite;
-- [ ] signed releases and software bill of materials;
-- [ ] stable skill schema and migration policy;
+- [ ] reproducible security and recovery suite;
+- [ ] signed releases, SBOM, and verified provenance;
+- [ ] stable skill and evidence schemas with migration policy;
 - [ ] independent security assessment;
 - [ ] published benchmark corpus and raw results;
-- [ ] incident response and support policy.
+- [ ] incident response, support, backup, and restore policy.
 
-## Candidate research tracks
+## Research tracks
 
-These tracks are valuable but should not block safety work:
+These tracks do not block safety work:
 
 - signed SKILL contracts and policy provenance;
 - AST/LSP-aware write scopes;
 - static knowledge cache adapters;
-- branch-and-evaluate execution with isolated child workspaces;
+- branch-and-evaluate child workspaces;
 - episodic memory with integrity labels and deletion policy;
-- model/provider adapters for local and hosted inference.
+- local and hosted model adapters.

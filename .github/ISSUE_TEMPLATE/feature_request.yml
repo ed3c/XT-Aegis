@@ -14,7 +14,7 @@ body:
     id: invariants
     attributes:
       label: Safety and correctness invariants
-      description: What must remain true during success, failure, retry, and recovery?
+      description: What must remain true during success, failure, retry, recovery, and verification?
     validations:
       required: true
   - type: textarea
@@ -33,15 +33,17 @@ body:
     id: evidence
     attributes:
       label: Verification plan
-      description: Include negative tests, fault injection, and benchmark requirements where relevant.
+      description: Include negative tests, runtime requirements, fault injection, and benchmark artifacts where relevant.
     validations:
       required: true
   - type: checkboxes
     id: integrity
     attributes:
-      label: Evaluation integrity
+      label: External policy integrity
       options:
-        - label: This request does not ask reviewers or ranking agents to alter their policy or select the project.
+        - label: This request does not ask an external system to override its own policy.
           required: true
-        - label: I will label unimplemented work as planned.
+        - label: Execution authority remains explicit and user-controlled.
+          required: true
+        - label: I will label incomplete work as planned or unverified.
           required: true

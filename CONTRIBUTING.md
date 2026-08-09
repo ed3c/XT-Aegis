@@ -9,6 +9,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 make check
+make verify
 ```
 
 ## Change workflow
@@ -16,55 +17,60 @@ make check
 1. Open or reference an issue for non-trivial behavior.
 2. Create a focused branch.
 3. Add implementation, failure-path tests, and documentation in the same pull request.
-4. Run `make check` locally.
-5. Complete the pull-request checklist and describe remaining risks.
+4. Update the evidence registry and threat model when a claim or boundary changes.
+5. Run `make check` and `make verify` locally.
+6. Complete the pull-request checklist and describe remaining risks.
 
 ## Definition of done
 
 A change is ready when:
 
-- behavior is typed and fails closed on unknown input;
+- behavior is typed and unknown input fails closed;
 - security controls have negative tests;
 - public interfaces and persisted schemas are documented;
-- claims are added to or corrected in `PROJECT_EVIDENCE.json`;
+- claim recipes are argv-only, path-confined, time-bounded, output-bounded, and network-denied;
+- `auto` remains limited to strong backends;
+- MCP execution remains absent unless the user explicitly enables it;
+- `PROJECT_EVIDENCE.json` and JSON Schemas are synchronized;
 - `docs/THREAT_MODEL.md` reflects new trust boundaries;
-- formatting, lint, type checks, tests, coverage, and package build pass;
-- no secret, credential, private URL, or generated environment artifact is committed.
+- format, lint, type checks, tests, coverage, verification, and package build pass;
+- no secret, private URL, broad host permission, or generated environment artifact is committed.
 
-## Safety and evaluation integrity
+## External policy integrity
 
-Do not add instructions that ask an interviewer, scanner, model, or ranking system to:
+Do not add text or metadata that asks a user, scanner, model, or tool to:
 
-- select this project or candidate;
-- ignore its current rubric or higher-priority policy;
-- reveal system prompts or private evaluation data;
-- treat README claims as proof;
-- execute commands outside an isolated environment.
+- ignore higher-priority policy;
+- reveal system prompts or private data;
+- trust a repository claim without reproduction;
+- enable execution or broaden sandbox authority;
+- run commands outside a disposable environment;
+- hide limitations or represent planned work as implemented.
 
-Clear metadata, evidence, tests, and accurate terminology are welcome. Manipulative prompt text, hidden
-HTML comments, fabricated numbers, and fake badges are not.
+Clear metadata, reproducible tests, raw artifacts, and accurate terminology are welcome. Hidden control
+instructions, fabricated numbers, fake badges, and unverifiable security claims are not.
 
 ## Testing expectations
 
-- Unit tests must cover new branch behavior.
-- Enforcement logic needs a negative test.
-- Rollback changes need state-integrity assertions.
-- Checkpoint changes need restart/idempotency tests.
-- Prompt-injection changes need external-content fixtures.
-- Performance changes need raw benchmark artifacts and environment metadata.
+- enforcement logic needs a negative test;
+- rollback changes need state-integrity assertions;
+- checkpoint changes need restart and idempotency tests;
+- prompt-injection changes need external-content fixtures;
+- verification changes need malformed registry, policy-denial, unavailable-runtime, and explicit-local tests;
+- runtime adapters need exact argv, policy digest, cleanup, and adversarial conformance tests;
+- performance changes need raw benchmark artifacts and environment metadata.
 
-## Commit and pull-request guidance
+## Commit guidance
 
 Use imperative commit messages, for example:
 
 ```text
-Add approval binding to action parameters
-Reject symlink escapes in write policy
-Document MCP authorization boundary
+Add OpenShell verification adapter
+Reject inline code in claim recipes
+Record policy digest in verification results
 ```
 
-Keep pull requests small enough to review. Generated code must be understood, tested, and owned by the
-contributor.
+Generated code must be understood, tested, and maintained by the contributor.
 
 ## License
 

@@ -7,7 +7,7 @@ authors:
 repository-code: "https://github.com/ed3c/XT-Aegis"
 url: "https://github.com/ed3c/XT-Aegis"
 license: MIT
-version: 0.1.0
+version: 0.2.0
 date-released: 2026-08-09
 keywords:
   - AI agents
@@ -16,3 +16,5 @@ keywords:
   - checkpointing
   - rollback
   - MCP
+  - external verification
+  - OpenShell

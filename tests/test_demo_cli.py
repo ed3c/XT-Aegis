@@ -41,5 +41,5 @@ Documentation only.
 
 def test_mcp_capabilities_do_not_overclaim() -> None:
     capabilities = inspect_capabilities()
-    assert capabilities["maturity"] == "MVP reference implementation"
-    assert "kernel-grade sandbox isolation" in capabilities["not_claimed"]
+    assert capabilities["maturity"] == "alpha reference implementation"
+    assert "kernel or container-runtime zero-day resistance" in capabilities["not_claimed"]

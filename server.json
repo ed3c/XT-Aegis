@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.ed3c/xt-aegis-verifier",
+  "title": "XT-Aegis Verifier",
+  "description": "Read-only evidence discovery with opt-in local sandboxed verification for XT-Aegis claims.",
+  "repository": {
+    "url": "https://github.com/ed3c/XT-Aegis",
+    "source": "github"
+  },
+  "version": "0.2.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "xt-aegis",
+      "version": "0.2.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "uvx",
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ]
+    },
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/ed3c/xt-aegis-verifier:0.2.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "docker"
+    }
+  ]
+}

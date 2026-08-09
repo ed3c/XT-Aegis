@@ -1,0 +1,265 @@
+{
+  "$defs": {
+    "BackendName": {
+      "description": "Execution backends exposed by the verification CLI.",
+      "enum": [
+        "auto",
+        "openshell",
+        "docker",
+        "podman",
+        "unsafe-local"
+      ],
+      "title": "BackendName",
+      "type": "string"
+    },
+    "CommandEvidence": {
+      "additionalProperties": false,
+      "description": "Bounded process output captured from one recipe.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Argv",
+          "type": "array"
+        },
+        "cwd": {
+          "title": "Cwd",
+          "type": "string"
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exit Code"
+        },
+        "duration_ms": {
+          "minimum": 0,
+          "title": "Duration Ms",
+          "type": "number"
+        },
+        "stdout": {
+          "default": "",
+          "title": "Stdout",
+          "type": "string"
+        },
+        "stderr": {
+          "default": "",
+          "title": "Stderr",
+          "type": "string"
+        },
+        "stdout_truncated": {
+          "default": false,
+          "title": "Stdout Truncated",
+          "type": "boolean"
+        },
+        "stderr_truncated": {
+          "default": false,
+          "title": "Stderr Truncated",
+          "type": "boolean"
+        },
+        "timed_out": {
+          "default": false,
+          "title": "Timed Out",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "argv",
+        "cwd",
+        "duration_ms"
+      ],
+      "title": "CommandEvidence",
+      "type": "object"
+    },
+    "RegistryClaimStatus": {
+      "description": "Implementation status declared by the project.",
+      "enum": [
+        "implemented",
+        "verified-in-ci",
+        "planned",
+        "unverified"
+      ],
+      "title": "RegistryClaimStatus",
+      "type": "string"
+    },
+    "SourceIdentity": {
+      "additionalProperties": false,
+      "description": "Identity of the source tree being verified.",
+      "properties": {
+        "repository": {
+          "title": "Repository",
+          "type": "string"
+        },
+        "commit_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Commit Sha"
+        },
+        "dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dirty"
+        }
+      },
+      "required": [
+        "repository"
+      ],
+      "title": "SourceIdentity",
+      "type": "object"
+    },
+    "VerificationStatus": {
+      "description": "Outcome produced by an independent verification attempt.",
+      "enum": [
+        "verified",
+        "failed",
+        "unsupported",
+        "policy_denied",
+        "inconclusive",
+        "error"
+      ],
+      "title": "VerificationStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Portable result for one claim.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "project": {
+      "title": "Project",
+      "type": "string"
+    },
+    "project_version": {
+      "title": "Project Version",
+      "type": "string"
+    },
+    "claim_id": {
+      "title": "Claim Id",
+      "type": "string"
+    },
+    "claim": {
+      "title": "Claim",
+      "type": "string"
+    },
+    "declared_status": {
+      "$ref": "#/$defs/RegistryClaimStatus"
+    },
+    "status": {
+      "$ref": "#/$defs/VerificationStatus"
+    },
+    "backend": {
+      "$ref": "#/$defs/BackendName"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceIdentity"
+    },
+    "registry_sha256": {
+      "title": "Registry Sha256",
+      "type": "string"
+    },
+    "recipe_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Recipe Sha256"
+    },
+    "policy_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Policy Sha256"
+    },
+    "started_at": {
+      "title": "Started At",
+      "type": "string"
+    },
+    "finished_at": {
+      "title": "Finished At",
+      "type": "string"
+    },
+    "command": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CommandEvidence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "artifacts": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Artifacts",
+      "type": "object"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project",
+    "project_version",
+    "claim_id",
+    "claim",
+    "declared_status",
+    "status",
+    "backend",
+    "source",
+    "registry_sha256",
+    "started_at",
+    "finished_at",
+    "reason"
+  ],
+  "title": "VerificationResult",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

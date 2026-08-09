@@ -1,0 +1,68 @@
+{
+  "$defs": {
+    "EvidenceBundleFile": {
+      "additionalProperties": false,
+      "description": "File entry included in an evidence bundle.",
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "size_bytes"
+      ],
+      "title": "EvidenceBundleFile",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Integrity manifest stored inside a deterministic archive.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "project": {
+      "title": "Project",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/EvidenceBundleFile"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "note": {
+      "default": "SHA-256 entries provide integrity checking only. They do not establish publisher identity.",
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project",
+    "created_at",
+    "files"
+  ],
+  "title": "EvidenceBundleManifest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

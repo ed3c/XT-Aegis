@@ -5,6 +5,7 @@
 | Version | Supported |
 |---|---|
 | `main` | security fixes accepted |
+| `0.2.x` | current alpha line |
 | `0.1.x` | best-effort until the next minor release |
 
 XT-Aegis is an alpha reference implementation. Do not use it as the sole security boundary for
@@ -13,18 +14,20 @@ production credentials, customer data, or remote code execution.
 ## Reporting a vulnerability
 
 Do not open a public issue for a vulnerability that could enable host escape, credential exposure,
-unauthorized mutation, approval bypass, idempotency bypass, or reviewer prompt injection.
+unauthorized mutation, approval bypass, idempotency bypass, evidence substitution, sandbox-policy bypass,
+or external policy manipulation.
 
-Use GitHub's private security advisory flow for this repository. Include:
+Use GitHub's private security advisory flow. Include:
 
 - affected commit or release;
 - threat scenario and required access;
 - minimal reproduction in a disposable environment;
+- selected runtime and policy digest;
 - expected and observed behavior;
 - impact and possible mitigations;
 - whether secrets or personal data were exposed.
 
-Do not include real credentials. Use synthetic tokens and test workspaces.
+Use synthetic credentials and test workspaces only.
 
 ## Response targets
 
@@ -37,25 +40,28 @@ These are maintainer targets, not contractual guarantees:
 
 ## Security boundaries
 
-The current release provides deterministic application-level controls, not complete OS isolation.
+The current release provides deterministic application controls and optional external sandbox adapters.
 Known limits include:
 
-- no container, VM, seccomp, cgroup, or syscall-level network enforcement;
+- the local snapshot backend is not OS isolation;
+- OpenShell, Podman, Docker, their daemons, and the host kernel remain external trust boundaries;
+- runtime conformance is not yet continuously tested on every supported host;
 - provenance labeling depends on the calling integration;
 - local approval identity is not cryptographically authenticated;
 - secret redaction is best-effort;
 - SQLite is single-node;
-- the optional MCP adapter is read-only and localhost-bound.
+- MCP execution tools are local opt-in only and remote authentication is not implemented.
 
 See `docs/THREAT_MODEL.md` before proposing a production deployment.
 
 ## Security-sensitive contribution rules
 
-Changes to policy, workspace ownership, rollback, approvals, checkpoint schema, secret handling, or MCP
-must include:
+Changes to policy, workspace ownership, rollback, approvals, checkpoint schema, verification recipes,
+runtime adapters, evidence identity, secret handling, or MCP must include:
 
 1. a threat-model update;
 2. at least one negative test;
 3. a migration or compatibility note when persisted state changes;
-4. no hidden instructions aimed at reviewers or ranking agents;
-5. no new production-readiness claim without reproducible evidence.
+4. explicit user control over new execution authority;
+5. no instruction that asks an external system to override its policy;
+6. no production-readiness or performance claim without reproducible evidence.

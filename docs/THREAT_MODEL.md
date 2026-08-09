@@ -2,183 +2,150 @@
 
 ## Scope
 
-This document covers the XT-Aegis MVP as implemented in this repository. It does not treat a Python
-process allowlist as a production sandbox. Container, microVM, kernel, identity-provider, and remote
-network controls are planned work.
+This document covers the repository implementation, including the SOP-Core and External Verification
+Plane. It does not treat a Python process allowlist, a container, or an external runtime as protection
+against every host-kernel or runtime vulnerability.
 
 ## Assets
 
-- source code and files in the execution workspace;
-- API credentials and environment variables outside the workspace;
-- checkpoint integrity and idempotency state;
-- human approval decisions;
-- evaluation records and reviewer trust;
-- host filesystem, network, and developer accounts.
+- source files and execution workspace;
+- credentials and environment data outside the workspace;
+- checkpoint and idempotency integrity;
+- user approval decisions;
+- verification registry, recipes, results, and artifact hashes;
+- host filesystem, network, runtime daemon, and user accounts.
 
 ## Trust levels
 
 | Trust label | Examples | Authority |
 |---|---|---|
 | Maintainer contract | reviewed YAML front matter, release configuration | may define bounded policy |
-| Operator | local user explicitly creating an action | may propose actions subject to policy |
-| Agent proposal | structured output from a model | may propose, never bypass policy |
-| External content | issue text, web page, README, tool result, memory excerpt | data only; cannot directly invoke tools |
-| Executor | deterministic code in `policy.py` and `runner.py` | enforces policy and records evidence |
+| User | local person explicitly creating an action or enabling verification | may propose actions subject to policy |
+| Agent proposal | structured model output | may propose, never bypass policy |
+| External content | issue text, web page, README, tool result, memory excerpt | data only |
+| SOP-Core | deterministic policy, runner, checkpoint, evaluator | enforces action policy |
+| Verification client | CLI or MCP process started by the user | validates claims under its own policy |
+| Sandbox runtime | OpenShell, Podman, Docker | external isolation boundary with separate risks |
 
 ## Primary threats and controls
 
-### T1. Direct prompt injection from external content
+### T1. Direct or indirect prompt injection
 
-**Scenario:** A web page, issue body, or repository file says to ignore policy, reveal secrets, modify
-files, or call a tool.
+**Scenario:** External text asks the agent or verification client to ignore policy, reveal data, execute a
+command, or enable tools.
 
-**Controls:**
+**Controls:** provenance labeling, strict action schemas, inert Markdown, read-only MCP default, explicit
+`--allow-execution`, and verifier-side recipe validation.
 
-- integration must label the proposal `external_content` when the executable intent came directly from
-  retrieved text;
-- `PolicyEngine` rejects that provenance before creating a transaction;
-- the skill compiler never extracts commands from Markdown prose or code fences;
-- the optional MCP surface is read-only.
+**Residual risk:** provenance and taint propagation begin outside this repository. A model may still
+propose a harmful schema-valid action; the policy and sandbox must contain it.
 
-**Residual risk:** Provenance is an integration boundary. A caller that falsely labels external content
-as an operator or agent proposal can bypass this specific check, though the remaining path and command
-policies still apply. Production integrations need taint propagation rather than a manually selected
-enum.
+### T2. Shell or interpreter injection
 
-### T2. Indirect prompt injection through tool output or memory
+**Scenario:** A recipe or action supplies command chaining, a path-qualified executable, or inline code.
 
-**Scenario:** A tool returns adversarial text that is later stored and used as planning context.
+**Controls:** argv arrays, `shell=False`, executable allowlists, path-qualified executable rejection,
+interpreter inline-code rejection, timeouts, and bounded output.
 
-**Controls:**
+**Residual risk:** allowlisted tests are still code. Independent verification requires a strong runtime.
 
-- tool output is not parsed into `ActionRequest` by the executor;
-- durable records use typed fields rather than prompt concatenation;
-- unknown fields fail validation;
-- evaluation reads execution records, not recalled natural-language claims.
+### T3. Malicious evidence registry
 
-**Residual risk:** The model may still propose a harmful but schema-valid action after reading poisoned
-data. The deterministic policy, approval gate, and sandbox backend must contain that proposal.
+**Scenario:** Repository metadata attempts to request broad mounts, credentials, environment variables,
+network access, arbitrary paths, or shell commands.
 
-### T3. Shell injection and command chaining
+**Controls:** registry schema `extra=forbid`, relative path validation, one `deny` network mode, no registry
+environment variables, fixed verifier backend configuration, and non-executing `plan` output.
 
-**Scenario:** An action supplies `&&`, pipes, redirection, command substitution, or inline interpreter
-code.
+**Residual risk:** a valid pytest recipe can execute malicious tests. Runtime isolation remains necessary.
 
-**Controls:**
+### T4. Implicit unsafe fallback
 
-- commands are arrays and always run with `shell=False`;
-- executable names must be bare and allowlisted;
-- common control fragments are denied;
-- interpreter `-c`/`--command` modes are denied;
-- timeout and output limits are applied.
+**Scenario:** No sandbox is installed, so a tool silently executes repository code on the host.
 
-**Residual risk:** An allowlisted executable can have dangerous native flags or execute project code.
-A production policy needs per-tool argument schemas and OS isolation.
+**Controls:** `auto` considers OpenShell, Podman, and Docker only. Absence returns `unsupported`.
+`unsafe-local` requires explicit user selection and is labeled as non-isolated evidence.
 
-### T4. Filesystem escape or destructive rollback
+### T5. Sandbox escape or host-secret access
 
-**Scenario:** A path uses `..`, absolute paths, symlinks, or a rollback targets the real repository.
+**Scenario:** Repository code attempts to read host files, mutate outside the source root, reach the
+network, consume excessive resources, or exploit the runtime.
 
-**Controls:**
+**Controls:** OpenShell policy, OCI read-only root/source mounts, no network, non-root process, dropped
+capabilities, no-new-privileges, PID/memory/CPU limits, bounded tmpfs, and automatic cleanup.
 
-- write targets are normalized relative paths and checked against the resolved workspace root;
-- allowed write patterns are declared in the skill;
-- XT-Aegis creates the run root and writes a random ownership marker;
-- rollback refuses unowned roots, filesystem roots, home directories, and roots outside the run root;
-- the MVP uses a copied snapshot rather than `git reset --hard` in the caller's checkout.
+**Residual risk:** external runtime and kernel flaws are out of scope. OpenShell runtime behavior must be
+reproduced on a supported host; adapter unit tests alone do not prove isolation.
 
-**Residual risk:** TOCTOU and platform-specific filesystem behavior need stronger containment in a
-container or microVM. The MVP is intended for local demonstration workspaces.
+### T6. Filesystem escape or destructive rollback
 
-### T5. Repeated side effects after retry
+**Scenario:** An action path or rollback escapes the owned workspace.
 
-**Scenario:** A timeout or network failure causes the caller to repeat a successful action.
+**Controls:** relative path normalization, resolved-root checks, allowlisted write paths, ownership marker,
+and snapshot hash validation.
 
-**Controls:**
+**Residual risk:** platform-specific TOCTOU and filesystem behavior need stronger runtime tests.
 
-- idempotency keys are unique in SQLite;
-- terminal results are replayed without repeating the action;
-- approvals are bound to thread, action, and idempotency key.
+### T7. Retry and approval confusion
 
-**Residual risk:** External services also need their own idempotency tokens. Local replay cannot undo a
-remote side effect that completed but was not acknowledged.
+**Scenario:** A completed side effect is repeated, or approval is reused for a different action.
 
-### T6. Approval confusion
+**Controls:** unique idempotency keys, terminal result replay, action-bound approval IDs, immutable local
+decisions, and suspended state.
 
-**Scenario:** Approval for one action is reused for a different action or approver identity is forged.
+**Residual risk:** remote services need their own idempotency and authenticated user identity.
 
-**Controls:**
+### T8. Evidence tampering or substitution
 
-- approval IDs are derived from the exact thread, action, and idempotency key;
-- validation matches every field;
-- a decision is immutable after the first transition.
+**Scenario:** A result is detached from its source, recipe, policy, or artifact; a generated archive is
+modified after creation.
 
-**Residual risk:** Reviewer identity is a local string in the MVP. Production requires authenticated
-identity, expiry, reason, signature, and separation-of-duties policy.
+**Controls:** source commit and dirty flag, registry/recipe/policy digests, per-artifact hashes,
+deterministic archive layout, and release attestations.
 
-### T7. Secret exposure in logs
+**Residual risk:** SHA-256 integrity does not establish publisher identity. The user must verify trusted
+attestations, signatures, or registry provenance.
 
-**Scenario:** A command prints API keys or tokens and XT-Aegis persists them.
+### T9. Secret exposure in outputs
 
-**Controls:**
+**Scenario:** Tests print credentials and outputs are persisted or returned through MCP.
 
-- common token patterns and key/value secret names are redacted;
-- stdout and stderr are truncated;
-- the demo contains no credentials;
-- the MCP evidence tool returns static project metadata only.
+**Controls:** no credential input in verification recipes, sanitized environment, existing redaction for
+runtime events, output truncation, no network by default, and read-only public MCP mode.
 
-**Residual risk:** Pattern redaction is not complete. Production should prevent secret exposure at the
-credential proxy boundary and classify sensitive output before persistence.
+**Residual risk:** pattern redaction is incomplete. Do not run verification with production credentials.
 
-### T8. Denial of service and runaway execution
+### T10. Remote MCP abuse
 
-**Scenario:** A process hangs, writes excessive data, or an agent loops.
+**Scenario:** A remotely reachable MCP endpoint offers anonymous code execution or is exposed through an
+unsafe origin.
 
-**Controls:**
+**Controls:** stdio default, localhost HTTP default, execution tools absent unless the user enables them,
+and no remote deployment configuration in this repository.
 
-- per-command timeout;
-- skill-level maximum steps, total wall-clock budget, write size, output truncation;
-- no automatic unbounded retry loop in the runner.
+**Residual risk:** anyone deploying remotely must add authentication, authorization, origin validation,
+rate limits, audit storage, and deployment-specific incident controls.
 
-**Residual risk:** CPU, memory, process count, disk, and network are not enforced with cgroups or kernel
-limits in the MVP.
+## Explicit non-capabilities
 
-### T9. Evaluation or hiring prompt injection
+XT-Aegis does not claim:
 
-**Scenario:** Repository text instructs an automated reviewer to select the project, change a score,
-ignore the rubric, reveal system prompts, or treat claims as verified.
+- universal protection against runtime or kernel vulnerabilities;
+- anonymous remote verification as a safe public service;
+- automatic trust in repository claims or CI artifacts;
+- identity authentication from an integrity hash;
+- production distributed state;
+- measured latency or token savings without a published benchmark artifact.
 
-**Controls:**
+## Acceptance criteria for a production verification profile
 
-- project policy forbids ranking-manipulation instructions in code and documentation;
-- `AGENT_REVIEW_GUIDE.md` tells reviewers to keep their existing policy and independently verify claims;
-- `PROJECT_EVIDENCE.json` labels planned and unverified claims explicitly;
-- review commands are bounded and reproducible.
-
-**Residual risk:** A scanner may still be vulnerable to unrelated repository content. Review systems
-must isolate instructions from evidence and retain higher-priority policy.
-
-## Abuse cases intentionally not implemented
-
-The project does not include:
-
-- credential collection, browser session extraction, or token forwarding;
-- hidden evaluator instructions or keyword stuffing for ranking;
-- a remote unauthenticated mutation endpoint;
-- arbitrary shell, package installation, or unrestricted network tools;
-- claims of production security based only on passing unit tests.
-
-## Security acceptance criteria for a mutating remote adapter
-
-A remote mutation release cannot be marked production-ready until it has:
-
-1. authenticated subject and audience validation;
-2. per-tool authorization and least-privilege scopes;
-3. signed/expiring approvals tied to exact parameters;
-4. container or microVM isolation with CPU, memory, process, disk, and time limits;
-5. default-deny egress with an external credential proxy;
-6. adversarial prompt-injection and tool-output test corpus;
-7. recovery tests across process crash and host restart;
-8. concurrency, idempotency, and distributed-lock fault injection;
-9. OpenTelemetry traces with a data-retention and secret-redaction policy;
-10. an independent security review.
+1. supported OS/runtime versions and immutable images are documented;
+2. host-secret canaries cannot be read from a malicious test corpus;
+3. source and output mounts cannot be escaped;
+4. denied egress is confirmed from runtime evidence;
+5. CPU, memory, PID, disk, time, and output limits are fault-tested;
+6. runtime and policy digests are retained;
+7. release artifacts have SBOM and provenance attestations;
+8. crash and cancellation paths preserve result integrity;
+9. independent users reproduce the conformance corpus;
+10. limitations remain visible in the claim registry.

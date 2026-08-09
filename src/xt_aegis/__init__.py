@@ -14,9 +14,11 @@ from xt_aegis.models import (
 )
 from xt_aegis.runner import HarnessRunner
 from xt_aegis.skill import SkillCompiler
+from xt_aegis.verification_models import BackendName, VerificationResult, VerificationStatus
 
 __all__ = [
     "ActionRequest",
+    "BackendName",
     "CommandAction",
     "CommandSpec",
     "CompiledSkill",
@@ -28,6 +30,8 @@ __all__ = [
     "RiskLevel",
     "SkillCompiler",
     "SkillContract",
+    "VerificationResult",
+    "VerificationStatus",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
