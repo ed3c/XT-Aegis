@@ -37,7 +37,7 @@ def build_server() -> Any:
     """Build a localhost-only, stateless, read-only MCP server when the extra is installed."""
 
     try:
-        from mcp.server.fastmcp import FastMCP
+        from mcp.server.fastmcp import FastMCP  # type: ignore[import-not-found]
     except ImportError as exc:  # pragma: no cover - optional dependency path
         raise RuntimeError('Install the MCP extra with: pip install "xt-aegis[mcp]"') from exc
 
@@ -53,7 +53,7 @@ def build_server() -> Any:
         port=8765,
     )
 
-    @server.tool()
+    @server.tool()  # type: ignore[untyped-decorator]
     def project_capabilities() -> dict[str, Any]:
         """Return implemented controls, limitations, and the reviewer policy."""
 
