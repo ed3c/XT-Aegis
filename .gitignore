@@ -20,8 +20,9 @@ venv/
 .env.*
 !.env.example
 
-# XT-Aegis runtime artifacts
+# XT-Aegis runtime and verification artifacts
 .xt-aegis/
+verification-out/
 *.db
 *.db-shm
 *.db-wal
