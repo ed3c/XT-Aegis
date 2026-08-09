@@ -103,12 +103,14 @@ addition = '''def test_openshell_backend_runs_host_command_from_source_root(
     assert observed["cwd"] == tmp_path.resolve()
     assert ".:/workspace" in observed["argv"]
     assert observed["argv"][-7:] == [
+        "--root",
+        "/workspace",
         "--cwd",
         "tests",
         "--",
         "python",
         "--version",
-    ][-7:]
+    ]
 
 
 '''
