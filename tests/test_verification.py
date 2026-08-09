@@ -219,7 +219,7 @@ def test_openshell_backend_builds_documented_argv(monkeypatch: pytest.MonkeyPatc
         "--no-keep",
         "--",
         "env",
-        "HOME=/home/sandbox",
+        "HOME=/sandbox",
         "PYTHONPATH=/workspace/src",
         "PYTHONDONTWRITEBYTECODE=1",
         "PYTHONUNBUFFERED=1",

@@ -45,7 +45,7 @@ The included policy uses:
 
 - `filesystem_policy.include_workdir: true` so the uploaded disposable workspace is accessible;
 - explicit system read paths and bounded writable paths;
-- the unprivileged `sandbox` user and group created by `Dockerfile.verifier`;
+- the unprivileged `sandbox` user and `supervisor` runtime contract supplied by the OpenShell Community base image;
 - Landlock as a hard requirement;
 - an empty `network_policies` map, requesting default-deny egress.
 
@@ -72,7 +72,7 @@ openshell sandbox create \
   --no-keep \
   -- \
   env \
-    HOME=/home/sandbox \
+    HOME=/sandbox \
     PYTHONPATH=/workspace/src \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -108,7 +108,7 @@ xt-aegis evidence pack \
 `.github/workflows/openshell-conformance.yml` is a manual and pull-request workflow. It:
 
 1. creates a user-owned gateway configuration that explicitly selects the Docker compute driver;
-2. builds the verifier image from the selected source revision;
+2. builds the verifier image on the OpenShell Community base and records both resolved image identities;
 3. installs a checksum-recorded, pinned OpenShell release through the official installer;
 4. runs `doctor` and all implemented claim recipes through the OpenShell backend;
 5. propagates verifier failures through every `tee` pipeline with `pipefail`;
@@ -146,6 +146,7 @@ workflow must not report OpenShell host isolation as verified.
 - OpenShell is alpha software and its interfaces can change;
 - uploaded Git-aware source may omit ignored files by design; verification recipes must not depend on
   secrets or local build caches;
+- the OpenShell Community `latest` base tag is mutable; retained evidence records its resolved image identity, while releases should prefer a reviewed digest;
 - `/workspace` is a writable disposable copy inside the sandbox, not a read-only host bind mount;
 - default-deny networking must be confirmed from runtime policy state and logs;
 - a test process may consume resources up to the limits configured by the external runtime;
