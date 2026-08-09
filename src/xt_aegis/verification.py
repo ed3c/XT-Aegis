@@ -229,24 +229,14 @@ def _safe_environment(
 
 
 def _openshell_host_environment() -> dict[str, str]:
-    """Forward only the user-session values required to locate the selected gateway."""
+    """Forward only user-session values required to locate the selected gateway."""
 
-    allowed_keys = (
-        "HOME",
-        "XDG_CONFIG_HOME",
-        "XDG_RUNTIME_DIR",
-        "DBUS_SESSION_BUS_ADDRESS",
-    )
-    environment = {
-        key: value
-        for key in allowed_keys
-        if (value := os.environ.get(key))
-    }
+    allowed_keys = ("HOME", "XDG_CONFIG_HOME", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS")
+    environment = {key: value for key in allowed_keys if (value := os.environ.get(key))}
     environment["OPENSHELL_TELEMETRY_ENABLED"] = os.environ.get(
         "OPENSHELL_TELEMETRY_ENABLED", "false"
     )
     return environment
-
 
 def validate_recipe_policy(recipe: VerificationRecipe, registry: EvidenceRegistry) -> None:
     """Reject executable authority not declared by the repository verification contract."""
