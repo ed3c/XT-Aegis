@@ -5,8 +5,15 @@ project uses Semantic Versioning for published interfaces.
 
 ## [Unreleased]
 
+### Added
+
+- an argv-only sandbox launcher that confines recipe working directories beneath the uploaded source root;
+- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs.
+
 ### Changed
 
+- OpenShell verification now uploads the selected checkout into `/workspace`, disables automatic providers,
+  uses manual policy approval, and executes the recipe against that source rather than only image-baked code;
 - pin the MCP Registry publisher and validate `server.json` in pull requests before release publication.
 
 ## [0.2.0] - 2026-08-09
