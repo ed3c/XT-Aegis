@@ -7,6 +7,12 @@ on:
     paths:
       - "scripts/apply_openshell_flat_upload_patch.py"
       - ".github/workflows/apply-openshell-flat-upload-patch.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "scripts/apply_openshell_flat_upload_patch.py"
+      - ".github/workflows/apply-openshell-flat-upload-patch.yml"
 
 permissions:
   contents: write
