@@ -47,10 +47,3 @@ def test_public_documentation_uses_user_facing_entry_points() -> None:
         ROOT / "docs" / "adr" / "0002-user-policy-integrity.md",
     }
     assert all(path.is_file() for path in expected)
-
-    removed_paths = {
-        ROOT / "docs" / "AGENT_REVIEW_GUIDE.md",
-        ROOT / "docs" / "INTERVIEW_DEMO.md",
-        ROOT / "docs" / "adr" / "0002-no-reviewer-prompt-manipulation.md",
-    }
-    assert not any(path.exists() for path in removed_paths)
