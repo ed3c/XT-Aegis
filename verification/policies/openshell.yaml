@@ -23,9 +23,10 @@ filesystem_policy:
 landlock:
   compatibility: hard_requirement
 
+# This identity is created by Dockerfile.verifier and owns /workspace.
 process:
-  run_as_user: sandbox
-  run_as_group: sandbox
+  run_as_user: verifier
+  run_as_group: verifier
 
 # Empty means default-deny egress. Verification recipes cannot add endpoints,
 # credentials, providers, or policy revisions.
