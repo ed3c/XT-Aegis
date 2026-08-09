@@ -255,9 +255,7 @@ def test_openshell_backend_runs_host_command_from_source_root(
     monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
     observed: dict[str, object] = {}
 
-    def fake_run_process(
-        argv: list[str], cwd: Path, timeout_seconds: int, max_output_bytes: int
-    ) -> object:
+    def fake_run_process(argv: list[str], cwd: Path, timeout_seconds: int, max_output_bytes: int) -> object:
         observed.update(
             argv=argv,
             cwd=cwd,
