@@ -319,7 +319,11 @@ class OpenShellBackend:
 
     def _policy_path(self, root: Path) -> Path:
         override = os.getenv("XT_AEGIS_OPENSHELL_POLICY")
-        return Path(override).expanduser().resolve() if override else root / "verification/policies/openshell.yaml"
+        return (
+            Path(override).expanduser().resolve()
+            if override
+            else root / "verification/policies/openshell.yaml"
+        )
 
     def availability(self, root: Path) -> BackendAvailability:
         executable = shutil.which("openshell")
@@ -851,7 +855,9 @@ def verify_many(
         )
         for claim_id in selected_ids
     ]
-    counts = {status.value: sum(result.status == status for result in results) for status in VerificationStatus}
+    counts = {
+        status.value: sum(result.status == status for result in results) for status in VerificationStatus
+    }
     summary = VerificationSummary(
         project=loaded.registry.project,
         project_version=loaded.registry.version,
@@ -877,7 +883,9 @@ def result_exit_code(status: VerificationStatus) -> int:
     return EXIT_CODES[status]
 
 
-def pack_evidence(input_dir: str | Path, output_path: str | Path, *, project: str = "XT-Aegis") -> dict[str, Any]:
+def pack_evidence(
+    input_dir: str | Path, output_path: str | Path, *, project: str = "XT-Aegis"
+) -> dict[str, Any]:
     """Create a deterministic gzip-compressed tar archive with SHA-256 entries."""
 
     source = Path(input_dir).expanduser().resolve()

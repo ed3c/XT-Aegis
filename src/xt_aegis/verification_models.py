@@ -275,6 +275,4 @@ class EvidenceBundleManifest(BaseModel):
     project: str
     created_at: str
     files: list[EvidenceBundleFile]
-    note: str = (
-        "SHA-256 entries provide integrity checking only. They do not establish publisher identity."
-    )
+    note: str = "SHA-256 entries provide integrity checking only. They do not establish publisher identity."

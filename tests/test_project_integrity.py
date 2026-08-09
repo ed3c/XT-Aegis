@@ -15,9 +15,8 @@ def test_distribution_metadata_and_ownership_markers_match() -> None:
     assert {package["registryType"] for package in manifest["packages"]} == {"pypi", "oci"}
     assert all(package["transport"]["type"] == "stdio" for package in manifest["packages"])
     assert f"mcp-name: {server_name}" in (ROOT / "README.md").read_text(encoding="utf-8")
-    assert (
-        f'io.modelcontextprotocol.server.name="{server_name}"'
-        in (ROOT / "Dockerfile.verifier").read_text(encoding="utf-8")
+    assert f'io.modelcontextprotocol.server.name="{server_name}"' in (ROOT / "Dockerfile.verifier").read_text(
+        encoding="utf-8"
     )
 
 

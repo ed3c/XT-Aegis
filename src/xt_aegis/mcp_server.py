@@ -122,7 +122,9 @@ def build_server(
             backend_name = BackendName(requested_backend)
         except ValueError as exc:
             raise ValueError(f"unknown backend: {requested_backend}") from exc
-        return doctor(registry_path=registry_path, root=root, requested_backend=backend_name).model_dump(mode="json")
+        return doctor(registry_path=registry_path, root=root, requested_backend=backend_name).model_dump(
+            mode="json"
+        )
 
     @server.tool()  # type: ignore[untyped-decorator]
     def verification_get_plan(claim_id: str, requested_backend: str = "auto") -> dict[str, Any]:

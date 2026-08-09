@@ -190,9 +190,7 @@ def test_verification_plan_never_executes(tmp_path: Path) -> None:
     assert plan["host_argv"] == ["python", "--version"]
 
 
-def test_openshell_backend_builds_documented_argv(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_openshell_backend_builds_documented_argv(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     policy = tmp_path / "verification/policies/openshell.yaml"
     policy.parent.mkdir(parents=True)
     policy.write_text("version: 1\nnetwork_policies: {}\n", encoding="utf-8")
@@ -241,7 +239,6 @@ def test_oci_backend_has_default_deny_and_read_only_source(
     assert preview[-2:] == ["python", "--version"]
 
 
-
 def test_podman_availability_requires_confirmed_rootless_mode(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -249,7 +246,9 @@ def test_podman_availability_requires_confirmed_rootless_mode(
 
     def fake_run(*args: object, **kwargs: object) -> object:
         del args, kwargs
-        return __import__("subprocess").CompletedProcess([], 0, stdout='{"host":{"security":{"rootless":false}}}', stderr="")
+        return __import__("subprocess").CompletedProcess(
+            [], 0, stdout='{"host":{"security":{"rootless":false}}}', stderr=""
+        )
 
     monkeypatch.setattr(verification.subprocess, "run", fake_run)
     availability = OciBackend(BackendName.PODMAN).availability(tmp_path)
@@ -270,6 +269,7 @@ def test_docker_availability_requires_reachable_runtime(
     availability = OciBackend(BackendName.DOCKER).availability(tmp_path)
     assert availability.available is False
     assert "daemon unavailable" in availability.reason
+
 
 def test_evidence_bundle_is_deterministic(tmp_path: Path) -> None:
     source = tmp_path / "source"
