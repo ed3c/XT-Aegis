@@ -45,7 +45,7 @@ The included policy uses:
 
 - `filesystem_policy.include_workdir: true` so the uploaded disposable workspace is accessible;
 - explicit system read paths and bounded writable paths;
-- an unprivileged `sandbox` user and group;
+- the unprivileged `verifier` user and group created by `Dockerfile.verifier`;
 - Landlock as a hard requirement;
 - an empty `network_policies` map, requesting default-deny egress.
 
@@ -102,10 +102,19 @@ xt-aegis evidence pack \
 
 ## Live conformance workflow
 
-`.github/workflows/openshell-conformance.yml` is a manual and reusable workflow. It builds the verifier
-image from the selected commit, installs a pinned OpenShell release through the official installer, runs
-`doctor`, verifies the implemented claims with the OpenShell backend, packs the results, and uploads the
-bundle as a GitHub Actions artifact.
+`.github/workflows/openshell-conformance.yml` is a manual and pull-request workflow. It:
+
+1. creates an operator-owned gateway configuration that explicitly selects the Docker compute driver;
+2. builds the verifier image from the selected source revision;
+3. installs a checksum-verified, pinned OpenShell release through the official installer;
+4. runs `doctor` and all implemented claim recipes through the OpenShell backend;
+5. records gateway configuration, Docker and image metadata, status, journal, and sandbox inventory;
+6. packs successful verification evidence or deterministic failure diagnostics;
+7. uploads the resulting archive as a GitHub Actions artifact.
+
+The explicit Docker selection avoids silently relying on OpenShell's runtime auto-detection order. The
+workflow stores the same selection in both `gateway.toml` and the package-managed service environment
+file, then verifies the active gateway before any claim recipe runs.
 
 A project-operated workflow result must be labeled `verified-by-project-ci`. Independent users should
 rerun the same commands on infrastructure they control before labeling evidence
