@@ -1,0 +1,40 @@
+name: Apply OpenShell source-bound patch
+
+on:
+  push:
+    branches:
+      - fix/openshell-source-bound-verification
+    paths:
+      - "scripts/apply_openshell_source_bound_patch.py"
+      - ".github/workflows/apply-openshell-source-bound-patch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/openshell-source-bound-verification
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Apply source patch
+        run: python scripts/apply_openshell_source_bound_patch.py
+
+      - name: Commit patched sources
+        run: |
+          set -euo pipefail
+          rm scripts/apply_openshell_source_bound_patch.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/xt_aegis/verification.py tests/test_verification.py scripts/apply_openshell_source_bound_patch.py
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: bind OpenShell verification to uploaded source"
+          git push origin HEAD:fix/openshell-source-bound-verification
