@@ -21,10 +21,12 @@ kernel.
 
 ## Source-binding model
 
-The adapter does not ask the sandbox to verify only the source baked into the verifier image. It uploads
-the user's checked-out source tree to `/workspace`, respecting `.gitignore` by default, and sets
-`PYTHONPATH=/workspace/src`. The initial process is the repository-controlled
-`xt_aegis.sandbox_exec` module loaded from that uploaded source tree.
+The adapter does not ask the sandbox to verify only the source baked into the verifier image. It starts
+the OpenShell host command with the selected checkout as its working directory and uploads
+`.:/workspace`. OpenShell's Git-aware upload therefore places the checkout contents directly under
+`/workspace` while respecting `.gitignore` by default. The adapter then sets
+`PYTHONPATH=/workspace/src`, so the initial `xt_aegis.sandbox_exec` module and the claim tests both come
+from that uploaded source revision.
 
 The launcher:
 
@@ -54,7 +56,8 @@ with `XT_AEGIS_OPENSHELL_POLICY`; the policy digest is recorded in every result.
 
 ## Exact invocation shape
 
-For each recipe the adapter constructs an argv equivalent to:
+The host process first changes to the verification root. For each recipe the adapter then constructs an
+argv equivalent to:
 
 ```text
 openshell sandbox create \
@@ -65,7 +68,7 @@ openshell sandbox create \
   --no-auto-providers \
   --approval-mode manual \
   --no-tty \
-  --upload <checked-out-source>:/workspace \
+  --upload .:/workspace \
   --env PYTHONPATH=/workspace/src \
   --env PYTHONDONTWRITEBYTECODE=1 \
   --env PYTHONUNBUFFERED=1 \
@@ -113,7 +116,8 @@ rerun the same commands on infrastructure they control before labeling evidence
 Repository tests prove that the adapter:
 
 - detects a missing executable or policy;
-- uploads the checked-out source instead of silently testing only image-baked code;
+- uploads the checkout root directly into `/workspace` instead of silently testing only image-baked code;
+- starts the host process at the selected verification root rather than at a recipe subdirectory;
 - disables automatic credential providers and interactive TTY allocation;
 - constructs a structured argv with a confined working-directory launcher;
 - does not accept a shell string or path-qualified executable;
