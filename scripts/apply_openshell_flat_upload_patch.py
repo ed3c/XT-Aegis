@@ -19,10 +19,14 @@ def replace_once(path: Path, old: str, new: str) -> None:
 verification = ROOT / "src/xt_aegis/verification.py"
 replace_once(
     verification,
-    '''        root_string = str(root.resolve())
+    '''        executable = shutil.which("openshell") or "openshell"
+        image = os.getenv("XT_AEGIS_OPENSHELL_IMAGE", _DEFAULT_IMAGE)
+        root_string = str(root.resolve())
         return [
 ''',
-    '''        return [
+    '''        executable = shutil.which("openshell") or "openshell"
+        image = os.getenv("XT_AEGIS_OPENSHELL_IMAGE", _DEFAULT_IMAGE)
+        return [
 ''',
 )
 replace_once(
