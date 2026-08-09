@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-
 import gzip
 import hashlib
 import json
@@ -14,6 +12,7 @@ import subprocess
 import sys
 import tarfile
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.resources import files
@@ -233,10 +232,9 @@ def _openshell_host_environment() -> dict[str, str]:
 
     allowed_keys = ("HOME", "XDG_CONFIG_HOME", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS")
     environment = {key: value for key in allowed_keys if (value := os.environ.get(key))}
-    environment["OPENSHELL_TELEMETRY_ENABLED"] = os.environ.get(
-        "OPENSHELL_TELEMETRY_ENABLED", "false"
-    )
+    environment["OPENSHELL_TELEMETRY_ENABLED"] = os.environ.get("OPENSHELL_TELEMETRY_ENABLED", "false")
     return environment
+
 
 def validate_recipe_policy(recipe: VerificationRecipe, registry: EvidenceRegistry) -> None:
     """Reject executable authority not declared by the repository verification contract."""
