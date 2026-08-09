@@ -11,7 +11,6 @@ import shutil
 import subprocess
 import sys
 import tarfile
-import tempfile
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -932,9 +931,11 @@ def pack_evidence(
         archive.addfile(manifest_info, BytesIO(manifest_bytes))
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with destination.open("wb") as raw_handle:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed:
-            compressed.write(tar_buffer.getvalue())
+    with (
+        destination.open("wb") as raw_handle,
+        gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed,
+    ):
+        compressed.write(tar_buffer.getvalue())
     return {
         "path": str(destination),
         "sha256": _sha256_file(destination),
