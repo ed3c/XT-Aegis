@@ -23,10 +23,11 @@ filesystem_policy:
 landlock:
   compatibility: hard_requirement
 
-# This identity is created by Dockerfile.verifier and owns /workspace.
+# OpenShell v0.0.52 requires this unprivileged identity. Dockerfile.verifier
+# creates the same user and group and assigns ownership of /workspace.
 process:
-  run_as_user: verifier
-  run_as_group: verifier
+  run_as_user: sandbox
+  run_as_group: sandbox
 
 # Empty means default-deny egress. Verification recipes cannot add endpoints,
 # credentials, providers, or policy revisions.
