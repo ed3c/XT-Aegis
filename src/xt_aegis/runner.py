@@ -141,6 +141,7 @@ class HarnessRunner:
         action_exit_code: int | None = None
         action_stdout = ""
         action_stderr = ""
+        rollback_integrity: bool | None = None
 
         try:
             transaction = self.workspace.begin_transaction()
@@ -247,7 +248,7 @@ class HarnessRunner:
             return self._persist_and_emit(trace_id, result, "action_succeeded")
 
         except (OSError, subprocess.SubprocessError, WorkspaceSafetyError) as exc:
-            rollback_integrity: bool | None = None
+            rollback_integrity = None
             rolled_back = False
             if transaction is not None:
                 try:

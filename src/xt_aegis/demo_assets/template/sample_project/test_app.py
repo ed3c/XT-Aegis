@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from app import calculate_tax
+from app import calculate_tax  # type: ignore[import-not-found]
 
 
 class CalculateTaxTest(unittest.TestCase):
