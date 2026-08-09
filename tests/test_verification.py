@@ -216,7 +216,7 @@ def test_openshell_backend_builds_documented_argv(monkeypatch: pytest.MonkeyPatc
         "manual",
         "--no-tty",
         "--upload",
-        f"{tmp_path.resolve()}:/workspace",
+        ".:/workspace",
         "--env",
         "PYTHONPATH=/workspace/src",
         "--env",
@@ -238,6 +238,52 @@ def test_openshell_backend_builds_documented_argv(monkeypatch: pytest.MonkeyPatc
         "/workspace",
         "--cwd",
         ".",
+        "--",
+        "python",
+        "--version",
+    ]
+
+
+def test_openshell_backend_runs_host_command_from_source_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy = tmp_path / "verification/policies/openshell.yaml"
+    policy.parent.mkdir(parents=True)
+    policy.write_text("version: 1\nnetwork_policies: {}\n", encoding="utf-8")
+    nested = tmp_path / "tests"
+    nested.mkdir()
+    monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
+    observed: dict[str, object] = {}
+
+    def fake_run_process(
+        argv: list[str], cwd: Path, timeout_seconds: int, max_output_bytes: int
+    ) -> object:
+        observed.update(
+            argv=argv,
+            cwd=cwd,
+            timeout_seconds=timeout_seconds,
+            max_output_bytes=max_output_bytes,
+        )
+        return verification.CommandEvidence(
+            argv=argv,
+            cwd=str(cwd),
+            exit_code=0,
+            duration_ms=1.0,
+            stdout="",
+            stderr="",
+        )
+
+    monkeypatch.setattr(verification, "_run_process", fake_run_process)
+    recipe = VerificationRecipe(argv=["python", "--version"], cwd="tests")
+    OpenShellBackend().run(recipe, tmp_path)
+
+    assert observed["cwd"] == tmp_path.resolve()
+    assert ".:/workspace" in observed["argv"]
+    assert observed["argv"][-7:] == [
+        "--root",
+        "/workspace",
+        "--cwd",
+        "tests",
         "--",
         "python",
         "--version",
