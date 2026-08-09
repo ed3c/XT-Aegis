@@ -24,7 +24,7 @@ env:
   OPENSHELL_VERSION: "v0.0.52"
   OPENSHELL_INSTALLER_COMMIT: "7873f61"
   OPENSHELL_TELEMETRY_ENABLED: "false"
-  OPENSHELL_BASE_IMAGE: "ghcr.io/nvidia/openshell-community/sandboxes/base:latest"
+  OPENSHELL_BASE_IMAGE: "ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e"
   XT_AEGIS_OPENSHELL_IMAGE: "xt-aegis-verifier:conformance"
 
 jobs:
@@ -73,8 +73,8 @@ jobs:
             --file Dockerfile.verifier \
             --tag "${XT_AEGIS_OPENSHELL_IMAGE}" \
             .
-          docker image inspect "${OPENSHELL_BASE_IMAGE}" \
-            > verification-out/runtime/openshell-base-image.json
+          docker manifest inspect "${OPENSHELL_BASE_IMAGE}" \
+            > verification-out/runtime/openshell-base-manifest.json
           docker image inspect "${XT_AEGIS_OPENSHELL_IMAGE}" \
             > verification-out/runtime/verifier-image.json
 
