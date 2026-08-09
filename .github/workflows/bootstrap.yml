@@ -1,0 +1,43 @@
+name: Bootstrap project tree
+
+on:
+  push:
+    branches:
+      - feat/evidence-first-agent-runtime
+    paths:
+      - ".bootstrap/**"
+      - ".github/workflows/bootstrap.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out bootstrap branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feat/evidence-first-agent-runtime
+
+      - name: Materialize project tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .bootstrap/part-* > /tmp/xt-aegis-project.tar.gz.b64
+          base64 --decode /tmp/xt-aegis-project.tar.gz.b64 > /tmp/xt-aegis-project.tar.gz
+          tar -xzf /tmp/xt-aegis-project.tar.gz -C .
+          rm -rf .bootstrap .github/workflows/bootstrap.yml
+
+      - name: Commit materialized project
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: implement evidence-first agent runtime"
+          git push origin HEAD:feat/evidence-first-agent-runtime
