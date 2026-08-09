@@ -15,7 +15,8 @@ COPY LICENSE README.md pyproject.toml ./
 COPY src ./src
 RUN python -m pip install --upgrade pip && python -m pip install ".[dev,mcp]"
 
-RUN useradd --create-home --uid 10001 verifier
+RUN useradd --create-home --uid 10001 verifier \
+    && install -d -o verifier -g verifier /workspace
 USER verifier
 WORKDIR /workspace
 
