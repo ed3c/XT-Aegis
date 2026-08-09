@@ -39,13 +39,34 @@ The launcher:
 The host-side result remains bound to the checked-out Git commit and dirty-worktree flag. An image digest,
 registry digest, recipe digest, and OpenShell policy digest should be retained with evidence.
 
+## Verifier image contract
+
+`Dockerfile.verifier` derives from a digest-pinned OpenShell Community sandbox base so the image retains
+the expected supervisor, SSH/SFTP, virtual-environment, and `sandbox` user contract. The base image is
+interactive and declares `/bin/bash` as its OCI entrypoint. XT-Aegis explicitly clears that entrypoint:
+
+```dockerfile
+ENTRYPOINT []
+CMD ["xt-aegis-mcp"]
+```
+
+This matters in both execution modes:
+
+- a normal OCI runtime executes `xt-aegis`, `xt-aegis-mcp`, or another argv directly instead of asking
+  Bash to interpret a Python console-script file;
+- OpenShell can inject its supervisor command directly instead of passing that executable as Bash input.
+
+The verifier image is still non-root. OpenShell controls the runtime command and policy, while the image
+only supplies reviewed tools and dependencies.
+
 ## Policy
 
 The included policy uses:
 
 - `filesystem_policy.include_workdir: true` so the uploaded disposable workspace is accessible;
 - explicit system read paths and bounded writable paths;
-- the unprivileged `sandbox` user and `supervisor` runtime contract supplied by the OpenShell Community base image;
+- the unprivileged `sandbox` user and `supervisor` runtime contract supplied by the OpenShell Community
+  base image;
 - Landlock as a hard requirement;
 - an empty `network_policies` map, requesting default-deny egress.
 
@@ -108,7 +129,8 @@ xt-aegis evidence pack \
 `.github/workflows/openshell-conformance.yml` is a manual and pull-request workflow. It:
 
 1. creates a user-owned gateway configuration that explicitly selects the Docker compute driver;
-2. builds the verifier image on the OpenShell Community base and records both resolved image identities;
+2. builds the verifier image on the digest-pinned OpenShell Community base and records the base manifest
+   plus the derived image identity;
 3. installs a checksum-recorded, pinned OpenShell release through the official installer;
 4. runs `doctor` and all implemented claim recipes through the OpenShell backend;
 5. propagates verifier failures through every `tee` pipeline with `pipefail`;
@@ -136,6 +158,7 @@ Repository tests prove that the adapter:
 - constructs a structured argv with a confined working-directory launcher;
 - does not accept a shell string or path-qualified executable;
 - records the policy digest;
+- derives from a digest-pinned OpenShell-compatible base and clears its interactive entrypoint;
 - remains outside the automatic local fallback path.
 
 A real OpenShell gateway is required to prove runtime behavior. CI that does not run the conformance
@@ -146,7 +169,8 @@ workflow must not report OpenShell host isolation as verified.
 - OpenShell is alpha software and its interfaces can change;
 - uploaded Git-aware source may omit ignored files by design; verification recipes must not depend on
   secrets or local build caches;
-- the OpenShell Community `latest` base tag is mutable; retained evidence records its resolved image identity, while releases should prefer a reviewed digest;
+- the OpenShell Community base is digest-pinned; changing that digest requires review and invalidates
+  direct comparison with earlier evidence;
 - `/workspace` is a writable disposable copy inside the sandbox, not a read-only host bind mount;
 - default-deny networking must be confirmed from runtime policy state and logs;
 - a test process may consume resources up to the limits configured by the external runtime;
