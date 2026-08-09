@@ -5,7 +5,6 @@ import pytest
 from xt_aegis.errors import SkillCompileError
 from xt_aegis.skill import SkillCompiler
 
-
 VALID_SKILL = """---
 schema_version: "1.0"
 name: safe_demo
@@ -38,7 +37,9 @@ def test_compiler_requires_frontmatter() -> None:
 
 def test_compiler_rejects_unknown_fields() -> None:
     with pytest.raises(SkillCompileError, match="invalid skill contract"):
-        SkillCompiler.compile_text(VALID_SKILL.replace("preconditions: []", "unknown: true\npreconditions: []"))
+        SkillCompiler.compile_text(
+            VALID_SKILL.replace("preconditions: []", "unknown: true\npreconditions: []")
+        )
 
 
 def test_compiler_rejects_unclosed_frontmatter() -> None:

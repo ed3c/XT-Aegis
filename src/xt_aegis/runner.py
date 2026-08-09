@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from xt_aegis.checkpoint import CheckpointStore
+from xt_aegis.errors import PolicyViolation, WorkspaceSafetyError
 from xt_aegis.events import EventRecorder
 from xt_aegis.models import (
     ActionRequest,
@@ -24,7 +25,6 @@ from xt_aegis.models import (
 )
 from xt_aegis.policy import PolicyEngine
 from xt_aegis.redaction import redact_text
-from xt_aegis.errors import PolicyViolation, WorkspaceSafetyError
 from xt_aegis.workspace import IsolatedWorkspace, WorkspaceTransaction
 
 
@@ -256,7 +256,9 @@ class HarnessRunner:
                 except WorkspaceSafetyError:
                     rollback_integrity = False
             after_sha = self.workspace.hash_tree()
-            status = ExecutionStatus.ROLLED_BACK if rolled_back and rollback_integrity else ExecutionStatus.FAILED
+            status = (
+                ExecutionStatus.ROLLED_BACK if rolled_back and rollback_integrity else ExecutionStatus.FAILED
+            )
             result = self._terminal_result(
                 request=request,
                 step_number=step_number,

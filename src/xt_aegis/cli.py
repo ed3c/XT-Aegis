@@ -11,7 +11,9 @@ from xt_aegis.skill import SkillCompiler
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="xt-aegis", description="Deterministic safety harness for agent actions")
+    parser = argparse.ArgumentParser(
+        prog="xt-aegis", description="Deterministic safety harness for agent actions"
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     demo_parser = subparsers.add_parser("demo", help="run the transactional refactor demonstration")

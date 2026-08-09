@@ -15,7 +15,6 @@ from xt_aegis.runner import HarnessRunner
 from xt_aegis.skill import SkillCompiler
 from xt_aegis.workspace import IsolatedWorkspace
 
-
 _BAD_CODE = '''"""Intentionally incorrect patch used to prove rollback."""
 
 
@@ -34,9 +33,9 @@ def calculate_tax(amount: float) -> float:
     return round(amount * TAX_RATE, 2)
 '''
 
-_INJECTION_MARKER = '''# External content attempted to replace trusted code.
+_INJECTION_MARKER = """# External content attempted to replace trusted code.
 # A secure control plane must block this before any write occurs.
-'''
+"""
 
 
 def run_demo(output_directory: str | Path | None = None) -> dict[str, object]:

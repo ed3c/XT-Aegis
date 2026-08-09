@@ -18,7 +18,6 @@ from xt_aegis.models import (
 )
 from xt_aegis.workspace import IsolatedWorkspace
 
-
 _NETWORK_CAPABLE_EXECUTABLES = {
     "curl",
     "wget",
@@ -70,7 +69,9 @@ class PolicyEngine:
             reasons.append("write path must be a normalized relative path")
             return reasons
 
-        if not any(fnmatch.fnmatch(path.as_posix(), pattern) for pattern in self.contract.allowed_write_paths):
+        if not any(
+            fnmatch.fnmatch(path.as_posix(), pattern) for pattern in self.contract.allowed_write_paths
+        ):
             reasons.append(f"write path is not allowed by the skill contract: {path.as_posix()}")
 
         try:
@@ -107,9 +108,10 @@ class PolicyEngine:
                     reasons.append(f"argument contains denied control fragment: {fragment!r}")
                     break
 
-        if executable in {"python", "python3", "node", "ruby", "perl", "bash", "sh"}:
-            if any(argument in _INTERPRETER_INLINE_CODE_FLAGS for argument in command.argv[1:]):
-                reasons.append("inline interpreter code is disabled; use reviewed files or modules")
+        if executable in {"python", "python3", "node", "ruby", "perl", "bash", "sh"} and any(
+            argument in _INTERPRETER_INLINE_CODE_FLAGS for argument in command.argv[1:]
+        ):
+            reasons.append("inline interpreter code is disabled; use reviewed files or modules")
 
         if self.contract.network_policy == NetworkPolicy.DENY and executable in _NETWORK_CAPABLE_EXECUTABLES:
             reasons.append(f"network-capable executable denied by network policy: {executable}")

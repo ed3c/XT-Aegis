@@ -11,7 +11,6 @@ from pathlib import Path, PurePosixPath
 
 from xt_aegis.errors import WorkspaceSafetyError
 
-
 _OWNERSHIP_MARKER = ".xt-aegis-owned"
 _IGNORED_HASH_PARTS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
 
@@ -26,7 +25,7 @@ class IsolatedWorkspace:
         self._assert_owned()
 
     @classmethod
-    def from_template(cls, template: str | Path, run_root: str | Path | None = None) -> "IsolatedWorkspace":
+    def from_template(cls, template: str | Path, run_root: str | Path | None = None) -> IsolatedWorkspace:
         template_path = Path(template).resolve()
         if not template_path.is_dir():
             raise WorkspaceSafetyError(f"template is not a directory: {template_path}")
@@ -77,7 +76,9 @@ class IsolatedWorkspace:
         digest = hashlib.sha256()
         for path in sorted(self.root.rglob("*"), key=lambda item: item.as_posix()):
             relative = path.relative_to(self.root)
-            if _OWNERSHIP_MARKER in relative.parts or any(part in _IGNORED_HASH_PARTS for part in relative.parts):
+            if _OWNERSHIP_MARKER in relative.parts or any(
+                part in _IGNORED_HASH_PARTS for part in relative.parts
+            ):
                 continue
             if path.is_symlink():
                 digest.update(b"L\0")
@@ -91,12 +92,14 @@ class IsolatedWorkspace:
                 digest.update(path.read_bytes())
         return digest.hexdigest()
 
-    def begin_transaction(self) -> "WorkspaceTransaction":
+    def begin_transaction(self) -> WorkspaceTransaction:
         self._assert_owned()
         snapshot_parent = Path(tempfile.mkdtemp(prefix="snapshot-", dir=self.run_root))
         snapshot_root = snapshot_parent / "workspace"
         shutil.copytree(self.root, snapshot_root, symlinks=True)
-        return WorkspaceTransaction(workspace=self, snapshot_parent=snapshot_parent, snapshot_root=snapshot_root)
+        return WorkspaceTransaction(
+            workspace=self, snapshot_parent=snapshot_parent, snapshot_root=snapshot_root
+        )
 
 
 class WorkspaceTransaction:

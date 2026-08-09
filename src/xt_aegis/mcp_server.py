@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 _CAPABILITIES: dict[str, Any] = {
     "project": "XT-Aegis",
     "maturity": "MVP reference implementation",

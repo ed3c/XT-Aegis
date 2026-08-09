@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-class Provenance(str, Enum):
+class Provenance(StrEnum):
     """Where an executable proposal originated."""
 
     OPERATOR = "operator"
@@ -16,14 +16,14 @@ class Provenance(str, Enum):
     EXTERNAL_CONTENT = "external_content"
 
 
-class RiskLevel(str, Enum):
+class RiskLevel(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
 
-class ExecutionStatus(str, Enum):
+class ExecutionStatus(StrEnum):
     SUCCEEDED = "succeeded"
     ROLLED_BACK = "rolled_back"
     BLOCKED = "blocked"
@@ -31,7 +31,7 @@ class ExecutionStatus(str, Enum):
     FAILED = "failed"
 
 
-class NetworkPolicy(str, Enum):
+class NetworkPolicy(StrEnum):
     DENY = "deny"
     ALLOWLIST = "allowlist"
 
@@ -117,7 +117,7 @@ class SkillContract(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def validate_network_allowlist(self) -> "SkillContract":
+    def validate_network_allowlist(self) -> SkillContract:
         if self.network_policy == NetworkPolicy.ALLOWLIST and not self.allowed_network_destinations:
             raise ValueError("network allowlist policy requires at least one destination")
         if self.network_policy == NetworkPolicy.DENY and self.allowed_network_destinations:

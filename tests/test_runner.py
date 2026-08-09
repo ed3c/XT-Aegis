@@ -10,7 +10,6 @@ from xt_aegis.models import (
     RiskLevel,
 )
 
-
 BAD_CODE = """def calculate_tax(amount: float) -> float:
     return amount * 0.10
 """
@@ -131,7 +130,17 @@ def test_command_action_can_run_allowlisted_validation(runner) -> None:  # type:
         action=CommandAction(
             command=CommandSpec(
                 description="run tests",
-                argv=["python3", "-m", "unittest", "discover", "-s", "sample_project", "-p", "test_*.py", "-q"],
+                argv=[
+                    "python3",
+                    "-m",
+                    "unittest",
+                    "discover",
+                    "-s",
+                    "sample_project",
+                    "-p",
+                    "test_*.py",
+                    "-q",
+                ],
             )
         ),
     )

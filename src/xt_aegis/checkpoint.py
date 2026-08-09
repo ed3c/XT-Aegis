@@ -190,7 +190,7 @@ class CheckpointStore:
             )
 
     def get_or_create_approval(self, request: ActionRequest) -> str:
-        seed = f"{request.thread_id}\0{request.action_id}\0{request.idempotency_key}".encode("utf-8")
+        seed = f"{request.thread_id}\0{request.action_id}\0{request.idempotency_key}".encode()
         approval_id = hashlib.sha256(seed).hexdigest()[:24]
         with self._connection() as connection:
             connection.execute(

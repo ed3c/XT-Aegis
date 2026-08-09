@@ -11,7 +11,6 @@ from pydantic import ValidationError
 from xt_aegis.errors import SkillCompileError
 from xt_aegis.models import CompiledSkill, SkillContract
 
-
 _FRONTMATTER_DELIMITER = "---"
 
 
