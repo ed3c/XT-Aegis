@@ -99,14 +99,18 @@ jobs:
           exit 1
 
       - name: Inspect backend without executing claim recipes
+        shell: bash
         run: |
+          set -euo pipefail
           xt-aegis doctor --backend openshell --format json \
             | tee verification-out/runtime/doctor.json
           openshell status \
             | tee verification-out/runtime/openshell-status-final.txt
 
       - name: Verify implemented claims in OpenShell
+        shell: bash
         run: |
+          set -euo pipefail
           xt-aegis verify --all --backend openshell --format json \
             --output-dir verification-out \
             | tee verification-out/runtime/command-summary.json
@@ -128,7 +132,9 @@ jobs:
 
       - name: Pack deterministic verification evidence
         if: success()
+        shell: bash
         run: |
+          set -euo pipefail
           xt-aegis evidence pack \
             --input verification-out \
             --output xt-aegis-openshell-evidence.tar.gz \
