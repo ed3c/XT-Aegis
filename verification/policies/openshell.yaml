@@ -1,9 +1,9 @@
 version: 1
 
-# The verifier uploads the selected source revision into the sandbox working
-# directory. This is a disposable copy; no host path is mounted by this policy.
-# Recipes remain argv-only and are additionally constrained by
-# PROJECT_EVIDENCE.json and xt_aegis.sandbox_exec.
+# The verifier uploads the selected source revision into /workspace. This is a
+# disposable sandbox copy; no host path is mounted by this policy. Recipes
+# remain argv-only and are additionally constrained by PROJECT_EVIDENCE.json
+# and xt_aegis.sandbox_exec.
 filesystem_policy:
   include_workdir: true
   read_only:
@@ -13,8 +13,10 @@ filesystem_policy:
     - /dev/urandom
     - /etc
     - /var/log
+    - /opt/xt-aegis
   read_write:
     - /sandbox
+    - /workspace
     - /tmp
     - /dev/null
 
@@ -23,8 +25,8 @@ filesystem_policy:
 landlock:
   compatibility: hard_requirement
 
-# OpenShell v0.0.52 requires this unprivileged identity. Dockerfile.verifier
-# creates the same user and group and assigns ownership of /workspace.
+# OpenShell v0.0.52 and the OpenShell Community base image use this
+# unprivileged workload identity.
 process:
   run_as_user: sandbox
   run_as_group: sandbox
