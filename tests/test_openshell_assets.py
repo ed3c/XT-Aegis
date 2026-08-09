@@ -9,7 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_openshell_policy_matches_verifier_image_identity() -> None:
-    policy = yaml.safe_load((ROOT / "verification/policies/openshell.yaml").read_text(encoding="utf-8"))
+    policy_path = ROOT / "verification/policies/openshell.yaml"
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
     assert policy["process"] == {
         "run_as_user": "verifier",
         "run_as_group": "verifier",
@@ -25,10 +26,11 @@ def test_openshell_policy_matches_verifier_image_identity() -> None:
 
 
 def test_conformance_workflow_pins_docker_driver_and_retains_diagnostics() -> None:
-    workflow = (ROOT / ".github/workflows/openshell-conformance.yml").read_text(encoding="utf-8")
+    workflow_path = ROOT / ".github/workflows/openshell-conformance.yml"
+    workflow = workflow_path.read_text(encoding="utf-8")
     assert 'OPENSHELL_VERSION: "v0.0.52"' in workflow
     assert 'compute_drivers = ["docker"]' in workflow
     assert "OPENSHELL_DRIVERS=docker" in workflow
-    assert "policy_validation_failure_mode" in workflow
+    assert "policy_validation_failure_mode" not in workflow
     assert "gateway-journal.txt" in workflow
     assert "xt-aegis-openshell-diagnostics.tar.gz" in workflow
