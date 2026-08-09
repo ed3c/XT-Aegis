@@ -1,9 +1,9 @@
 name: Ruff autofix (temporary)
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/evidence-first-agent-runtime
+      - main
     paths:
       - "src/**/*.py"
       - "tests/**/*.py"
