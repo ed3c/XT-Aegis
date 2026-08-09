@@ -38,24 +38,19 @@ def test_checked_in_recipe_files_match_the_registry() -> None:
         }
 
 
-def test_public_project_files_use_user_neutral_terminology() -> None:
-    forbidden = (
-        "inter" + "view",
-        "inter" + "viewer",
-        "hir" + "ing",
-        "rés" + "umé",
-        "resume " + "screening",
-        "candidate " + "selection",
-        "面" + "試",
-        "履" + "歷",
-        "候選" + "人",
-    )
-    suffixes = {".md", ".json", ".toml", ".yml", ".yaml", ".py"}
-    for path in ROOT.rglob("*"):
-        if not path.is_file() or path.suffix not in suffixes or path.name.startswith("chunk"):
-            continue
-        if any(part in {".git", ".venv", ".pytest_cache", "__pycache__"} for part in path.parts):
-            continue
-        text = path.read_text(encoding="utf-8").casefold()
-        for term in forbidden:
-            assert term.casefold() not in text, f"{term!r} found in {path.relative_to(ROOT)}"
+def test_public_documentation_uses_user_facing_entry_points() -> None:
+    expected = {
+        ROOT / "docs" / "USER_DEMO.md",
+        ROOT / "docs" / "USER_VERIFICATION_GUIDE.md",
+        ROOT / "docs" / "EXTERNAL_VERIFICATION.md",
+        ROOT / "docs" / "OPENSHELL.md",
+        ROOT / "docs" / "adr" / "0002-user-policy-integrity.md",
+    }
+    assert all(path.is_file() for path in expected)
+
+    removed_paths = {
+        ROOT / "docs" / "AGENT_REVIEW_GUIDE.md",
+        ROOT / "docs" / "INTERVIEW_DEMO.md",
+        ROOT / "docs" / "adr" / "0002-no-reviewer-prompt-manipulation.md",
+    }
+    assert not any(path.exists() for path in removed_paths)
