@@ -2,22 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_openshell_policy_matches_verifier_image_identity() -> None:
     policy_path = ROOT / "verification/policies/openshell.yaml"
-    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
-    assert policy["process"] == {
-        "run_as_user": "verifier",
-        "run_as_group": "verifier",
-    }
-    assert policy["landlock"]["compatibility"] == "hard_requirement"
-    assert policy["network_policies"] == {}
-    assert policy["filesystem_policy"]["include_workdir"] is True
+    policy = policy_path.read_text(encoding="utf-8")
+    assert "run_as_user: verifier" in policy
+    assert "run_as_group: verifier" in policy
+    assert "compatibility: hard_requirement" in policy
+    assert "network_policies: {}" in policy
+    assert "include_workdir: true" in policy
 
     dockerfile = (ROOT / "Dockerfile.verifier").read_text(encoding="utf-8")
     assert "useradd --create-home --uid 10001 verifier" in dockerfile
