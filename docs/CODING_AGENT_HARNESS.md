@@ -49,7 +49,9 @@ proof that the request is safe.
 
 A command succeeds when its actual process exit code belongs to its declared `expected_exit_codes` set and
 all postconditions pass. Exit code zero has no special bypass. Timeouts, signal termination, undeclared
-codes, and failed assertions remain failures and trigger rollback when a transaction exists.
+codes, and failed assertions remain failures and trigger rollback when a transaction exists. Process
+supervisors may expose signal termination as a negative return code or translate it to a generic nonzero
+status, so portable evidence checks rejection against the declared set rather than one numeric encoding.
 
 ## Controller state machine
 
