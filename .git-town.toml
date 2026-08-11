@@ -1,0 +1,38 @@
+interactive = false
+
+[branches]
+main = "main"
+default-type = "feature"
+feature-regex = "^(agent|docs|fix|feat|chore)/"
+perennial-regex = "^main$"
+perennials = ["main"]
+
+[create]
+branch-prefix = ""
+new-branch-type = "feature"
+share-new-branches = "push"
+
+[hosting]
+dev-remote = "origin"
+forge-type = "github"
+
+[propose]
+breadcrumb = "stacks"
+breadcrumb-direction = "down"
+
+[ship]
+delete-tracking-branch = true
+ignore-uncommitted = false
+strategy = "api"
+
+[sync]
+auto-resolve = true
+auto-sync = true
+detached = false
+feature-strategy = "rebase"
+perennial-strategy = "ff-only"
+prototype-strategy = "rebase"
+push-branches = true
+push-hook = true
+tags = false
+upstream = false
