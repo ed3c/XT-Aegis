@@ -36,10 +36,14 @@ export XT_AEGIS_GIT_TOWN_STATE_DIR=/secure/worker-state/xt-aegis-git-town
 Timeout must be `1..7200` seconds. Log capacity must be `65536..8388608` bytes. Without an override,
 private runtime artifacts are written under `.git/xt-aegis/git-town/`.
 
-## Dedicated checkout contract
+## Active-manifest and dedicated-checkout contract
 
-Every local branch must appear as a branch or parent in `stack.tsv`; otherwise `sync --all` fails before
-mutation. Every manifest branch must:
+`stack.tsv` is header-only when no stack is active. That state deliberately blocks `verify-stack.sh`,
+foreground sync, and background sync before mutation. Do not add placeholder, merged, closed, or
+unpublished branches merely to make the command pass.
+
+When an active stack exists, every local branch must appear as a branch or parent in `stack.tsv`; otherwise
+`sync --all` fails before mutation. Every manifest branch must:
 
 - exist locally and as `origin/<branch>`;
 - track its same-name origin branch;
@@ -87,6 +91,9 @@ an explicit owner.
 
 ## Evidence levels
 
-`test-fixture.sh` validates the repository-side Bash contract without network access. The exact binary,
-release package, ShellCheck, real conflict, safe-force, remote-race, and secret-canary acceptance matrix
-is tracked by #44. Merging these scripts does not authorize unattended deployment before #44 passes.
+The repository's committed `stack.tsv` is intentionally empty after the documentation program.
+`test-fixture.sh` writes synthetic active rows only inside a disposable repository, validates the full
+repository-side Bash contract without network access, and proves that the empty live-manifest state is
+terminal. The exact binary, release package, ShellCheck, real conflict, safe-force, remote-race, and
+secret-canary acceptance matrix is tracked by #44. Merging these scripts does not authorize unattended
+deployment before #44 passes.
