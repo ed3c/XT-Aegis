@@ -76,6 +76,15 @@ git switch -q agent/git-town-unattended-stack
 cp -R -- "$REPO_ROOT/scripts" .
 cp -R -- "$REPO_ROOT/third_party" .
 cp -- "$REPO_ROOT/.git-town.toml" .
+# The repository manifest is intentionally empty when no real stack is active.
+# Populate a synthetic active topology only inside this disposable fixture.
+cat >scripts/git-town/stack.tsv <<'FIXTURE_STACK'
+# branch	parent	issue	pr	owned_paths	evals
+agent/docs-directory-guides	main	34	39	**/README.md,**/AGENTS.md(directory-scoped-only)	EVAL-DIR-*
+agent/docs-harness-contract	main	35	40	docs/CODING_AGENT_HARNESS.md,docs/HARNESS_EVALS.md,docs/adr/0005-trusted-harness-orchestration.md	EVAL-HARNESS-*
+agent/git-town-unattended-stack	main	36	41	.git-town.toml,docs/STACKED_PRS.md,docs/GIT_TOWN_LICENSE.md,scripts/git-town/**,third_party/**	EVAL-GIT-*
+agent/docs-eval-first-templates	main	37	42	.github/ISSUE_TEMPLATE/work_slice.yml,.github/pull_request_template.md,docs/ISSUE_PR_CONTRACT.md	EVAL-META-*
+FIXTURE_STACK
 git add .
 git commit -qm 'add worker files'
 git push -q
@@ -193,6 +202,22 @@ scripts/git-town/verify-license.sh >/dev/null
 scripts/git-town/verify-stack.sh >/dev/null
 scripts/git-town/sync-stack.sh --dry-run >/dev/null
 scripts/git-town/sync-stack.sh >/dev/null
+
+# An empty live manifest is an explicit no-active-stack state and must block.
+# Commit the fixture-only transition so the clean-worktree precondition remains true.
+cp scripts/git-town/stack.tsv "$TMP_ROOT/synthetic-stack.tsv"
+printf '# branch\tparent\tissue\tpr\towned_paths\tevals\n' >scripts/git-town/stack.tsv
+git add scripts/git-town/stack.tsv
+git commit -qm 'fixture: disable active stack'
+set +e
+output="$(scripts/git-town/verify-stack.sh 2>&1)"
+rc=$?
+set -e
+[[ $rc -ne 0 ]]
+grep -q 'stack manifest has no active rows' <<<"$output"
+cp "$TMP_ROOT/synthetic-stack.tsv" scripts/git-town/stack.tsv
+git add scripts/git-town/stack.tsv
+git commit -qm 'fixture: restore synthetic stack'
 
 # Unknown local branches must never be swept into sync --all.
 git branch agent/undeclared-fixture
