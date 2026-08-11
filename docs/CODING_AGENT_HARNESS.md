@@ -114,7 +114,7 @@ The first end-to-end slice is complete only when all of the following are true:
 - one retryable failure produces structured diagnosis and at most one bounded repair;
 - policy, approval, rollback, backend, and budget failures terminate without repair;
 - every attempt has a unique canonical request identity and durable evidence;
-- CI passes formatting, lint, type checks, tests, claim validation, package builds, and image checks;
+- all required CI gates pass: formatting, lint, type checks, tests, claim validation, package and image builds, and CodeQL;
 - a benchmark corpus measures task success, safety, attempts, latency, and token use without unsupported claims.
 
 ## Non-goals
