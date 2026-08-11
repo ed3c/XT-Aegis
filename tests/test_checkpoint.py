@@ -128,9 +128,7 @@ def test_legacy_idempotency_records_fail_closed(tmp_path: Path, compiled_skill) 
     identity = RequestIdentity.from_request(request, skill=compiled_skill)
     with pytest.raises(IdempotencyConflictError, match="legacy idempotency record"):
         store.get_cached_result(request.idempotency_key, identity)
-    assert (
-        store.approval_state("a" * 24, request, identity) == "mismatch"
-    )
+    assert store.approval_state("a" * 24, request, identity) == "mismatch"
     assert not store.approval_is_valid("a" * 24, request, identity)
 
 
@@ -186,8 +184,6 @@ def test_future_checkpoint_schema_is_rejected(tmp_path: Path) -> None:
     with sqlite3.connect(database_path) as connection:
         tables = {
             row[0]
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'"
-            ).fetchall()
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
         }
     assert tables == {"metadata"}

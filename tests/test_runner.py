@@ -196,9 +196,7 @@ def test_assertion_policy_change_invalidates_idempotent_replay(runner) -> None: 
         update={"expected_exit_codes": {0, 7}}
     )
     runner.skill = runner.skill.model_copy(
-        update={
-            "contract": runner.skill.contract.model_copy(update={"postconditions": [changed_condition]})
-        }
+        update={"contract": runner.skill.contract.model_copy(update={"postconditions": [changed_condition]})}
     )
     runner.policy.contract = runner.skill.contract
     result = runner.execute(request)
@@ -228,7 +226,9 @@ def test_failed_baseline_precondition_restores_workspace(runner) -> None:  # typ
     path = runner.workspace.root / "sample_project" / "app.py"
     path.write_text(BAD_CODE, encoding="utf-8")
     before = runner.workspace.hash_tree()
-    result = runner.execute(_request(action_id="precondition.fail", key="precondition-fail-0001", content=GOOD_CODE))
+    result = runner.execute(
+        _request(action_id="precondition.fail", key="precondition-fail-0001", content=GOOD_CODE)
+    )
     assert result.status == ExecutionStatus.ROLLED_BACK
     assert result.preconditions[0].passed is False
     assert runner.workspace.hash_tree() == before

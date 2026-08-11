@@ -106,9 +106,7 @@ def test_identity_binds_path_provenance_actor_and_command_arguments(compiled_ski
     base = RequestIdentity.from_request(file_request, skill=compiled_skill).digest
     variants = [
         file_request.model_copy(
-            update={
-                "action": FileWriteAction(relative_path="sample_project/other.py", content="pass\n")
-            }
+            update={"action": FileWriteAction(relative_path="sample_project/other.py", content="pass\n")}
         ),
         file_request.model_copy(update={"provenance": Provenance.OPERATOR}),
         file_request.model_copy(update={"actor_id": "user:bob"}),
@@ -136,6 +134,7 @@ def test_identity_binds_path_provenance_actor_and_command_arguments(compiled_ski
             )
         }
     )
-    assert RequestIdentity.from_request(
-        changed_argument, skill=compiled_skill
-    ).digest != RequestIdentity.from_request(command_request, skill=compiled_skill).digest
+    assert (
+        RequestIdentity.from_request(changed_argument, skill=compiled_skill).digest
+        != RequestIdentity.from_request(command_request, skill=compiled_skill).digest
+    )

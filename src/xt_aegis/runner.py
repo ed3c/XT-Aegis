@@ -351,7 +351,9 @@ class HarnessRunner:
                 except WorkspaceSafetyError:
                     rollback_integrity = False
             after_sha = self.workspace.hash_tree()
-            status = ExecutionStatus.ROLLED_BACK if rolled_back and rollback_integrity else ExecutionStatus.FAILED
+            status = (
+                ExecutionStatus.ROLLED_BACK if rolled_back and rollback_integrity else ExecutionStatus.FAILED
+            )
             result = self._terminal_result(
                 request=request,
                 identity=identity,

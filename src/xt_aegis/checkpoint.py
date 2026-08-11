@@ -74,9 +74,7 @@ class CheckpointStore:
                 "SELECT value FROM metadata WHERE key = 'schema_version'"
             ).fetchone()
             if schema_row is not None and schema_row["value"] != _STATE_SCHEMA_VERSION:
-                raise CheckpointSchemaError(
-                    f"unsupported checkpoint schema version: {schema_row['value']}"
-                )
+                raise CheckpointSchemaError(f"unsupported checkpoint schema version: {schema_row['value']}")
 
             connection.executescript(
                 """
