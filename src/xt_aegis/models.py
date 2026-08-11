@@ -45,7 +45,7 @@ class CommandSpec(BaseModel):
     argv: list[str] = Field(min_length=1, max_length=32)
     cwd: str = "."
     timeout_seconds: float = Field(default=10.0, ge=0.1, le=300.0)
-    expected_exit_codes: set[int] = Field(default_factory=lambda: {0})
+    expected_exit_codes: set[int] = Field(default_factory=lambda: {0}, min_length=1)
 
     @field_validator("argv")
     @classmethod
@@ -59,6 +59,18 @@ class CommandSpec(BaseModel):
     def validate_cwd(cls, value: str) -> str:
         if not value or "\x00" in value:
             raise ValueError("cwd must be a non-empty relative path")
+        return value
+
+    @field_validator("expected_exit_codes", mode="before")
+    @classmethod
+    def validate_expected_exit_codes(cls, value: object) -> object:
+        if not isinstance(value, (set, frozenset, list, tuple)) or not value:
+            raise ValueError("expected_exit_codes must contain at least one integer exit code")
+        for exit_code in value:
+            if isinstance(exit_code, bool) or not isinstance(exit_code, int):
+                raise ValueError("expected_exit_codes entries must be integers")
+            if not 0 <= exit_code <= 255:
+                raise ValueError("expected_exit_codes entries must be between 0 and 255")
         return value
 
 
@@ -144,6 +156,7 @@ class ActionRequest(BaseModel):
     thread_id: str = Field(pattern=r"^[A-Za-z0-9._:-]{3,128}$")
     action_id: str = Field(pattern=r"^[A-Za-z0-9._:-]{3,128}$")
     idempotency_key: str = Field(pattern=r"^[A-Za-z0-9._:-]{8,160}$")
+    actor_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9._:@/-]{1,160}$")
     provenance: Provenance
     action: Action
     approval_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{24}$")
@@ -176,6 +189,7 @@ class ExecutionResult(BaseModel):
     preconditions: list[CheckResult] = Field(default_factory=list)
     postconditions: list[CheckResult] = Field(default_factory=list)
     action_exit_code: int | None = None
+    action_expected_exit_codes: list[int] = Field(default_factory=list)
     action_stdout: str = ""
     action_stderr: str = ""
     rolled_back: bool = False
@@ -183,6 +197,9 @@ class ExecutionResult(BaseModel):
     workspace_before_sha256: str
     workspace_after_sha256: str
     cached_replay: bool = False
+    request_digest_version: str | None = None
+    request_digest: str | None = None
+    policy_digest: str | None = None
     started_at: str
     finished_at: str
     duration_ms: float = 0.0
