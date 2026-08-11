@@ -29,12 +29,12 @@ def _normalize(value: object) -> object:
             normalized[key] = _normalize(item)
         return normalized
     if isinstance(value, (set, frozenset)):
-        values = cast(set[object] | frozenset[object], value)
-        normalized_items = [_normalize(item) for item in values]
+        unordered_values = cast(set[object] | frozenset[object], value)
+        normalized_items = [_normalize(item) for item in unordered_values]
         return sorted(normalized_items, key=_canonical_sort_key)
     if isinstance(value, (list, tuple)):
-        values = cast(list[object] | tuple[object, ...], value)
-        return [_normalize(item) for item in values]
+        ordered_values = cast(list[object] | tuple[object, ...], value)
+        return [_normalize(item) for item in ordered_values]
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     raise TypeError(f"unsupported canonical value: {type(value).__name__}")
