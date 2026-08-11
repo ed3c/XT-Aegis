@@ -1,5 +1,1 @@
 # branch	parent	issue	pr	owned_paths	evals
-agent/docs-directory-guides	main	34	39	**/README.md,**/AGENTS.md(directory-scoped-only)	EVAL-DIR-*
-agent/docs-harness-contract	main	35	40	docs/CODING_AGENT_HARNESS.md,docs/HARNESS_EVALS.md,docs/adr/0005-trusted-harness-orchestration.md	EVAL-HARNESS-*
-agent/git-town-unattended-stack	main	36	41	.git-town.toml,docs/STACKED_PRS.md,docs/GIT_TOWN_LICENSE.md,scripts/git-town/**,third_party/**	EVAL-GIT-*
-agent/docs-eval-first-templates	main	37	42	.github/ISSUE_TEMPLATE/work_slice.yml,.github/pull_request_template.md,docs/ISSUE_PR_CONTRACT.md	EVAL-META-*
