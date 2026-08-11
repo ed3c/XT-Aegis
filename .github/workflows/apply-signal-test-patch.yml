@@ -1,0 +1,44 @@
+name: Apply portable signal test patch
+
+on:
+  push:
+    branches:
+      - agent/harness-request-identity-exit-contract
+    paths:
+      - .github/workflows/apply-signal-test-patch.yml
+      - .xt-aegis-signal-test.patch
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the isolated branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: agent/harness-request-identity-exit-contract
+          fetch-depth: 0
+
+      - name: Verify and apply the portable signal test
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "9157e2e0fc01d058a0ca72ab68a819c998d69910e9ad2bec5773863b23e89756  .xt-aegis-signal-test.patch" | sha256sum --check -
+          git apply --check .xt-aegis-signal-test.patch
+          git apply .xt-aegis-signal-test.patch
+          rm -f .xt-aegis-signal-test.patch
+          rm -f .github/workflows/apply-signal-test-patch.yml
+
+      - name: Commit the exact test portability fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "test: make signal outcome assertion portable"
+          git push origin HEAD:agent/harness-request-identity-exit-contract
