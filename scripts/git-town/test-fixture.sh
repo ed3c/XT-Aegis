@@ -52,29 +52,24 @@ git commit -qm root
 git remote add origin "$BARE"
 git push -q -u origin main
 
-git switch -qc agent/docs-agent-contract main
-printf 'foundation\n' >foundation.txt
-git add .
-git commit -qm foundation
-git push -q -u origin agent/docs-agent-contract
 for branch in \
   agent/docs-directory-guides \
   agent/docs-harness-contract \
   agent/git-town-unattended-stack \
   agent/docs-eval-first-templates; do
-  git switch -qc "$branch" agent/docs-agent-contract
+  git switch -qc "$branch" main
   printf '%s\n' "$branch" >"${branch##*/}.txt"
   git add .
   git commit -qm "$branch"
   git push -q -u origin "$branch"
 done
 
-# Advance the parent after children exist. Verification must accept this normal
+# Advance main after children exist. Verification must accept this normal
 # pre-sync condition because parent/child only need shared history before rebase.
-git switch -q agent/docs-agent-contract
-printf 'foundation-advanced\n' >>foundation.txt
-git add foundation.txt
-git commit -qm 'advance foundation'
+git switch -q main
+printf 'main-advanced\n' >>root.txt
+git add root.txt
+git commit -qm 'advance main'
 git push -q
 git switch -q agent/git-town-unattended-stack
 
@@ -167,17 +162,16 @@ fi
 if [[ "${1:-}" == pr && "${2:-}" == view ]]; then
   pr=${3:?}
   case "$pr" in
-    38) printf 'agent/docs-agent-contract\tmain\tOPEN\n' ;;
-    39) printf 'agent/docs-directory-guides\tagent/docs-agent-contract\tOPEN\n' ;;
+    39) printf 'agent/docs-directory-guides\tmain\tOPEN\n' ;;
     40)
       if [[ "${FAKE_GH_BAD_BASE:-0}" == 1 ]]; then
-        printf 'agent/docs-harness-contract\tmain\tOPEN\n'
+        printf 'agent/docs-harness-contract\tagent/docs-directory-guides\tOPEN\n'
       else
-        printf 'agent/docs-harness-contract\tagent/docs-agent-contract\tOPEN\n'
+        printf 'agent/docs-harness-contract\tmain\tOPEN\n'
       fi
       ;;
-    41) printf 'agent/git-town-unattended-stack\tagent/docs-agent-contract\tOPEN\n' ;;
-    42) printf 'agent/docs-eval-first-templates\tagent/docs-agent-contract\tOPEN\n' ;;
+    41) printf 'agent/git-town-unattended-stack\tmain\tOPEN\n' ;;
+    42) printf 'agent/docs-eval-first-templates\tmain\tOPEN\n' ;;
     *) printf 'unknown PR: %s\n' "$pr" >&2; exit 2 ;;
   esac
   exit 0
@@ -222,7 +216,7 @@ grep -q 'manifest branch is not checked out locally' <<<"$output"
 git branch agent/docs-directory-guides "$missing_ref"
 git branch --set-upstream-to=origin/agent/docs-directory-guides agent/docs-directory-guides >/dev/null
 
-git config --local git-town-branch.agent/docs-harness-contract.parent main
+git config --local git-town-branch.agent/docs-harness-contract.parent agent/docs-directory-guides
 set +e
 output="$(scripts/git-town/verify-stack.sh 2>&1)"
 rc=$?
