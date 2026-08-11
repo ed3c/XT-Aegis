@@ -23,16 +23,15 @@ alone are never used to infer lineage.
 
 ```mermaid
 flowchart TD
-    M[main] --> F[agent/docs-agent-contract<br/>#33 / PR #38]
-    F --> D[agent/docs-directory-guides<br/>#34 / PR #39]
-    F --> H[agent/docs-harness-contract<br/>#35 / PR #40]
-    F --> G[agent/git-town-unattended-stack<br/>#36 / PR #41]
-    F --> T[agent/docs-eval-first-templates<br/>#37 / PR #42]
+    M[main<br/>includes merged #38 foundation] --> D[agent/docs-directory-guides<br/>#34 / PR #39]
+    M --> H[agent/docs-harness-contract<br/>#35 / PR #40]
+    M --> G[agent/git-town-unattended-stack<br/>#36 / PR #41]
+    M --> T[agent/docs-eval-first-templates<br/>#37 / PR #42]
 ```
 
-This diagram records the initial documentation fan-out. After a parent merges, the manifest and PR bases
-must be updated before another unattended sync. Closed or merged PRs do not remain in an active worker
-manifest because `verify-stack.sh` requires every row to name an open PR.
+PR #38 supplied the documentation foundation and is now merged into `main`. The active worker manifest
+contains only the four open child PRs, each with `main` as its parent. Closed or merged PRs do not remain
+in an active manifest because `verify-stack.sh` requires every row to name an open PR.
 
 ## Branch and PR rules
 
@@ -166,8 +165,8 @@ rerun implementation-specific evals.
 
 ## Merge sequence
 
-1. Review and merge the root documentation foundation.
-2. Retarget open child PRs to `main` and update `stack.tsv` to the live topology.
+1. PR #38 is merged and its documentation foundation is present on `main`.
+2. PRs #39–#42 target `main`; `stack.tsv` records this active topology.
 3. Run `bootstrap.sh --apply`, `verify-stack.sh`, and child-specific evals in a dedicated checkout.
 4. Merge path-disjoint documentation children in any order after green CI and review.
 5. Keep real unattended deployment blocked on #44.
