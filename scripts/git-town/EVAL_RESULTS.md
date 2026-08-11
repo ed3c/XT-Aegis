@@ -27,7 +27,7 @@ license SHA-256 values, rejected trailing whitespace/non-UTF-8 text, and scanned
 | `EVAL-GIT-06` conflict-free fixture | passed | dedicated bare origin, parent advanced after children, explicit parent metadata, foreground dry run/sync, and background dry run passed with behavior-compatible CLIs |
 | `EVAL-GIT-07` fail-closed cases | passed for repository fixture | wrong repo/base/parent, missing/unknown branch, dirty/suspended state, checksum/config mismatch, lock contention, timeout, and semantic failure are terminal |
 | `EVAL-GIT-08` recovery | passed for repository fixture | preflight does not call undo; current-run failure does; complete local/tracking ref and parent snapshots distinguish restored from recoverable sibling mutation |
-| `EVAL-GIT-09` manifest/PR lineage | passed for repository fixture | branch, parent, issue, PR, upstream, open state, and duplicate ownership checks passed |
+| `EVAL-GIT-09` manifest/PR lineage | passed for repository fixture | empty live manifest blocks; synthetic active rows validate branch, parent, issue, PR, upstream, open state, and duplicate ownership |
 | `EVAL-GIT-10` no Python/workflow changes | passed | this slice changes no `*.py` or `.github/workflows/**` file |
 | ShellCheck | not run | ShellCheck was unavailable; exact tool-version evidence remains required by #44 |
 
@@ -35,6 +35,8 @@ license SHA-256 values, rejected trailing whitespace/non-UTF-8 text, and scanned
 
 The passing fixture covers:
 
+- header-only live manifest fails closed before mutation;
+- synthetic active manifest exists only inside the disposable fixture;
 - parent advanced after child creation;
 - explicit parent bootstrap without rebase or branch switching;
 - exact config identity and repository/origin identity;
