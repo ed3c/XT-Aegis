@@ -83,6 +83,9 @@ while IFS=$'\t' read -r branch parent issue pr owned_paths evals; do
   [[ "$actual_state" == "OPEN" ]] || die "PR #$pr is not open: $actual_state"
 done <"$MANIFEST_FILE"
 
+(( ${#seen_branch[@]} > 0 )) ||
+  die "stack manifest has no active rows; no unattended sync is authorized"
+
 while IFS= read -r local_branch; do
   [[ -n "${allowed_local[$local_branch]+x}" ]] ||
     die "undeclared local branch would be included by git town sync --all: $local_branch"
