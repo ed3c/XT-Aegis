@@ -10,14 +10,14 @@ perennials = ["main"]
 [create]
 branch-prefix = ""
 new-branch-type = "feature"
-share-new-branches = "push"
+share-new-branches = "no"
 
 [hosting]
 dev-remote = "origin"
 forge-type = "github"
 
 [propose]
-breadcrumb = "stacks"
+breadcrumb = "none"
 breadcrumb-direction = "down"
 
 [ship]
@@ -26,13 +26,13 @@ ignore-uncommitted = false
 strategy = "api"
 
 [sync]
-auto-resolve = true
-auto-sync = true
+auto-resolve = false
+auto-sync = false
 detached = false
 feature-strategy = "rebase"
 perennial-strategy = "ff-only"
 prototype-strategy = "rebase"
 push-branches = true
-push-hook = true
+push-hook = false
 tags = false
 upstream = false
