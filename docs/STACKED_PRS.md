@@ -54,6 +54,7 @@ scripts/git-town/verify-stack.sh
 scripts/git-town/sync-stack.sh --dry-run
 scripts/git-town/sync-stack.sh
 scripts/git-town/sync-background.sh
+scripts/git-town/test-fixture.sh
 ```
 
 All scripts require Bash 4+, Git, GitHub CLI, the exact pinned Git Town binary, a clean and unsuspended
@@ -93,6 +94,18 @@ On failure the worker:
 
 The scripts never use `git reset --hard`, delete untracked files, or overwrite remote commits without the
 safe-force protections supplied by Git Town/Git.
+
+## Reproducible fixture
+
+`test-fixture.sh` constructs a disposable bare origin and the five-branch documentation stack, then uses
+behavior-compatible fake Git Town and GitHub CLIs to exercise deterministic repository-side contracts
+without network access. It covers the conflict-free dry-run/sync path plus undeclared local branches, PR
+base mismatch, bad version and checksums, dirty or suspended Git state, lock contention, and undo recovery
+after a simulated semantic conflict.
+
+This fixture verifies the Bash orchestration contract; it does not replace acceptance with the exact
+`v24.0.0` binary, actual release package, real GitHub authentication, or `shellcheck` in the pinned Worker
+image.
 
 ## Existing code PR reconciliation
 

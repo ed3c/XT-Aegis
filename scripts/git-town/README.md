@@ -13,6 +13,7 @@ These Bash-only scripts manage repository stacks. They are not XT-Aegis product 
 | `sync-stack.sh` | foreground non-interactive all-stack sync with recovery |
 | `sync-background.sh` | detached wrapper with PID, log, and status locations |
 | `common.sh` | shared preflight, lock, hashing, and status helpers |
+| `test-fixture.sh` | disposable no-network success/failure evals with fake Git Town/GitHub CLIs |
 
 ## Required environment
 
@@ -35,6 +36,7 @@ scripts/git-town/bootstrap.sh
 scripts/git-town/bootstrap.sh --apply
 scripts/git-town/sync-stack.sh --dry-run
 scripts/git-town/sync-background.sh
+scripts/git-town/test-fixture.sh
 ```
 
 A non-zero result is a blocker. Read the bounded log and status file beneath
