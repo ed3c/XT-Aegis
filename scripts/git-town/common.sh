@@ -3,6 +3,11 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 umask 077
 
+if (( BASH_VERSINFO[0] < 4 )); then
+  printf 'error: Bash 4 or newer is required; observed %s\n' "$BASH_VERSION" >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
 LOCK_FILE="$SCRIPT_DIR/git-town.lock"

@@ -20,7 +20,10 @@ These Bash-only scripts manage repository stacks. They are not XT-Aegis product 
 export GIT_TOWN_BINARY_SHA256="<approved checksum for the installed binary>"
 ```
 
-The worker image, not the repository, provides credentials and the platform-specific checksum.
+The worker image, not the repository, provides credentials and the platform-specific checksum. It must
+provide Bash 4+, Git, GitHub CLI, and the exact pinned Git Town binary. The checkout is dedicated to one
+manifest: every local branch must appear as a branch or parent in `stack.tsv`, otherwise `sync --all`
+fails before mutation.
 
 ## Examples
 

@@ -46,8 +46,9 @@ A Worker Agent may run Git Town only when:
 5. the installed `git-town` binary SHA-256 equals that value;
 6. the checksum value came from an approved immutable worker-image manifest or independently verified
    release artifact;
-7. Git and GitHub CLI versions are also pinned by the worker image;
-8. no install step uses an unpinned `latest`, package-channel head, or `curl | sh`.
+7. Bash 4+, Git, and GitHub CLI versions are also pinned by the worker image;
+8. the worker checkout contains only manifest-declared local branches;
+9. no install step uses an unpinned `latest`, package-channel head, or `curl | sh`.
 
 Repository scripts reject missing, `UNSET`, malformed, or mismatched checksums.
 

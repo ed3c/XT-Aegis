@@ -11,8 +11,9 @@ Use Git Town when all of the following are true:
 - branch lineage and recovery must remain visible in Git and GitHub;
 - the worker image can pin and verify Git Town, Git, and GitHub CLI inputs.
 
-Git Town is not required for a single independent PR or for environments that cannot safely force-update
-rebased feature branches.
+Git Town is not the right choice for a single independent PR, a checkout that must contain unrelated
+local branches, shared branches with unclear ownership, environments that forbid safe force-updates of
+rebased feature branches, or teams that expect an unattended tool to decide semantic conflicts.
 
 ## Repository topology
 
@@ -55,7 +56,10 @@ scripts/git-town/sync-stack.sh
 scripts/git-town/sync-background.sh
 ```
 
-All scripts require a clean, unsuspended checkout and an exclusive repository lock. They set
+All scripts require Bash 4+, Git, GitHub CLI, the exact pinned Git Town binary, a clean and unsuspended
+checkout, and an exclusive repository lock. The checkout is dedicated to the manifest: an undeclared
+local branch is a hard failure because `sync --all` would otherwise mutate it. `gh pr view` verifies that
+every manifest branch and parent match the actual open PR head and base. The scripts set
 `GIT_TOWN_INTERACTIVE=false` and pass `--non-interactive`.
 
 ## Unattended sync flow
