@@ -1,6 +1,6 @@
 # branch	parent	issue	pr	owned_paths	evals
-agent/docs-agent-contract	main	33	pending	AGENTS.md,README.md,docs/README.md,docs/TRACEABILITY.md,docs/EVALS.md,docs/design/**	EVAL-FOUNDATION-*
-agent/docs-directory-guides	agent/docs-agent-contract	34	pending	**/README.md,**/AGENTS.md(directory-scoped-only)	EVAL-DIR-*
-agent/docs-harness-contract	agent/docs-agent-contract	35	pending	docs/CODING_AGENT_HARNESS.md,docs/HARNESS_EVALS.md,docs/adr/0005-trusted-harness-orchestration.md	EVAL-HARNESS-*
-agent/git-town-unattended-stack	agent/docs-agent-contract	36	pending	.git-town.toml,docs/STACKED_PRS.md,docs/GIT_TOWN_LICENSE.md,scripts/git-town/**,third_party/**	EVAL-GIT-*
-agent/docs-eval-first-templates	agent/docs-agent-contract	37	pending	.github/ISSUE_TEMPLATE/work_slice.yml,.github/pull_request_template.md,docs/ISSUE_PR_CONTRACT.md	EVAL-META-*
+agent/docs-agent-contract	main	33	38	AGENTS.md,README.md,docs/README.md,docs/TRACEABILITY.md,docs/EVALS.md,docs/design/**	EVAL-FOUNDATION-*
+agent/docs-directory-guides	agent/docs-agent-contract	34	39	**/README.md,**/AGENTS.md(directory-scoped-only)	EVAL-DIR-*
+agent/docs-harness-contract	agent/docs-agent-contract	35	40	docs/CODING_AGENT_HARNESS.md,docs/HARNESS_EVALS.md,docs/adr/0005-trusted-harness-orchestration.md	EVAL-HARNESS-*
+agent/git-town-unattended-stack	agent/docs-agent-contract	36	41	.git-town.toml,docs/STACKED_PRS.md,docs/GIT_TOWN_LICENSE.md,scripts/git-town/**,third_party/**	EVAL-GIT-*
+agent/docs-eval-first-templates	agent/docs-agent-contract	37	42	.github/ISSUE_TEMPLATE/work_slice.yml,.github/pull_request_template.md,docs/ISSUE_PR_CONTRACT.md	EVAL-META-*
