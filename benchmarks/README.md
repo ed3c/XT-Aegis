@@ -1,13 +1,24 @@
 # Benchmarks
 
-No committed result in this directory is authoritative until it satisfies `docs/BENCHMARKS.md`.
+This directory holds benchmark fixtures and raw, profile-bound result artifacts that satisfy
+[`docs/BENCHMARKS.md`](../docs/BENCHMARKS.md). No committed number is authoritative merely because it is
+stored here.
 
-Run the local scaffold with:
+## Flow
 
-```bash
-python scripts/benchmark.py --repetitions 5 --output /tmp/xt-aegis-benchmark.json
+```text
+pinned corpus + source + environment + model/config
+  -> benchmark run
+  -> raw trials including failures/timeouts
+  -> schema validation
+  -> profile-specific summary
+  -> optional claim-registry update
 ```
 
-The output is a development measurement, not a public performance claim. Do not commit machine-specific
-results without the full environment, raw records, corpus, baseline, and review required by the benchmark
-contract.
+## Required metadata
+
+Commit SHA, dirty state, OS/architecture, Python/runtime versions, dependency identity, filesystem/storage
+when relevant, corpus, model/provider, sampling, budgets, seed, exact commands, warmups, trial count,
+failures, and limitations.
+
+See [`AGENTS.md`](AGENTS.md).
