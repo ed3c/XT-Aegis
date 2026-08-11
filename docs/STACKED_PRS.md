@@ -21,17 +21,23 @@ Stack lineage is declared in `scripts/git-town/stack.tsv`. The PR base must equa
 Git Town's local parent metadata is stored in Git config and must resolve to the same value. Branch names
 alone are never used to infer lineage.
 
+The documentation-first program used this historical topology:
+
 ```mermaid
 flowchart TD
-    M[main<br/>includes merged #38 foundation] --> D[agent/docs-directory-guides<br/>#34 / PR #39]
-    M --> H[agent/docs-harness-contract<br/>#35 / PR #40]
-    M --> G[agent/git-town-unattended-stack<br/>#36 / PR #41]
-    M --> T[agent/docs-eval-first-templates<br/>#37 / PR #42]
+    M[main] --> F[#38 foundation]
+    F --> D[#39 directory guides]
+    F --> H[#40 Harness contract]
+    F --> G[#41 Git Town and Bash contract]
+    F --> T[#42 eval-first metadata]
 ```
 
-PR #38 supplied the documentation foundation and is now merged into `main`. The active worker manifest
-contains only the four open child PRs, each with `main` as its parent. Closed or merged PRs do not remain
-in an active manifest because `verify-stack.sh` requires every row to name an open PR.
+After the program completes, `stack.tsv` contains only its header. An empty manifest is an explicit
+**no active stack** state: `verify-stack.sh` and every sync entry point fail before mutation. A future
+stack must first create eval-first issues and PRs, declare path-disjoint ownership, populate manifest rows,
+retarget each PR base to its declared parent, and run `bootstrap.sh --apply` plus `verify-stack.sh`.
+
+Closed or merged PRs never remain in the active manifest because every row must name an open PR.
 
 ## Branch and PR rules
 
@@ -147,10 +153,12 @@ recovery, or conflict rules.
 - lock contention, semantic failure, timeout, and bounded output;
 - complete-ref recovery detection, including a sibling mutation that cannot be labeled restored.
 
-The fixture uses behavior-compatible fake Git Town and GitHub CLIs. It validates Bash orchestration but is
-not live acceptance of the pinned binary. Exact package, binary, ShellCheck, real conflict, safe-force,
-remote-race, and secret-canary evidence are tracked by #44. No unattended deployment is authorized until
-that issue's supported profile is accepted.
+The repository manifest is intentionally empty after the documentation program. The fixture writes a
+synthetic four-branch topology only inside its disposable repository and separately proves that the empty
+live manifest blocks before mutation. It uses behavior-compatible fake Git Town and GitHub CLIs, so it
+validates Bash orchestration but is not live acceptance of the pinned binary. Exact package, binary,
+ShellCheck, real conflict, safe-force, remote-race, and secret-canary evidence are tracked by #44. No
+unattended deployment is authorized until that issue's supported profile is accepted.
 
 ## Existing code PR reconciliation
 
@@ -163,15 +171,19 @@ that issue's supported profile is accepted.
 Documentation workers do not force-update these branches. Their owners resolve semantic conflicts and
 rerun implementation-specific evals.
 
-## Merge sequence
+## Lifecycle after the documentation program
 
-1. PR #38 is merged and its documentation foundation is present on `main`.
-2. PRs #39–#42 target `main`; `stack.tsv` records this active topology.
-3. Run `bootstrap.sh --apply`, `verify-stack.sh`, and child-specific evals in a dedicated checkout.
-4. Merge path-disjoint documentation children in any order after green CI and review.
-5. Keep real unattended deployment blocked on #44.
-6. Rebase existing code PRs #23 and #31 through their owners and rerun their full evals.
-7. Start future Harness Python stacks only from accepted contracts and current `main`.
+1. PRs #38–#42 establish the documentation, directory routing, Harness contract, Git tooling, and
+   eval-first metadata on `main`.
+2. The active manifest returns to header-only, so no unattended stack sync is authorized.
+3. A future program creates one eval-first issue and branch per observable outcome.
+4. Populate `stack.tsv` only after the PRs exist and their bases match the reviewed parent graph.
+5. Use a dedicated checkout, pin the accepted worker image, run `bootstrap.sh --apply`, then run
+   `verify-stack.sh` and a no-push dry run.
+6. Keep real unattended deployment blocked until #44 accepts the exact Git Town worker profile.
+7. Rebase existing code PRs #23 and #31 through their owners and rerun their implementation-specific
+   evals; they are not silently included in a documentation worker checkout.
+8. Remove merged/closed rows immediately and return to header-only when no active stack remains.
 
 ## Non-goals
 
