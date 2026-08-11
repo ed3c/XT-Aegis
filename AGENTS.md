@@ -79,8 +79,11 @@ A PR MUST show actual eval results. An unchecked box is not evidence. Use `passe
   conflicts and documented recovery.
 - Existing code PRs are not silently rebased or retargeted by documentation workers.
 
-See `docs/STACKED_PRS.md` when present and issue
-[#36](https://github.com/ed3c/XT-Aegis/issues/36).
+See [`docs/STACKED_PRS.md`](docs/STACKED_PRS.md) and issue
+[#36](https://github.com/ed3c/XT-Aegis/issues/36). The committed
+`scripts/git-town/stack.tsv` is header-only when no stack is active; that state MUST block foreground and
+background synchronization before mutation. Live unattended deployment remains blocked by
+[#44](https://github.com/ed3c/XT-Aegis/issues/44).
 
 ## Concurrent Worker Agents
 
@@ -94,11 +97,16 @@ Before editing, a Worker Agent MUST claim one issue and its path set.
   as a blocker rather than guessing.
 - Handoffs include branch, base SHA, changed paths, eval results, unresolved risks, and next safe command.
 
-## Documentation-only program guard
+## Completed documentation-first program
 
-Issues #32–#37 establish documentation and Git management before further Python implementation. Their PRs
-MUST NOT modify Python product files. Bash under `scripts/git-town/` is permitted only for Git workflow
-management and remains outside the XT-Aegis execution authority.
+Issues #32–#37 and PRs #38–#42 established the documentation, traceability, directory routing, Harness
+contract, stacked-PR tooling, and eval-first metadata before further Python implementation. Those PRs did
+not modify Python product files. Bash under `scripts/git-town/` manages Git workflow only and remains
+outside XT-Aegis product execution authority.
+
+Future implementation MUST start from the merged contracts on `main`, create a new eval-first issue, and
+record unresolved implementation or evidence gaps rather than treating documentation completion as
+runtime verification.
 
 ## Baseline commands
 
@@ -123,6 +131,7 @@ Stop before mutation when:
 - approval, idempotency, isolation, or provenance semantics are unclear;
 - a Git operation is suspended or the worktree is dirty;
 - an unattended rebase reaches a real conflict;
-- a tool version, binary checksum, or license record does not match its lock.
+- a tool version, binary checksum, or license record does not match its lock;
+- the active stack manifest has no rows or does not match open PR lineage.
 
 Record the blocker in the owning issue with the evidence needed to resume.
