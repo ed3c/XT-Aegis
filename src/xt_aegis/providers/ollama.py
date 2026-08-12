@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from ipaddress import ip_address
 from typing import Protocol
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from xt_aegis.proposals import (
     Proposal,
@@ -30,6 +32,37 @@ class OllamaConfig(BaseModel):
     sampling: SamplingProfile
     timeout_seconds: float = Field(default=30.0, ge=0.1, le=300.0)
     max_response_bytes: int = Field(default=262_144, ge=1, le=1_048_576)
+
+    @field_validator("endpoint")
+    @classmethod
+    def require_loopback_http_origin(cls, value: str) -> str:
+        message = "Ollama endpoint must be a loopback HTTP origin"
+        try:
+            parsed = urlsplit(value)
+            host = parsed.hostname
+            _ = parsed.port
+        except ValueError as exc:
+            raise ValueError(message) from exc
+
+        if (
+            parsed.scheme != "http"
+            or host is None
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError(message)
+
+        if host != "localhost":
+            try:
+                if not ip_address(host).is_loopback:
+                    raise ValueError(message)
+            except ValueError as exc:
+                raise ValueError(message) from exc
+
+        return value.rstrip("/")
 
 
 @dataclass(frozen=True, slots=True)

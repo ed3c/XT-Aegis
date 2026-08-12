@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 
+import pytest
+from pydantic import ValidationError
+
 from xt_aegis.proposals import ProposalRequest, ProposalStatus, SamplingProfile
 from xt_aegis.providers.ollama import (
     OllamaConfig,
@@ -77,3 +80,25 @@ def test_ollama_code_only_response_becomes_ready_proposal() -> None:
         "think": False,
         "options": {"temperature": 0.0, "seed": 7, "num_predict": 256},
     }
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://ollama.com",
+        "http://example.com:11434",
+        "http://user:secret@127.0.0.1:11434",
+        "http://127.0.0.1:11434/proxy",
+        "http://127.0.0.1:11434?token=secret",
+    ],
+)
+def test_ollama_config_rejects_non_local_or_credential_bearing_endpoint(
+    endpoint: str,
+) -> None:
+    with pytest.raises(ValidationError, match="loopback HTTP origin"):
+        OllamaConfig(
+            endpoint=endpoint,
+            model="qwen3:4b",
+            version="0.11.0",
+            sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+        )
