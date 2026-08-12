@@ -136,6 +136,21 @@ def test_ollama_config_rejects_non_local_or_credential_bearing_endpoint(
             ProposalStatus.TRUNCATED,
         ),
         (
+            OllamaHttpResponse(
+                200,
+                b'{"model":"qwen3:4b","response":"partial","done":true,'
+                b'"done_reason":"length"}',
+            ),
+            ProposalStatus.TRUNCATED,
+        ),
+        (
+            OllamaHttpResponse(
+                200,
+                b'{"model":"other:latest","response":"code","done":true}',
+            ),
+            ProposalStatus.MALFORMED,
+        ),
+        (
             OllamaHttpResponse(400, b'{"error":"request refused"}'),
             ProposalStatus.REFUSED,
         ),

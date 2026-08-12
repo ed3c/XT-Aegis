@@ -252,14 +252,19 @@ class OllamaProposalProvider:
         error = decoded.get("error")
         if isinstance(error, str) and error:
             return self._failure(ProposalStatus.REFUSED, profile, error)
-        if decoded.get("done") is False:
+        if decoded.get("done") is False or decoded.get("done_reason") == "length":
             return self._failure(
                 ProposalStatus.TRUNCATED,
                 profile,
                 "Ollama response did not reach a completed state",
             )
         content = decoded.get("response")
-        if decoded.get("done") is not True or not isinstance(content, str) or not content:
+        if (
+            decoded.get("done") is not True
+            or decoded.get("model") != self.config.model
+            or not isinstance(content, str)
+            or not content
+        ):
             return self._failure(
                 ProposalStatus.MALFORMED,
                 profile,
