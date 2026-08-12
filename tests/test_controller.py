@@ -2,8 +2,15 @@ from __future__ import annotations
 
 from typing import NoReturn
 
-from xt_aegis.controller import ControllerBudgets, ControllerStopReason, DiagnoseRepairController
-from xt_aegis.models import ActionRequest
+import pytest
+
+from xt_aegis.controller import (
+    ControllerBudgets,
+    ControllerStopReason,
+    DiagnoseRepairController,
+    InfrastructureUnavailableError,
+)
+from xt_aegis.models import ActionRequest, CheckResult, ExecutionResult, ExecutionStatus
 from xt_aegis.proposals import (
     FakeProposalProvider,
     Proposal,
@@ -62,6 +69,46 @@ class RecordingProvider(FakeProposalProvider):
     def propose(self, request: ProposalRequest) -> ProposalOutcome:
         self.requests.append(request)
         return super().propose(request)
+
+
+class SequenceExecutor:
+    def __init__(self, outcomes: list[ExecutionResult | InfrastructureUnavailableError]) -> None:
+        self._outcomes = iter(outcomes)
+        self.requests: list[ActionRequest] = []
+
+    def execute(self, request: ActionRequest) -> ExecutionResult:
+        self.requests.append(request)
+        outcome = next(self._outcomes)
+        if isinstance(outcome, InfrastructureUnavailableError):
+            raise outcome
+        return outcome
+
+
+def _execution_result(
+    *,
+    status: ExecutionStatus,
+    policy_reasons: list[str] | None = None,
+    preconditions: list[CheckResult] | None = None,
+    postconditions: list[CheckResult] | None = None,
+    rollback_integrity: bool | None = True,
+) -> ExecutionResult:
+    return ExecutionResult(
+        thread_id="thread:fake",
+        action_id="action:fake",
+        idempotency_key="idem:fake:0001",
+        step_number=1,
+        status=status,
+        success=status == ExecutionStatus.SUCCEEDED,
+        policy_reasons=policy_reasons or [],
+        preconditions=preconditions or [],
+        postconditions=postconditions or [],
+        rolled_back=status == ExecutionStatus.ROLLED_BACK,
+        rollback_integrity=rollback_integrity,
+        workspace_before_sha256="a" * 64,
+        workspace_after_sha256="a" * 64,
+        started_at="2026-08-12T00:00:00+00:00",
+        finished_at="2026-08-12T00:00:01+00:00",
+    )
 
 
 def test_proposal_rejection_is_terminal_without_execution(compiled_skill) -> None:  # type: ignore[no-untyped-def]
@@ -207,3 +254,82 @@ def test_assertion_failure_repairs_with_fresh_identity_and_preserves_both_attemp
     assert result.total_completion_tokens == 51
     assert len(provider.requests) == 2
     assert "postcondition failed" in provider.requests[1].task
+
+
+@pytest.mark.parametrize(
+    ("execution_outcome", "expected_reason"),
+    [
+        (
+            _execution_result(
+                status=ExecutionStatus.BLOCKED,
+                policy_reasons=["request denied by active policy"],
+            ),
+            ControllerStopReason.POLICY_DENIED,
+        ),
+        (
+            _execution_result(
+                status=ExecutionStatus.SUSPENDED,
+                policy_reasons=["human approval is required"],
+                rollback_integrity=None,
+            ),
+            ControllerStopReason.APPROVAL_REQUIRED,
+        ),
+        (
+            _execution_result(
+                status=ExecutionStatus.ROLLED_BACK,
+                preconditions=[CheckResult(description="baseline", passed=False, stderr="invalid")],
+            ),
+            ControllerStopReason.BASELINE_INVALID,
+        ),
+        (
+            InfrastructureUnavailableError("required backend is not ready"),
+            ControllerStopReason.INFRASTRUCTURE_UNAVAILABLE,
+        ),
+        (
+            _execution_result(
+                status=ExecutionStatus.FAILED,
+                rollback_integrity=False,
+            ),
+            ControllerStopReason.RECOVERY_FAILED,
+        ),
+        (
+            _execution_result(
+                status=ExecutionStatus.BLOCKED,
+                policy_reasons=["step budget exceeded: 3 > 2"],
+            ),
+            ControllerStopReason.BUDGET_EXHAUSTED,
+        ),
+    ],
+)
+def test_non_retryable_execution_outcomes_stop_immediately(
+    compiled_skill,  # type: ignore[no-untyped-def]
+    execution_outcome: ExecutionResult | InfrastructureUnavailableError,
+    expected_reason: ControllerStopReason,
+) -> None:
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content="safe content\n"),
+            )
+        ]
+    )
+    executor = SequenceExecutor([execution_outcome])
+    controller = DiagnoseRepairController(
+        provider=provider,
+        executor=executor,
+        skill=compiled_skill,
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        budgets=ControllerBudgets(max_attempts=3),
+        identity_source=FixedIdentitySource(),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert result.success is False
+    assert result.stop_reason == expected_reason
+    assert result.total_attempts == 1
+    assert result.attempts[0].classification == expected_reason
+    assert len(provider.requests) == 1
+    assert len(executor.requests) == 1

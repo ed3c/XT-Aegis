@@ -92,6 +92,10 @@ class ActionExecutor(Protocol):
         """Execute one trusted action request."""
 
 
+class InfrastructureUnavailableError(RuntimeError):
+    """A required execution backend cannot safely run the trusted request."""
+
+
 class DiagnoseRepairController:
     """Classify proposal outcomes before any deterministic execution."""
 
@@ -155,7 +159,33 @@ class DiagnoseRepairController:
                 skill=self.skill,
                 identity_source=self.identity_source,
             )
-            execution = self.executor.execute(envelope.request)
+            try:
+                execution = self.executor.execute(envelope.request)
+            except InfrastructureUnavailableError as exc:
+                attempts.append(
+                    ControllerAttempt(
+                        attempt_number=attempt_number,
+                        proposal_status=outcome.status,
+                        classification=ControllerStopReason.INFRASTRUCTURE_UNAVAILABLE,
+                        diagnostic=redact_text(
+                            str(exc),
+                            limit=self.budgets.max_diagnostic_bytes,
+                        ),
+                        proposal_sha256=hashlib.sha256(outcome.proposal.content.encode()).hexdigest(),
+                        request_digest=envelope.request_identity.digest,
+                        action_id=envelope.request.action_id,
+                        idempotency_key=envelope.request.idempotency_key,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                    )
+                )
+                return self._result(
+                    started=started,
+                    attempts=attempts,
+                    stop_reason=ControllerStopReason.INFRASTRUCTURE_UNAVAILABLE,
+                    total_prompt_tokens=total_prompt_tokens,
+                    total_completion_tokens=total_completion_tokens,
+                )
             classification = self._classify_execution(execution)
             diagnostic = self._execution_diagnostic(execution, classification)
             attempts.append(
