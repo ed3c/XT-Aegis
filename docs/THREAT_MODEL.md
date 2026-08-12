@@ -3,9 +3,9 @@
 ## Status
 
 The canonical request binding, schema-v2 checkpoint, exact approval, and declared command-outcome controls
-described below are delivered by PR #31 for `INTENT-001` and `INTENT-002`. They are under review when this
-file is read from that PR and current when this exact change is present on `main`. The remaining controls
-describe current or explicitly residual risk as indexed in [Traceability](TRACEABILITY.md).
+are current on `main`. The provider proposal controls are under review in the #26 change when read from its
+branch and current only when that exact change is present on `main`. The remaining controls describe current
+or explicitly residual risk as indexed in [Traceability](TRACEABILITY.md).
 
 ## Scope
 
@@ -20,6 +20,7 @@ against every host-kernel or runtime vulnerability.
 - canonical request, checkpoint, and idempotency integrity;
 - user approval decisions;
 - verification registry, recipes, results, and artifact hashes;
+- model proposal content and provider-profile evidence;
 - host filesystem, network, runtime daemon, and user accounts.
 
 ## Trust levels
@@ -46,6 +47,22 @@ command, or enable tools.
 
 **Residual risk:** provenance and taint propagation begin outside this repository. A model may still
 propose a harmful schema-valid action; the policy and sandbox must contain it.
+
+### T1A. Provider proposal authority, substitution, or exfiltration
+
+**Scenario:** A model response injects target, identity, approval, provenance, policy, backend, or budget
+fields; a remote/redirected/proxied endpoint receives a private task; a different model is reported as the
+configured profile; or malformed, partial, or oversized output is treated as executable.
+
+**Controls:** strict `extra=forbid` proposal models and checked-in schema, trusted construction of all
+control-plane fields, active-skill path and UTF-8 byte checks, fresh trusted identifiers, a loopback-only
+Ollama origin, no URL credentials/path/query, disabled environment proxies, refused redirects, bounded time
+and response bytes, returned-model matching, and typed non-ready outcomes.
+
+**Residual risk:** Ollama and the selected model are external local processes. Configured version metadata
+is not remotely attested; local host compromise, HTTP implementation flaws, model quality, and private prompt
+handling inside Ollama remain outside this adapter's guarantee. A ready proposal is untrusted data until the
+existing policy, approval, isolation, execution, and assertion boundaries accept it.
 
 ### T2. Shell, interpreter, or outcome-contract injection
 
@@ -155,7 +172,8 @@ XT-Aegis does not claim:
 - exactly-once semantics for external services without their cooperation;
 - crash-safe distributed approval recovery;
 - production distributed state;
-- measured latency or token savings without a published benchmark artifact.
+- measured latency or token savings without a published benchmark artifact;
+- correctness, availability, privacy, or performance of a live Ollama/model profile from adapter unit tests.
 
 ## Acceptance criteria for a production coding-agent profile
 

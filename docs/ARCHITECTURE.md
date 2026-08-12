@@ -3,10 +3,10 @@
 ## Status
 
 The canonical request-identity, schema-v2 checkpoint, request-bound approval, and declared command-outcome
-details below are delivered by the same change as PR #31 for `INTENT-001` and `INTENT-002`. When this file
-is read from PR #31 they are under review; when this exact change is present on `main` they are current.
-Status and eval ownership are indexed in [Traceability](TRACEABILITY.md) and
-[Harness evals](HARNESS_EVALS.md).
+controls are current on `main`. The provider-neutral proposal boundary described below is under review in
+the #26 change when read from its branch and current only when that exact change is present on `main`.
+Status and eval ownership are indexed in [Traceability](TRACEABILITY.md) and [Harness
+evals](HARNESS_EVALS.md).
 
 ## 1. Purpose
 
@@ -28,8 +28,10 @@ The system separates four planes:
 
 ```mermaid
 flowchart TB
-    U[User] --> AP[Typed Action Proposal]
-    M[Model / Provider] --> AP
+    U[User] --> AP[Typed Action Request]
+    M[Model / Provider] --> PP[Bounded Proposal Data]
+    PP --> TE[Trusted Envelope Builder]
+    TE --> AP
     D[External Data] -->|provenance: external_content| AP
     AP --> ID[Canonical Request + Policy Identity]
     ID --> XA[XT-Aegis SOP-Core]
@@ -55,6 +57,20 @@ documentation only. A code fence copied from external content cannot silently be
 The policy engine validates provenance, action type, unknown fields, file paths, write size, stale-plan
 hash, executable allowlist, command fragments, interpreter flags, working directory, and declared network
 intent. This is process-level policy, not OS isolation.
+
+### `ProposalProvider` and trusted envelope builder
+
+`ProposalProvider` is a provider-neutral boundary that returns one typed outcome. A ready `Proposal`
+contains replacement content, optional bounded explanation, and provider profile metadata; strict models
+and `trusted-proposal.schema.json` reject control-plane extras. `build_action_request` combines that data
+with a trusted target, actor label, optional expected source hash, fresh identifiers, fixed provenance, and
+the active compiled skill. It rejects path or byte-limit violations before identity allocation and does not
+execute the request.
+
+The optional Ollama adapter is local-only: plain HTTP loopback origins, no URL credentials/path/query,
+environment proxies disabled, redirects refused, bounded response reads, typed failure outcomes, and exact
+configured-model response matching. Provider version metadata is configured rather than remotely attested.
+This adapter does not authorize a mutation or prove live-model correctness.
 
 ### `RequestIdentity`
 
@@ -179,15 +195,15 @@ model.
 
 | Layer | Delivered state | Remaining work |
 |---|---|---|
-| Contract | strict YAML front matter; declared command exits delivered by PR #31 when this change is on `main` | signed policy bundles and migrations |
-| Identity | canonical request and policy digests delivered by PR #31 when this change is on `main` | signed subjects and cross-service identity |
+| Contract | strict YAML front matter and declared command exits | signed policy bundles and migrations |
+| Identity | canonical request and policy digests | signed subjects and cross-service identity |
 | Workspace | owned snapshot copy | copy-on-write production profile |
-| Process | argv policy and timeout; declared exit set delivered by PR #31 when this change is on `main` | broader per-tool schemas |
+| Process | argv policy, timeout, and declared exit set | broader per-tool schemas |
 | Network | deny intent; sandbox adapters request no egress | runtime conformance corpus |
-| State | SQLite WAL schema v2 delivered by PR #31 when this change is on `main` | PostgreSQL, leases, and fencing tokens |
-| Approval | expiring, single-use exact-request binding delivered by PR #31 when this change is on `main` | authenticated identity and crash-safe recovery |
-| Trace | SQLite + JSONL request/exit evidence delivered by PR #31 when this change is on `main` | OpenTelemetry export |
-| Coding agent | deterministic execution substrate | proposal adapter, strong mutation backend, bounded repair controller |
+| State | SQLite WAL schema v2 | PostgreSQL, leases, and fencing tokens |
+| Approval | expiring, single-use exact-request binding | authenticated identity and crash-safe recovery |
+| Trace | SQLite + JSONL request/exit evidence | OpenTelemetry export |
+| Coding agent | deterministic execution substrate; #26 proposal boundary when this exact change is on `main` | strong mutation backend, bounded repair controller, live provider evidence |
 | Verification | registry v2, CLI, MCP, sandbox adapters, evidence bundle | signed release evidence and independent runtime matrix |
 | MCP | read-only default; opt-in local execution | authenticated remote mutation adapter |
 

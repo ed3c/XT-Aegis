@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -18,6 +21,8 @@ from xt_aegis.proposals import (
     TrustedRequestIds,
     build_action_request,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class FixedIdentitySource:
@@ -40,6 +45,17 @@ def test_proposal_boundary_is_part_of_public_package_api() -> None:
     assert xt_aegis.Proposal is Proposal
     assert xt_aegis.ProposalProvider.__name__ == "ProposalProvider"
     assert xt_aegis.build_action_request is build_action_request
+
+
+def test_checked_in_proposal_schema_matches_runtime_model() -> None:
+    checked_in = json.loads(
+        (ROOT / "verification/schemas/trusted-proposal.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert checked_in.pop("$schema") == "https://json-schema.org/draft/2020-12/schema"
+    assert checked_in.pop("$id") == "https://github.com/ed3c/XT-Aegis/trusted-proposal.schema.json"
+    assert checked_in == Proposal.model_json_schema()
 
 
 def test_valid_proposal_builds_trusted_action_envelope(compiled_skill) -> None:  # type: ignore[no-untyped-def]

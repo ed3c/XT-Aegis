@@ -42,7 +42,7 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 
 - [x] canonical request and policy digest binding for replay and approval (#25; delivered when PR #31 is on `main`);
 - [x] declared command exit-code semantics shared by actions and assertions (#28; delivered when PR #31 is on `main`);
-- [ ] provider-neutral proposal adapter and trusted envelope (#26);
+- [x] provider-neutral proposal adapter and trusted envelope (#26; under review on its branch and delivered when this exact change is on `main`);
 - [ ] strong-isolation mutation backend for Harness actions (#27);
 - [ ] bounded diagnose-repair and candidate-selection controller (#29);
 - [ ] OpenShell readiness and conformance gate (#30);
