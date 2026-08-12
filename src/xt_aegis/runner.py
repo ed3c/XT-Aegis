@@ -287,7 +287,19 @@ class HarnessRunner:
                         preconditions=preconditions,
                         rolled_back=True,
                         rollback_integrity=rollback_integrity,
-                        action_stderr="precondition failed; action was not executed",
+                        action_stderr=(
+                            "" if check.output_truncated else "precondition failed; action was not executed"
+                        ),
+                        reason_code=(
+                            ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED if check.output_truncated else None
+                        ),
+                        policy_reasons=(
+                            [f"command output budget exceeded: > {max_output_bytes} bytes"]
+                            if check.output_truncated
+                            else None
+                        ),
+                        output_truncated=check.output_truncated,
+                        output_original_bytes=check.output_original_bytes,
                     )
                     return self._persist_and_emit(trace_id, result, "precondition_failed")
 
@@ -374,6 +386,16 @@ class HarnessRunner:
                         action_stderr=action_stderr,
                         rolled_back=True,
                         rollback_integrity=rollback_integrity,
+                        reason_code=(
+                            ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED if check.output_truncated else None
+                        ),
+                        policy_reasons=(
+                            [f"command output budget exceeded: > {max_output_bytes} bytes"]
+                            if check.output_truncated
+                            else None
+                        ),
+                        output_truncated=check.output_truncated,
+                        output_original_bytes=check.output_original_bytes,
                     )
                     return self._persist_and_emit(trace_id, result, "postcondition_failed")
 
