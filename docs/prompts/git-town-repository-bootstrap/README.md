@@ -18,6 +18,7 @@ XT-Aegis-specific identities, hashes, branches, issue numbers, or assumptions.
 | [`INPUT_TEMPLATE.md`](INPUT_TEMPLATE.md) | Minimal and full user input contract |
 | [`OUTPUT_CONTRACT.md`](OUTPUT_CONTRACT.md) | Required human-readable and machine-readable result |
 | [`EVALS.md`](EVALS.md) | Prompt conformance and target-repository acceptance evals |
+| [`EVAL_RESULTS.md`](EVAL_RESULTS.md) | Static and synthetic portability evidence for this package version |
 | [`ADOPTION_CHECKLIST.md`](ADOPTION_CHECKLIST.md) | Compact execution/review checklist |
 
 ## Recommended lifecycle
