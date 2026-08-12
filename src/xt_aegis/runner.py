@@ -155,7 +155,9 @@ class HarnessRunner:
                 policy_reasons=exc.reasons,
                 reason_code=ExecutionReasonCode.POLICY_DENIED,
             )
-            return self._persist_and_emit(trace_id, result, "policy_blocked")
+            return self._persist_and_emit(
+                trace_id, result, "policy_blocked", max_output_bytes=max_output_bytes
+            )
 
         if cached is not None:
             self.events.emit(
@@ -200,7 +202,9 @@ class HarnessRunner:
                 policy_reasons=budget_reasons,
                 reason_code=ExecutionReasonCode.BUDGET_EXHAUSTED,
             )
-            return self._persist_and_emit(trace_id, result, "budget_blocked")
+            return self._persist_and_emit(
+                trace_id, result, "budget_blocked", max_output_bytes=max_output_bytes
+            )
 
         if self._requires_approval() and not self.store.claim_approval(
             request.approval_id,
@@ -223,7 +227,9 @@ class HarnessRunner:
                     policy_reasons=["human approval was denied for this exact request"],
                     reason_code=ExecutionReasonCode.APPROVAL_DENIED,
                 )
-                return self._persist_and_emit(trace_id, result, "approval_denied")
+                return self._persist_and_emit(
+                    trace_id, result, "approval_denied", max_output_bytes=max_output_bytes
+                )
 
             approval_id = self.store.get_or_create_approval(request, identity)
             result = self._terminal_result(
@@ -240,7 +246,9 @@ class HarnessRunner:
                 policy_reasons=["human approval is required before this exact request may execute"],
                 reason_code=ExecutionReasonCode.APPROVAL_REQUIRED,
             )
-            return self._persist_and_emit(trace_id, result, "approval_required")
+            return self._persist_and_emit(
+                trace_id, result, "approval_required", max_output_bytes=max_output_bytes
+            )
 
         transaction: WorkspaceTransaction | None = None
         preconditions: list[CheckResult] = []
@@ -307,7 +315,9 @@ class HarnessRunner:
                         output_truncated=check.output_truncated,
                         output_original_bytes=total_output_original_bytes,
                     )
-                    return self._persist_and_emit(trace_id, result, "precondition_failed")
+                    return self._persist_and_emit(
+                        trace_id, result, "precondition_failed", max_output_bytes=max_output_bytes
+                    )
 
             action_result = self._execute_action(
                 request,
@@ -353,7 +363,9 @@ class HarnessRunner:
                     output_truncated=action_result.output_truncated,
                     output_original_bytes=total_output_original_bytes,
                 )
-                return self._persist_and_emit(trace_id, result, "action_failed")
+                return self._persist_and_emit(
+                    trace_id, result, "action_failed", max_output_bytes=max_output_bytes
+                )
 
             for condition in self.skill.contract.postconditions:
                 check = self._run_command(
@@ -407,7 +419,9 @@ class HarnessRunner:
                         output_truncated=check.output_truncated,
                         output_original_bytes=total_output_original_bytes,
                     )
-                    return self._persist_and_emit(trace_id, result, "postcondition_failed")
+                    return self._persist_and_emit(
+                        trace_id, result, "postcondition_failed", max_output_bytes=max_output_bytes
+                    )
 
             transaction.commit()
             after_sha = self.workspace.hash_tree()
@@ -429,7 +443,9 @@ class HarnessRunner:
                 action_stderr=action_stderr,
                 output_original_bytes=total_output_original_bytes,
             )
-            return self._persist_and_emit(trace_id, result, "action_succeeded")
+            return self._persist_and_emit(
+                trace_id, result, "action_succeeded", max_output_bytes=max_output_bytes
+            )
 
         except (OSError, subprocess.SubprocessError, WorkspaceSafetyError) as exc:
             rollback_integrity = None
@@ -463,7 +479,9 @@ class HarnessRunner:
                 rolled_back=rolled_back,
                 rollback_integrity=rollback_integrity,
             )
-            return self._persist_and_emit(trace_id, result, "executor_exception")
+            return self._persist_and_emit(
+                trace_id, result, "executor_exception", max_output_bytes=max_output_bytes
+            )
 
     def _requires_approval(self) -> bool:
         return self.skill.contract.requires_approval or self.skill.contract.risk_level in {
@@ -509,21 +527,12 @@ class HarnessRunner:
                 os.replace(temporary_path, target)
             finally:
                 temporary_path.unlink(missing_ok=True)
-            message = f"wrote {len(request.action.content.encode('utf-8'))} bytes"
-            stdout, _ = self._redact_and_bound_streams(
-                message.encode(),
-                b"",
-                max_output_bytes,
-            )
-            output_exceeded = len(message.encode()) > max_output_bytes
             return CheckResult(
                 description=f"write {request.action.relative_path}",
-                passed=not output_exceeded,
+                passed=True,
                 exit_code=0,
                 duration_ms=(time.perf_counter() - started) * 1000,
-                stdout=stdout,
-                output_truncated=output_exceeded,
-                output_original_bytes=len(message.encode()),
+                stdout=f"wrote {len(request.action.content.encode('utf-8'))} bytes",
             )
 
         if isinstance(request.action, CommandAction):
@@ -668,15 +677,23 @@ class HarnessRunner:
                     continue
                 os.set_blocking(stream.fileno(), False)
                 selector.register(stream.fileno(), selectors.EVENT_READ, name)
-            while selector.get_map():
+            while selector.get_map() or process.poll() is None:
                 remaining_time = timeout_seconds - (time.monotonic() - started)
                 if remaining_time <= 0:
                     timed_out = True
                     break
+                if not selector.get_map():
+                    try:
+                        process.wait(timeout=remaining_time)
+                    except subprocess.TimeoutExpired:
+                        timed_out = True
+                    break
                 events = selector.select(remaining_time)
                 if not events:
-                    timed_out = True
-                    break
+                    if process.poll() is None:
+                        timed_out = True
+                        break
+                    continue
                 for key, _ in events:
                     name = key.data
                     file_descriptor = key.fd
@@ -837,7 +854,10 @@ class HarnessRunner:
         trace_id: str,
         result: ExecutionResult,
         event_type: str,
+        *,
+        max_output_bytes: int,
     ) -> ExecutionResult:
+        result = self._bound_execution_output(result, max_output_bytes)
         self.store.save_result(result)
         self.events.emit(
             trace_id=trace_id,

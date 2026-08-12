@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pytest
@@ -493,6 +494,48 @@ def test_precondition_output_budget_exhaustion_is_typed_and_persisted(runner) ->
     assert replay.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
 
 
+def test_persisted_precondition_failure_evidence_stays_within_budget(runner) -> None:  # type: ignore[no-untyped-def]
+    script = _write_script(
+        runner,
+        "bounded_failing_precondition.py",
+        "import sys\nsys.stdout.write('p' * 16)\nraise SystemExit(1)\n",
+    )
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(
+                update={
+                    "preconditions": [
+                        CommandSpec(
+                            description="bounded failing baseline",
+                            argv=["python3", script],
+                        )
+                    ],
+                    "postconditions": [],
+                }
+            )
+        }
+    )
+    runner.policy.contract = runner.skill.contract
+    request = _request(
+        action_id="precondition.persisted.output.limit",
+        key="persisted-output-limit-0001",
+        content=GOOD_CODE,
+    )
+
+    result = runner.execute(request, max_output_bytes=16)
+    replay = runner.execute(request, max_output_bytes=1_024)
+
+    for observed in (result, replay):
+        retained = (
+            sum(len((check.stdout + check.stderr).encode()) for check in observed.preconditions)
+            + len((observed.action_stdout + observed.action_stderr).encode())
+            + sum(len((check.stdout + check.stderr).encode()) for check in observed.postconditions)
+        )
+        assert retained <= 16
+    assert replay.cached_replay is True
+    assert replay.action_stderr == ""
+
+
 def test_postcondition_output_budget_exhaustion_rolls_back_mutation(runner) -> None:  # type: ignore[no-untyped-def]
     script = _write_script(runner, "large_postcondition_output.py", "print('q' * 100)\n")
     condition = CommandSpec(
@@ -582,7 +625,6 @@ def test_file_write_respects_output_remaining_after_precondition(runner) -> None
         }
     )
     runner.policy.contract = runner.skill.contract
-    before = runner.workspace.hash_tree()
     request = _request(
         action_id="write.shared.output.limit",
         key="write-shared-output-limit-0001",
@@ -595,10 +637,10 @@ def test_file_write_respects_output_remaining_after_precondition(runner) -> None
         (result.action_stdout + result.action_stderr).encode()
     )
     assert retained <= 12
-    assert result.status == ExecutionStatus.ROLLED_BACK
-    assert result.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
-    assert result.rollback_integrity is True
-    assert runner.workspace.hash_tree() == before
+    assert result.status == ExecutionStatus.SUCCEEDED
+    assert result.success is True
+    assert result.output_truncated is True
+    assert (runner.workspace.root / "sample_project/app.py").read_text(encoding="utf-8") == GOOD_CODE
 
 
 @pytest.mark.parametrize(
@@ -690,6 +732,41 @@ def test_mutating_command_output_exhaustion_rolls_back_workspace(runner) -> None
     assert runner.workspace.hash_tree() == before
 
 
+def test_output_exhaustion_terminates_descendant_processes(runner) -> None:  # type: ignore[no-untyped-def]
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(update={"preconditions": [], "postconditions": []})
+        }
+    )
+    runner.policy.contract = runner.skill.contract
+    marker = runner.workspace.root / "sample_project/descendant-survived.txt"
+    descendant = _write_script(
+        runner,
+        "delayed_descendant.py",
+        "import time\nfrom pathlib import Path\ntime.sleep(0.4)\n"
+        "Path('sample_project/descendant-survived.txt').write_text('alive', encoding='utf-8')\n",
+    )
+    parent = _write_script(
+        runner,
+        "overflow_with_descendant.py",
+        "import subprocess\nimport time\n"
+        f"subprocess.Popen(['python3', {descendant!r}])\n"
+        "print('x' * 100, flush=True)\ntime.sleep(5)\n",
+    )
+    request = _command_request(
+        action_id="command.output.limit.process.group",
+        key="output-process-group-0001",
+        script=parent,
+        expected_exit_codes={0},
+    )
+
+    result = runner.execute(request, max_output_bytes=16)
+    time.sleep(0.6)
+
+    assert result.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
+    assert marker.exists() is False
+
+
 def test_timeout_below_output_budget_remains_a_timeout(runner) -> None:  # type: ignore[no-untyped-def]
     runner.skill = runner.skill.model_copy(
         update={
@@ -717,6 +794,34 @@ def test_timeout_below_output_budget_remains_a_timeout(runner) -> None:  # type:
     assert result.output_truncated is False
     assert "timed out" in result.action_stderr
     assert len((result.action_stdout + result.action_stderr).encode()) <= 64
+
+
+def test_timeout_still_applies_after_child_closes_output_pipes(runner) -> None:  # type: ignore[no-untyped-def]
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(update={"preconditions": [], "postconditions": []})
+        }
+    )
+    runner.policy.contract = runner.skill.contract
+    script = _write_script(
+        runner,
+        "close_output_then_sleep.py",
+        "import os\nimport time\nos.close(1)\nos.close(2)\ntime.sleep(1)\n",
+    )
+    request = _command_request(
+        action_id="command.closed.output.timeout",
+        key="closed-output-timeout-0001",
+        script=script,
+        expected_exit_codes={0},
+        timeout_seconds=0.1,
+    )
+
+    result = runner.execute(request, max_output_bytes=64)
+
+    assert result.status == ExecutionStatus.ROLLED_BACK
+    assert result.duration_ms < 800
+    assert result.output_truncated is False
+    assert "timed out" in result.action_stderr
 
 
 def test_signal_termination_is_not_an_accepted_exit(runner) -> None:  # type: ignore[no-untyped-def]
