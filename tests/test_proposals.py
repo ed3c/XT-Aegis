@@ -127,3 +127,32 @@ def test_trusted_builder_rejects_content_over_active_skill_byte_limit(compiled_s
             skill=limited_skill,
             identity_source=FixedIdentitySource(ids),
         )
+
+
+@pytest.mark.parametrize("target_path", ["/tmp/outside.py", "../outside.py", "other.py"])
+def test_trusted_builder_rejects_target_outside_active_skill_scope(
+    compiled_skill, target_path: str  # type: ignore[no-untyped-def]
+) -> None:
+    proposal = Proposal(
+        kind="replace_file",
+        content="safe content\n",
+        profile=ProviderProfile(
+            provider="fake",
+            model="deterministic",
+            version="1.0",
+            sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+        ),
+    )
+    ids = TrustedRequestIds(
+        thread_id="thread:trusted",
+        action_id="action:trusted",
+        idempotency_key="idem:trusted:0003",
+    )
+
+    with pytest.raises(ValueError, match="target path is outside active skill scope"):
+        build_action_request(
+            proposal,
+            trusted=TrustedEnvelopeConfig(target_path=target_path),
+            skill=compiled_skill,
+            identity_source=FixedIdentitySource(ids),
+        )

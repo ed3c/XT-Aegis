@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import fnmatch
 import secrets
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import PurePosixPath
 from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -163,6 +165,20 @@ def build_action_request(
 ) -> TrustedActionEnvelope:
     """Build one policy-bound request without accepting provider authority fields."""
 
+    target = PurePosixPath(trusted.target_path)
+    normalized_target = (
+        not target.is_absolute()
+        and target.as_posix() == trusted.target_path
+        and all(part not in {"", ".", ".."} for part in target.parts)
+    )
+    allowed_target = normalized_target and any(
+        fnmatch.fnmatch(target.as_posix(), pattern)
+        for pattern in skill.contract.allowed_write_paths
+    )
+    if not allowed_target:
+        raise ValueError(
+            f"target path is outside active skill scope: {trusted.target_path}"
+        )
     content_bytes = len(proposal.content.encode("utf-8"))
     if content_bytes > skill.contract.max_write_bytes:
         raise ValueError(
