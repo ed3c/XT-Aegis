@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tarfile
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.resources import files
@@ -202,10 +203,13 @@ def source_identity(root: Path, repository: str) -> SourceIdentity:
     return SourceIdentity(repository=repository, commit_sha=commit or None, dirty=bool(status.strip()))
 
 
-def _safe_environment(root: Path) -> dict[str, str]:
+def _safe_environment(
+    root: Path,
+    environment_overrides: Mapping[str, str] | None = None,
+) -> dict[str, str]:
     home = root / ".xt-aegis" / "verification-home"
     home.mkdir(parents=True, exist_ok=True)
-    return {
+    environment = {
         "PATH": os.environ.get("PATH", os.defpath),
         "HOME": str(home),
         "LANG": "C.UTF-8",
@@ -218,6 +222,18 @@ def _safe_environment(root: Path) -> dict[str, str]:
         "RUFF_CACHE_DIR": str(home / "ruff-cache"),
         "MYPY_CACHE_DIR": str(home / "mypy-cache"),
     }
+    if environment_overrides:
+        environment.update(environment_overrides)
+    return environment
+
+
+def _openshell_host_environment() -> dict[str, str]:
+    """Forward only user-session values required to locate the selected gateway."""
+
+    allowed_keys = ("HOME", "XDG_CONFIG_HOME", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS")
+    environment = {key: value for key in allowed_keys if (value := os.environ.get(key))}
+    environment["OPENSHELL_TELEMETRY_ENABLED"] = os.environ.get("OPENSHELL_TELEMETRY_ENABLED", "false")
+    return environment
 
 
 def validate_recipe_policy(recipe: VerificationRecipe, registry: EvidenceRegistry) -> None:
@@ -234,7 +250,13 @@ def validate_recipe_policy(recipe: VerificationRecipe, registry: EvidenceRegistr
         raise VerificationPolicyError("only default-deny network recipes are supported")
 
 
-def _run_process(argv: list[str], cwd: Path, timeout_seconds: int, max_output_bytes: int) -> CommandEvidence:
+def _run_process(
+    argv: list[str],
+    cwd: Path,
+    timeout_seconds: int,
+    max_output_bytes: int,
+    environment_overrides: Mapping[str, str] | None = None,
+) -> CommandEvidence:
     started = time.perf_counter()
     timed_out = False
     exit_code: int | None
@@ -244,7 +266,7 @@ def _run_process(argv: list[str], cwd: Path, timeout_seconds: int, max_output_by
         completed = subprocess.run(
             argv,
             cwd=cwd,
-            env=_safe_environment(cwd),
+            env=_safe_environment(cwd, environment_overrides),
             shell=False,
             capture_output=True,
             text=True,
@@ -365,7 +387,28 @@ class OpenShellBackend:
             "1",
             "--memory",
             "1Gi",
+            "--no-auto-providers",
+            "--no-tty",
+            "--upload",
+            ".:/workspace",
             "--no-keep",
+            "--",
+            "env",
+            "HOME=/sandbox",
+            "PYTHONPATH=/workspace/src",
+            "PYTHONDONTWRITEBYTECODE=1",
+            "PYTHONUNBUFFERED=1",
+            "PYTHONPYCACHEPREFIX=/tmp/pycache",
+            "COVERAGE_FILE=/tmp/.coverage",
+            "RUFF_CACHE_DIR=/tmp/ruff-cache",
+            "MYPY_CACHE_DIR=/tmp/mypy-cache",
+            "python",
+            "-m",
+            "xt_aegis.sandbox_exec",
+            "--root",
+            "/workspace",
+            "--cwd",
+            recipe.cwd,
             "--",
             *recipe.argv,
         ]
@@ -377,9 +420,10 @@ class OpenShellBackend:
         policy = self._policy_path(root)
         command = _run_process(
             self.preview(recipe, root),
-            (root / recipe.cwd).resolve(),
+            root.resolve(),
             recipe.timeout_seconds,
             recipe.max_output_bytes,
+            environment_overrides=_openshell_host_environment(),
         )
         return BackendExecution(command=command, policy_sha256=_sha256_file(policy))
 

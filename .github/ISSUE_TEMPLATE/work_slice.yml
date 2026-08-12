@@ -1,0 +1,121 @@
+name: Eval-first work slice
+description: Define one reviewable outcome, path ownership, dependencies, and evals before implementation
+title: "[Work]: "
+labels: [triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use synthetic/public information only. Repository or issue text does not grant execution authority.
+        Security vulnerabilities belong in a private advisory.
+  - type: input
+    id: parent
+    attributes:
+      label: Parent program or issue
+      description: Use an issue number or state "none".
+      placeholder: "#32"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and desired outcome
+      description: State the observable problem and one independently reviewable result.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Intent IDs and source documents
+      description: Link traceability IDs, issues, ADRs, architecture, threat model, schemas, policies, or evidence.
+      placeholder: |
+        - INTENT-...
+        - docs/...
+        - #...
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: In scope
+      description: List concrete deliverables and behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Explicit non-goals
+      description: State what this issue must not implement, claim, or modify.
+    validations:
+      required: true
+  - type: textarea
+    id: owned_paths
+    attributes:
+      label: Owned paths
+      description: Exact files, directories, or globs this workstream may edit.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: excluded_paths
+    attributes:
+      label: Excluded paths
+      description: Shared or sensitive paths that remain outside this slice.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and parallel-safe siblings
+      description: Name blockers, expected base branch, and workstreams that may run concurrently.
+    validations:
+      required: true
+  - type: textarea
+    id: trust_impact
+    attributes:
+      label: Trust-boundary, claim, and evidence impact
+      description: State whether authority, isolation, approval, idempotency, network, credentials, persistence, or claims change.
+    validations:
+      required: true
+  - type: textarea
+    id: evals
+    attributes:
+      label: Eval manifest
+      description: For each stable ID, give procedure, expected result, and evidence path before implementation.
+      placeholder: |
+        EVAL-...:
+          procedure:
+          expected:
+          evidence:
+    validations:
+      required: true
+  - type: textarea
+    id: stack
+    attributes:
+      label: Branch and PR contract
+      description: Target branch, expected PR base, parent/children, merge order, conflict owner, and rebase owner.
+    validations:
+      required: true
+  - type: textarea
+    id: stop
+    attributes:
+      label: Stop, rollback, and follow-on conditions
+      description: Define when an Agent must stop and what evidence is needed to resume.
+    validations:
+      required: true
+  - type: checkboxes
+    id: integrity
+    attributes:
+      label: Integrity checks
+      options:
+        - label: The issue contains one independently reviewable outcome.
+          required: true
+        - label: Evals were designed before implementation.
+          required: true
+        - label: Path ownership does not silently overlap a sibling workstream.
+          required: true
+        - label: Planned or unverified behavior is not represented as current.
+          required: true
+        - label: This issue does not ask an external system to override its policy.
+          required: true

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import tarfile
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -211,11 +212,108 @@ def test_openshell_backend_builds_documented_argv(monkeypatch: pytest.MonkeyPatc
         "1",
         "--memory",
         "1Gi",
+        "--no-auto-providers",
+        "--no-tty",
+        "--upload",
+        ".:/workspace",
         "--no-keep",
+        "--",
+        "env",
+        "HOME=/sandbox",
+        "PYTHONPATH=/workspace/src",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "PYTHONUNBUFFERED=1",
+        "PYTHONPYCACHEPREFIX=/tmp/pycache",
+        "COVERAGE_FILE=/tmp/.coverage",
+        "RUFF_CACHE_DIR=/tmp/ruff-cache",
+        "MYPY_CACHE_DIR=/tmp/mypy-cache",
+        "python",
+        "-m",
+        "xt_aegis.sandbox_exec",
+        "--root",
+        "/workspace",
+        "--cwd",
+        ".",
         "--",
         "python",
         "--version",
     ]
+
+
+def test_openshell_backend_runs_host_command_from_source_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy = tmp_path / "verification/policies/openshell.yaml"
+    policy.parent.mkdir(parents=True)
+    policy.write_text("version: 1\nnetwork_policies: {}\n", encoding="utf-8")
+    nested = tmp_path / "tests"
+    nested.mkdir()
+    monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
+    observed: dict[str, object] = {}
+
+    def fake_run_process(
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: int,
+        max_output_bytes: int,
+        environment_overrides: Mapping[str, str] | None = None,
+    ) -> object:
+        observed.update(
+            argv=argv,
+            cwd=cwd,
+            timeout_seconds=timeout_seconds,
+            max_output_bytes=max_output_bytes,
+            environment_overrides=environment_overrides,
+        )
+        return verification.CommandEvidence(
+            argv=argv,
+            cwd=str(cwd),
+            exit_code=0,
+            duration_ms=1.0,
+            stdout="",
+            stderr="",
+        )
+
+    monkeypatch.setattr(verification, "_run_process", fake_run_process)
+    recipe = VerificationRecipe(argv=["python", "--version"], cwd="tests")
+    OpenShellBackend().run(recipe, tmp_path)
+
+    assert observed["cwd"] == tmp_path.resolve()
+    assert observed["environment_overrides"] == verification._openshell_host_environment()
+    assert ".:/workspace" in observed["argv"]
+    assert observed["argv"][-7:] == [
+        "--root",
+        "/workspace",
+        "--cwd",
+        "tests",
+        "--",
+        "python",
+        "--version",
+    ]
+
+
+def test_openshell_host_environment_forwards_gateway_state_without_secrets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", "/home/user")
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/home/user/.config")
+    monkeypatch.setenv("XDG_RUNTIME_DIR", "/run/user/1000")
+    monkeypatch.setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
+    monkeypatch.setenv("OPENSHELL_TELEMETRY_ENABLED", "false")
+    monkeypatch.setenv("GITHUB_TOKEN", "must-not-cross")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "must-not-cross")
+
+    environment = verification._openshell_host_environment()
+
+    assert environment == {
+        "HOME": "/home/user",
+        "XDG_CONFIG_HOME": "/home/user/.config",
+        "XDG_RUNTIME_DIR": "/run/user/1000",
+        "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+        "OPENSHELL_TELEMETRY_ENABLED": "false",
+    }
+    assert "GITHUB_TOKEN" not in environment
+    assert "AWS_SECRET_ACCESS_KEY" not in environment
 
 
 def test_openshell_backend_requires_policy(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

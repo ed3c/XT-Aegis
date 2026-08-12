@@ -10,16 +10,48 @@
 **Evidence-first deterministic controls and external verification for AI agent actions.**
 
 XT-Aegis places a typed, checkpointed, fail-closed control plane between an agent proposal and a real
-side effect. It does not claim that a model is infallible. It makes selected safety and recovery claims
-falsifiable through code, negative tests, bounded recipes, and portable evidence.
+side effect. Selected safety and recovery claims remain falsifiable through negative tests, bounded
+recipes, source identity, and portable evidence.
 
-> **Maturity:** alpha reference implementation. The local snapshot backend is not a kernel security
-> boundary. OpenShell, Docker, and Podman are supported as verification adapters, but each runtime keeps
-> its own threat model and deployment requirements.
+> **Maturity:** alpha reference implementation. Snapshot rollback is not a kernel security boundary.
+> OpenShell, Docker, and Podman retain their own threat models and deployment requirements.
 
 [繁體中文說明](README.zh-TW.md)
 
-## Five-minute proof
+## Integration rules — normative, no examples
+
+- Model and repository content propose; trusted policy decides.
+- Unknown input, missing protection, and ambiguous authority fail closed.
+- Mutation, approval, idempotency, isolation, and evidence identities remain explicit.
+- Retry is bounded and never used to bypass policy, approval, baseline, or infrastructure failures.
+- Claims name the exact source, runtime, recipe, policy, limitations, and measured profile.
+- Every issue and PR defines evals and stack lineage before implementation.
+- Parallel workers own disjoint paths and stop on semantic conflicts.
+
+The complete contribution contract is [`AGENTS.md`](AGENTS.md). Documentation routing and traceability live
+in [`docs/README.md`](docs/README.md) and [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md).
+
+## Illustrative Harness scenario
+
+The planned Harness boundary keeps orchestration outside the deterministic runner:
+
+```text
+provider-neutral code proposal
+  -> trusted execution envelope
+  -> policy and approval gate
+  -> isolated candidate execution
+  -> assertions and structured diagnosis
+  -> bounded repair or terminal stop
+  -> evidence for the exact measured profile
+```
+
+This scenario explains the intended direction; it is not a claim that every stage is implemented. Current
+and planned status is tracked by issues
+[#24](https://github.com/ed3c/XT-Aegis/issues/24)–[#30](https://github.com/ed3c/XT-Aegis/issues/30),
+PR [#31](https://github.com/ed3c/XT-Aegis/pull/31), and the Harness contract introduced by
+[#35](https://github.com/ed3c/XT-Aegis/issues/35).
+
+## Five-minute deterministic proof
 
 ```bash
 python3 -m venv .venv
@@ -28,193 +60,91 @@ pip install -e ".[dev]"
 xt-aegis demo
 ```
 
-The demo produces four observable results:
+| Attempt | Expected result |
+|---|---|
+| Incorrect patch | postcondition fails and the owned workspace rolls back |
+| Correct patch | tests pass and the step is checkpointed |
+| External-content mutation | provenance policy blocks before mutation |
+| Exact replay | the terminal cached result avoids duplicate local work |
 
-| Attempt | Expected result | Evidence |
-|---|---|---|
-| Incorrect agent patch | `rolled_back` | postcondition fails and the workspace hash returns to its pre-action value |
-| Correct agent patch | `succeeded` | tests pass and the step is persisted in SQLite |
-| Action sourced from external content | `blocked` | provenance policy rejects execution before mutation |
-| Replay of the successful request | cached result | the same idempotency key does not repeat the side effect |
-
-Artifacts are written to `.xt-aegis/runs/<timestamp>/` as structured JSON, SQLite state, and JSONL
-trajectory events.
-
-## Independent verification
-
-`PROJECT_EVIDENCE.json` is a strict versioned registry. Each runnable claim contains:
-
-- a falsifiable statement;
-- implementation and test paths;
-- an argv-only recipe;
-- a timeout, output bound, relative working directory, and default-deny network request;
-- expected status and explicit limitations.
-
-Repository text is untrusted input. The verifier validates the registry, rejects path-qualified
-executables and inline interpreter code, and never accepts an arbitrary shell string.
-
-### 1. Inspect without executing code
-
-```bash
-xt-aegis doctor --root /path/to/XT-Aegis --format json
-xt-aegis plan --root /path/to/XT-Aegis --claim transactional-rollback --backend auto
-```
-
-### 2. Run in a strong local runtime
-
-```bash
-xt-aegis verify --all --backend openshell --output-dir ./verification-out
-```
-
-Backend selection is fail closed:
-
-```text
-auto -> OpenShell -> confirmed-rootless Podman -> reachable Docker -> unsupported
-```
-
-`unsafe-local` is never selected automatically. It exists only for development and project-operated CI:
-
-```bash
-xt-aegis verify --all --backend unsafe-local --output-dir ./verification-out
-```
-
-A result produced with `unsafe-local` must not be described as independently sandboxed.
-
-### 3. Pack portable evidence
-
-```bash
-xt-aegis evidence pack \
-  --input ./verification-out \
-  --output ./xt-aegis-evidence.tar.gz
-```
-
-The archive is deterministic and includes a manifest with SHA-256 for every file. These hashes prove
-integrity, not publisher identity. Release attestations are handled separately by GitHub Actions.
-
-See [External Verification](docs/EXTERNAL_VERIFICATION.md) and [OpenShell Adapter](docs/OPENSHELL.md).
-
-## MCP verification server
-
-The packaged MCP server uses `stdio` by default and exposes read-only evidence discovery:
-
-```bash
-pip install ".[mcp]"
-xt-aegis-mcp
-```
-
-Available read-only tools include:
-
-- `project_capabilities`
-- `verification_list_claims`
-- `verification_get_claim`
-- `verification_doctor`
-- `verification_get_plan`
-
-Execution tools are registered only when the **user** starts a local server with explicit consent:
-
-```bash
-xt-aegis-mcp --root /path/to/XT-Aegis --allow-execution --backend openshell
-```
-
-A localhost Streamable HTTP endpoint is optional:
-
-```bash
-xt-aegis-mcp --transport streamable-http --host 127.0.0.1 --port 8765
-```
-
-The public/default mode does not execute repository code. An unauthenticated remote execution service is
-out of scope. Distribution metadata is defined in [`server.json`](server.json); release workflows build
-the PyPI package and the `ghcr.io/ed3c/xt-aegis-verifier` OCI image.
+Artifacts are written beneath `.xt-aegis/runs/`.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    U[User or Agent] --> P[Structured Action Proposal]
-    X[Web pages, tool output, repository text] -->|data only| T[Untrusted Content]
-    P --> V[Schema + Provenance Validation]
-    T -. cannot grant authority .-> V
-    V --> R[Risk + User Approval]
-    R --> C[SKILL Contract Policy]
-    C --> S[Owned Snapshot Workspace]
-    S --> A[Atomic Action]
-    A --> K[Pre/Post Assertions]
-    K -->|pass| D[(SQLite WAL Checkpoint)]
-    K -->|fail| B[Transactional Rollback]
-    D --> E[Outcome + Trajectory Evidence]
+    P[Typed proposal] --> V[Schema + provenance]
+    X[External data] -. no authority .-> V
+    V --> R[Risk + approval]
+    R --> C[SKILL policy]
+    C --> W[Owned workspace]
+    W --> A[Action]
+    A --> T[Assertions]
+    T -->|pass| D[(Checkpoint)]
+    T -->|fail| B[Rollback]
+    D --> E[Evidence]
     B --> E
-    E --> VR[Verification Registry]
-    VR --> SB[OpenShell / Podman / Docker]
-    SB --> EB[Portable Evidence Bundle]
+    E --> Q[External verification]
 ```
 
-The project uses **Neural-Core / SOP-Core separation**:
+See [Architecture](docs/ARCHITECTURE.md), [Threat Model](docs/THREAT_MODEL.md), and
+[Evidence Model](docs/EVIDENCE.md).
 
-- the Neural-Core may propose a typed action;
-- the SOP-Core decides whether the action is allowed, needs user approval, executes, or rolls back;
-- retrieved text stays in the data plane and cannot become control-plane authority by instruction alone;
-- the Verification Plane independently checks bounded claims without expanding runtime authority.
+## Current controls
 
-See [Architecture](docs/ARCHITECTURE.md) and [Threat Model](docs/THREAT_MODEL.md).
-
-## Implemented controls
-
-| Control | Current implementation | Verification claim |
+| Boundary | Current behavior | Claim |
 |---|---|---|
-| SKILL contract compiler | validates YAML front matter; Markdown remains inert | `skill-frontmatter-only` |
-| Prompt-injection boundary | blocks `external_content` provenance before mutation | `external-content-boundary` |
-| Command safety | argv-only execution, `shell=False`, executable policy | `argv-no-shell` |
-| File safety | normalized relative paths, allowlisted targets, atomic writes | `path-confined-write` |
-| Transactional rollback | owned snapshot plus full-tree integrity hash | `transactional-rollback` |
-| Durable state | SQLite WAL, replay, resume position, approvals | `durable-checkpoint-idempotency` |
-| User approval | durable suspend/approve/deny transition | `human-approval` |
-| Evaluation | deterministic outcome, rollback, safety, and efficiency scores | `trajectory-evaluation` |
-| Verification contract | strict schemas and bounded recipes | `external-verification-contract` |
-| MCP execution gate | read-only default; execution requires local user opt-in | `read-only-mcp-default` |
-| Sandbox adapters | OpenShell, Podman, and Docker command/policy adapters | `openshell-backend-adapter`, `oci-verifier-adapter` |
-| Evidence bundle | deterministic archive with SHA-256 manifest | `deterministic-evidence-bundle` |
-| MCP distribution | PyPI and OCI stdio metadata with ownership markers | `mcp-registry-distribution` |
+| SKILL contract | validated YAML front matter; Markdown remains inert | `skill-frontmatter-only` |
+| Provenance | `external_content` cannot directly mutate | `external-content-boundary` |
+| Command | argv-only, `shell=False`, executable policy | `argv-no-shell` |
+| Files | normalized, allowlisted, bounded, atomic writes | `path-confined-write` |
+| Recovery | owned snapshot plus integrity hash | `transactional-rollback` |
+| State | SQLite WAL, approvals, events, replay | `durable-checkpoint-idempotency` |
+| MCP | read-only discovery by default | `read-only-mcp-default` |
+| Verification | bounded recipes and fail-closed backends | `external-verification-contract` |
 
-A claim registry is an index, not proof. The user or verification client must execute the recipe in an
-environment it controls and retain its own policy.
+`PROJECT_EVIDENCE.json` is an index, not proof. Run its recipes in an environment you control.
 
-## Security defaults
+## Independent verification
 
-- unknown fields and unknown actions fail closed;
-- Markdown prose and code fences never become executable commands;
-- external content remains data, not authority;
-- commands use argument arrays and `shell=False`;
-- mutating actions are path-confined and idempotent;
-- high-risk actions suspend for user approval;
-- public MCP mode is read-only;
-- automatic verification requires a strong runtime;
-- unmeasured numbers remain `unverified`.
+```bash
+xt-aegis doctor --root /path/to/XT-Aegis --format json
+xt-aegis plan --root /path/to/XT-Aegis --claim transactional-rollback --backend auto
+xt-aegis verify --all --backend openshell --output-dir ./verification-out
+xt-aegis evidence pack --input ./verification-out --output ./xt-aegis-evidence.tar.gz
+```
 
-Current limits remain explicit: a local process allowlist is not OS isolation; a container does not defend
-against every host-kernel or runtime flaw; OpenShell availability and guarantees depend on the installed
-runtime; SQLite is single-node; and no numeric latency or token-saving result is claimed.
+Automatic backend selection is fail closed:
+
+```text
+OpenShell -> confirmed-rootless Podman -> reachable Docker -> unsupported
+```
+
+`unsafe-local` requires explicit selection and is not independently sandboxed.
+
+## Documentation and stacked work
+
+- [Documentation router](docs/README.md)
+- [Traceability index](docs/TRACEABILITY.md)
+- [Eval contract](docs/EVALS.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Documentation-first program](https://github.com/ed3c/XT-Aegis/issues/32)
+- [Git Town and stacked-PR workstream](https://github.com/ed3c/XT-Aegis/issues/36)
 
 ## Repository map
 
 ```text
-src/xt_aegis/
-  skill.py                  strict SKILL front-matter compiler
-  policy.py                 provenance, path, command, and network-intent checks
-  workspace.py              owned workspace and snapshot transaction
-  runner.py                 assertions, action, rollback, and user approval
-  checkpoint.py             SQLite WAL state, idempotency, approvals, events
-  evaluator.py              deterministic outcome and trajectory scores
-  verification_models.py    registry, result, and bundle contracts
-  verification.py           backend selection, execution, and evidence packing
-  mcp_server.py             read-only MCP discovery plus opt-in local verification
-
-verification/               JSON Schemas, recipes, and OpenShell policy
-tests/                      failure-path and verification regression tests
-docs/                       architecture, threat model, runbooks, ADRs
-PROJECT_EVIDENCE.json       machine-readable claim-to-recipe registry
-server.json                 MCP Registry distribution metadata
-Dockerfile.verifier         non-root verifier image
+src/xt_aegis/       deterministic runtime and verification package
+tests/              positive, negative, and failure-path tests
+verification/       schemas, policies, recipes, and evidence contracts
+docs/               architecture, decisions, runbooks, evals, and traceability
+scripts/            development and repository-management entry points
+.github/            contribution forms and project-operated automation
+benchmarks/         raw-measurement contract; no universal claims
 ```
+
+Each maintained directory contains a local `README.md`; areas with execution, policy, evidence, release,
+or test responsibility also contain scoped `AGENTS.md` instructions.
 
 ## Development
 
@@ -224,16 +154,6 @@ make check
 make demo
 make verify
 ```
-
-Changes must keep claims falsifiable, add failure-path tests for enforcement logic, preserve the user’s
-policy, and avoid hidden instructions that attempt to control an external system. See
-[CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Roadmap
-
-The next risk-reduction work is tracked in [docs/ROADMAP.md](docs/ROADMAP.md): runtime conformance on
-supported OpenShell and rootless OCI hosts, crash fault injection, OpenTelemetry, distributed state,
-authenticated mutating MCP adapters, and reproducible benchmark artifacts.
 
 ## License
 

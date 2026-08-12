@@ -1,42 +1,67 @@
-# Harness-Based Coding Agent
+# Coding-Agent Harness Contract
 
-## Purpose
+## Status
 
-XT-Aegis already provides the deterministic safety boundary needed by a coding agent: typed actions,
-policy checks, owned workspaces, transactional rollback, assertions, checkpoints, approvals, and evidence.
-It does not yet provide the complete model-facing loop that proposes, diagnoses, repairs, and selects code.
+Partially implemented architecture contract for issue #35. Canonical request identity and declared command
+outcomes are under review in PR #31; the provider adapter, strong mutation isolation, controller, and
+benchmark remain tracked work. This document does not claim that every component is implemented on `main`.
 
-The target is a bounded coding agent in which the model can suggest work but cannot manufacture authority:
+## Goal
+
+Add an experimental orchestration layer around the deterministic XT-Aegis core without allowing model
+output to own security-sensitive control-plane fields.
 
 ```text
-model/provider proposal
-  -> trusted envelope construction
+provider-neutral proposal
+  -> trusted envelope
   -> canonical request and policy identity
-  -> isolated Harness execution
-  -> structured failure diagnosis
-  -> bounded repair or candidate selection
+  -> required isolation
+  -> HarnessRunner
+  -> assertions and structured diagnosis
+  -> bounded repair / selection
   -> terminal evidence
 ```
 
-## Separation of responsibilities
+## Trust boundary
 
-| Layer | May do | Must not do |
-|---|---|---|
-| Proposal provider | return a candidate patch, command intent, or refusal | choose durable IDs, approval scope, policy, budgets, or assertions |
-| Trusted envelope builder | validate proposal shape and construct `ActionRequest` | execute repository text or silently broaden policy |
-| Harness | authorize, checkpoint, execute, assert, roll back, and emit evidence | invent a repair or run an unbounded retry loop |
-| Diagnosis | classify observable failure evidence | reinterpret failed evidence as success |
-| Controller | choose stop, repair, or candidate selection within budgets | retry after terminal policy, approval, or infrastructure failures |
-| Sandbox backend | isolate the selected source and command | fall back to host execution without explicit user choice |
+| Field or decision | Model/provider may supply | Trusted integration owns |
+|---|---:|---:|
+| replacement code or typed change content | yes | validates size, encoding, kind, and scope |
+| bounded explanation | optional | redacts and limits persistence |
+| target path / symbol scope | no | yes |
+| thread, action, and idempotency identity | no | yes |
+| provenance label | no | yes |
+| active policy and assertions | no | yes |
+| approval identity, actor binding, expiry | no | yes |
+| execution backend and isolation requirement | no | yes |
+| attempt/token/time/output budgets | no | yes |
+| retry/stop classification | no | yes |
+| claim status | no | evidence review only |
 
-## Request identity contract
+Unknown or extra model fields are rejected, not ignored when they could be mistaken for authority.
+
+## Component responsibilities
+
+### Proposal provider
+
+Returns a typed provider outcome: ready, refused, timed out, malformed, oversized, truncated, or provider
+error. Provider credentials, prompts, and wire formats stay outside the deterministic runner. Malformed or
+non-ready output never reaches mutation.
+
+### Trusted envelope builder
+
+Combines validated proposal content with configured target scope, optimistic source identity, generated
+request identity, provenance, policy, assertions, backend requirement, and budgets. A changed proposal
+gets a changed request digest and cannot reuse prior approval or idempotent success.
+
+### Request identity
 
 Every executable request is bound to a versioned canonical identity. The digest includes the thread,
 action, idempotency key, optional actor label, provenance, action payload, command exit contract, and the
 complete structured `SkillContract`. The resume-only `approval_id` is excluded so the exact request can be
 resubmitted after approval.
 
-The identity is used for three decisions:
+The identity has three enforcement uses:
 
 1. an idempotency key replays only the exact same request under the same policy;
 2. an approval authorizes only the exact request, policy, and actor label;
@@ -45,7 +70,7 @@ The identity is used for three decisions:
 Legacy rows without a digest fail closed. A digest is an integrity binding, not authenticated identity or
 proof that the request is safe.
 
-## Command outcome contract
+### Command outcome
 
 A command succeeds when its actual process exit code belongs to its declared `expected_exit_codes` set and
 all postconditions pass. Exit code zero has no special bypass. Timeouts, signal termination, undeclared
@@ -53,73 +78,132 @@ codes, and failed assertions remain failures and trigger rollback when a transac
 supervisors may expose signal termination as a negative return code or translate it to a generic nonzero
 status, so portable evidence checks rejection against the declared set rather than one numeric encoding.
 
-## Controller state machine
+### Action execution boundary
 
-```mermaid
-stateDiagram-v2
-    [*] --> Proposed
-    Proposed --> Rejected: malformed / oversized / provider failure
-    Proposed --> Envelope: valid proposal
-    Envelope --> Blocked: policy / identity / budget failure
-    Envelope --> Suspended: approval required
-    Suspended --> Envelope: exact approved request resubmitted
-    Envelope --> Executing: authorization passes
-    Executing --> Succeeded: action exit contract + assertions pass
-    Executing --> Diagnosed: assertion / command failure with rollback
-    Diagnosed --> Repairing: retryable and budget remains
-    Diagnosed --> TerminalFailure: non-retryable or budget exhausted
-    Repairing --> Envelope: new trusted request identity
-    Succeeded --> Evidence
-    Blocked --> Evidence
-    TerminalFailure --> Evidence
-    Evidence --> [*]
-```
+The mutation plane must distinguish:
 
-A repair is a new request with a new idempotency key. It never mutates or reuses the identity of the failed
-attempt.
+- action execution success;
+- assertion outcome;
+- workspace rollback integrity;
+- strong-isolation availability;
+- external side-effect containment.
+
+Snapshot rollback only covers the owned workspace. A command requiring strong isolation fails closed when
+no conformant backend is ready.
+
+### Diagnose-repair controller
+
+Lives outside `HarnessRunner`. It converts bounded, redacted failure evidence into a provider-neutral
+repair request and records every attempt.
 
 ## Failure taxonomy
 
-| Class | Typical evidence | Retry policy |
-|---|---|---|
-| `proposal_invalid` | schema error, oversized output, refusal | stop or request one fresh proposal within provider budget |
-| `policy_blocked` | provenance, path, executable, argument, or network violation | terminal until trusted policy or input changes |
-| `approval_required` | suspended result and approval ID | wait for an exact user decision; no autonomous retry |
-| `command_failed` | undeclared exit code, timeout, or signal | diagnose once; repair only when task policy allows |
-| `assertion_failed` | precondition or postcondition evidence | repair only from structured evidence and within attempt budget |
-| `rollback_failed` | integrity mismatch or restore exception | terminal infrastructure failure |
-| `backend_unavailable` | no strong sandbox or readiness failure | terminal unless the user selects another strong backend |
-| `budget_exhausted` | step, time, token, or candidate limit | terminal |
+| Outcome | Retry? | Required evidence | Stop reason |
+|---|---:|---|---|
+| proposal rejected or malformed | no | provider status and bounded diagnostic | `proposal_rejected` |
+| policy denied | no | policy reasons and digests | `policy_denied` |
+| approval required/mismatch | no automatic retry | exact action digest and approval state | `approval_required` |
+| baseline precondition invalid | no | failed baseline check | `baseline_invalid` |
+| required isolation unavailable | no | readiness component and backend reason | `infrastructure_unavailable` |
+| action execution failed | yes, within budget | exit/timeout/output and rollback verdict | `execution_failed` |
+| postcondition failed | yes, within budget | failed assertion and rollback verdict | `assertion_failed` |
+| rollback integrity failed | no | before/after identity and recovery diagnostics | `recovery_failed` |
+| identical proposal/failure cycle | no | stable cycle fingerprint | `repeated_failure` |
+| attempt/token/time/output budget reached | no | consumed and configured budgets | `budget_exhausted` |
+| passed | no | assertions, source/result identity, final evidence | `passed` |
 
-## Issue dependency map
+Security or infrastructure failures are never retried until they happen to pass.
 
-The coding-agent path is intentionally ordered:
+## Budgets
 
-1. **#25** canonical request and policy binding;
-2. **#28** declared command exit-code semantics;
-3. **#26** provider-neutral proposal adapter and trusted envelope;
-4. **#27** strong-isolation mutation backend;
-5. **#29** bounded diagnose-repair controller;
-6. **#30** OpenShell readiness and conformance;
-7. **#11** benchmark and evidence publication.
+The controller must enforce finite maximums for:
 
-#25 and #28 are safety prerequisites. A controller built before them could replay an approval for changed
-code or misclassify a tool's documented nonzero success code as failure.
+- proposal attempts;
+- prompt and completion tokens;
+- wall-clock duration;
+- proposal and diagnostic bytes;
+- command output;
+- repeated-equivalent failures;
+- candidate branches when branch-and-evaluate is enabled later.
 
-## Definition of done for the first coding-agent slice
+Budget checks occur before the next provider or execution call. Exhaustion is a terminal, schema-valid
+result.
 
-The first end-to-end slice is complete only when all of the following are true:
+## Attempt evidence
 
-- a deterministic fake provider can drive the same interface as an optional local model provider;
-- trusted code owns IDs, policy, assertions, budgets, and provenance labels;
-- mutation runs only through an explicitly selected strong backend;
-- one retryable failure produces structured diagnosis and at most one bounded repair;
-- policy, approval, rollback, backend, and budget failures terminate without repair;
-- every attempt has a unique canonical request identity and durable evidence;
-- all required CI gates pass: formatting, lint, type checks, tests, claim validation, package and image builds, and CodeQL;
-- a benchmark corpus measures task success, safety, attempts, latency, and token use without unsupported claims.
+Each attempt records, with secret-safe bounds:
+
+- source commit and dirty state;
+- provider/model/version and sampling identity;
+- request and policy digests;
+- target scope and proposal digest, not private prompt content by default;
+- backend/readiness profile;
+- execution, assertion, rollback, and isolation verdicts;
+- actual and expected exit codes;
+- token, byte, latency, and attempt counters;
+- classification and next transition;
+- artifact identities and limitations.
+
+## Measurement contract
+
+A model-backed comparison uses the same corpus, model, sampling, context budget, environment, and success
+criteria for:
+
+1. direct execution;
+2. equal diagnostic feedback without the Harness controller;
+3. Harness-controlled repair.
+
+Report separately:
+
+- first-pass and post-repair correctness;
+- Harness-specific correctness uplift;
+- clean-or-passing final workspace rate;
+- failed-mutation persistence;
+- policy/safety outcomes;
+- retries and stop reasons;
+- prompt/completion tokens and cost;
+- latency and infrastructure failures.
+
+One model or machine profile does not generalize to other profiles. A reproducible negative result leaves
+the uplift claim unverified.
+
+## Dependency order
+
+```mermaid
+flowchart LR
+    I[#25 identity] --> C[#29 controller]
+    P[#26 proposal adapter] --> C
+    X[#28 exit semantics] --> C
+    S[#27 strong mutation isolation] --> C
+    R[#30 backend readiness] --> S
+    C --> B[#11 benchmark evidence]
+    S --> B
+    R --> B
+    O[#12 runtime conformance] --> B
+```
+
+PR #31 is the under-review delivery for #25 and #28. PR #23 advances source-bound OpenShell verification
+but does not close #30 or prove the mutation-plane isolation required by #27.
+
+## Implementation issue gate
+
+Each implementation issue must define, before code:
+
+- trusted/untrusted field matrix;
+- state transitions and terminal outcomes;
+- path and side-effect scope;
+- positive, negative, timeout, crash, replay, and substitution evals;
+- exact backend/profile requirements;
+- evidence schema and raw artifact retention;
+- claim wording and non-goals;
+- stack parent and path ownership.
 
 ## Non-goals
 
-This design does not make model output trusted, authenticate `actor_id`, prove kernel isolation, permit an
-anonymous remote mutating MCP service, or justify an unbounded autonomous loop.
+- unbounded autonomous retries;
+- model-selected policy, approval, provenance, assertion, backend, or identity;
+- host mutation fallback when strong isolation is required;
+- automatic approval;
+- universal exactly-once external effects;
+- universal correctness, latency, token, or isolation claims;
+- treating retrieved repository text or memory as tool authority.

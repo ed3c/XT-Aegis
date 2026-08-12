@@ -11,11 +11,15 @@ project uses Semantic Versioning for published interfaces.
 - SQLite checkpoint schema v2 migration with fail-closed legacy trust records and future-version rejection;
 - expiring, exact-request, optional-actor-bound, single-use approvals;
 - Harness coding-agent architecture and ordered implementation track.
+- an argv-only sandbox launcher that confines recipe working directories beneath the uploaded source root;
+- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs.
 
 ### Changed
 
 - command actions now honor `CommandSpec.expected_exit_codes` instead of requiring exit code zero;
 - action, precondition, postcondition, and terminal evidence record actual and expected exit codes;
+- OpenShell verification now uploads the selected checkout into `/workspace`, disables automatic providers,
+  uses manual policy approval, and executes the recipe against that source rather than only image-baked code;
 - pin the MCP Registry publisher and validate `server.json` in pull requests before release publication.
 
 ### Security
