@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import os
+import selectors
+import signal
 import subprocess
 import tempfile
 import time
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -68,7 +71,11 @@ class HarnessRunner:
         """Execute once and return output bounded for the calling controller."""
 
         return self._bound_execution_output(
-            self._execute(request, timeout_seconds=timeout_seconds),
+            self._execute(
+                request,
+                timeout_seconds=timeout_seconds,
+                max_output_bytes=max_output_bytes,
+            ),
             max_output_bytes,
         )
 
@@ -77,6 +84,7 @@ class HarnessRunner:
         request: ActionRequest,
         *,
         timeout_seconds: float | None,
+        max_output_bytes: int,
     ) -> ExecutionResult:
         trace_id = self.events.new_trace_id()
         identity = RequestIdentity.from_request(request, skill=self.skill)
@@ -246,7 +254,11 @@ class HarnessRunner:
             before_sha = transaction.before_sha256
 
             for condition in self.skill.contract.preconditions:
-                check = self._run_command(condition, deadline=deadline)
+                check = self._run_command(
+                    condition,
+                    deadline=deadline,
+                    max_output_bytes=max_output_bytes,
+                )
                 preconditions.append(check)
                 self.events.emit(
                     trace_id=trace_id,
@@ -279,7 +291,11 @@ class HarnessRunner:
                     )
                     return self._persist_and_emit(trace_id, result, "precondition_failed")
 
-            action_result = self._execute_action(request, deadline=deadline)
+            action_result = self._execute_action(
+                request,
+                deadline=deadline,
+                max_output_bytes=max_output_bytes,
+            )
             action_exit_code = action_result.exit_code
             action_expected_exit_codes = self._expected_exit_codes(request)
             action_stdout = action_result.stdout
@@ -304,11 +320,27 @@ class HarnessRunner:
                     action_stderr=action_stderr,
                     rolled_back=True,
                     rollback_integrity=rollback_integrity,
+                    reason_code=(
+                        ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
+                        if action_result.output_truncated
+                        else None
+                    ),
+                    policy_reasons=(
+                        [f"command output budget exceeded: > {max_output_bytes} bytes"]
+                        if action_result.output_truncated
+                        else None
+                    ),
+                    output_truncated=action_result.output_truncated,
+                    output_original_bytes=action_result.output_original_bytes,
                 )
                 return self._persist_and_emit(trace_id, result, "action_failed")
 
             for condition in self.skill.contract.postconditions:
-                check = self._run_command(condition, deadline=deadline)
+                check = self._run_command(
+                    condition,
+                    deadline=deadline,
+                    max_output_bytes=max_output_bytes,
+                )
                 postconditions.append(check)
                 self.events.emit(
                     trace_id=trace_id,
@@ -423,7 +455,13 @@ class HarnessRunner:
             return sorted(request.action.command.expected_exit_codes)
         return [0]
 
-    def _execute_action(self, request: ActionRequest, *, deadline: float | None) -> CheckResult:
+    def _execute_action(
+        self,
+        request: ActionRequest,
+        *,
+        deadline: float | None,
+        max_output_bytes: int,
+    ) -> CheckResult:
         if isinstance(request.action, FileWriteAction):
             started = time.perf_counter()
             target = self.workspace.resolve_relative(request.action.relative_path)
@@ -447,11 +485,21 @@ class HarnessRunner:
             )
 
         if isinstance(request.action, CommandAction):
-            return self._run_command(request.action.command, deadline=deadline)
+            return self._run_command(
+                request.action.command,
+                deadline=deadline,
+                max_output_bytes=max_output_bytes,
+            )
 
         raise TypeError(f"unsupported action: {type(request.action).__name__}")
 
-    def _run_command(self, command: CommandSpec, *, deadline: float | None) -> CheckResult:
+    def _run_command(
+        self,
+        command: CommandSpec,
+        *,
+        deadline: float | None,
+        max_output_bytes: int,
+    ) -> CheckResult:
         cwd = self.workspace.resolve_relative(command.cwd)
         home = self.workspace.run_root / "home"
         home.mkdir(parents=True, exist_ok=True)
@@ -467,27 +515,28 @@ class HarnessRunner:
         timeout_seconds = command.timeout_seconds
         if deadline is not None:
             timeout_seconds = max(0.001, min(timeout_seconds, deadline - started))
-        try:
-            completed = subprocess.run(
-                command.argv,
-                cwd=cwd,
-                env=environment,
-                shell=False,
-                capture_output=True,
-                text=True,
-                timeout=timeout_seconds,
-                check=False,
-            )
-            exit_code: int | None = completed.returncode
-            stdout = redact_text(completed.stdout)
-            stderr = redact_text(completed.stderr)
-            passed = completed.returncode in command.expected_exit_codes
-        except subprocess.TimeoutExpired as exc:
-            exit_code = None
-            stdout = redact_text(exc.stdout or "") if isinstance(exc.stdout, str) else ""
-            stderr = redact_text((exc.stderr or "") if isinstance(exc.stderr, str) else "")
-            stderr = f"{stderr}\ncommand timed out after {timeout_seconds}s".strip()
-            passed = False
+        process = subprocess.Popen(
+            command.argv,
+            cwd=cwd,
+            env=environment,
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+        stdout_bytes, stderr_bytes, output_exceeded, timed_out = self._collect_process_output(
+            process,
+            timeout_seconds=timeout_seconds,
+            max_output_bytes=max_output_bytes,
+        )
+        exit_code = None if timed_out or output_exceeded else process.returncode
+        stderr_suffix = f"\ncommand timed out after {timeout_seconds}s" if timed_out else ""
+        stdout, stderr = self._redact_and_bound_streams(
+            stdout_bytes,
+            stderr_bytes + stderr_suffix.encode(),
+            max_output_bytes,
+        )
+        passed = not timed_out and not output_exceeded and process.returncode in command.expected_exit_codes
         duration_ms = (time.perf_counter() - started) * 1000
         return CheckResult(
             description=command.description,
@@ -496,6 +545,10 @@ class HarnessRunner:
             duration_ms=duration_ms,
             stdout=stdout,
             stderr=stderr,
+            output_truncated=output_exceeded,
+            output_original_bytes=(
+                max_output_bytes + 1 if output_exceeded else len(stdout_bytes) + len(stderr_bytes)
+            ),
         )
 
     def _terminal_result(
@@ -521,6 +574,8 @@ class HarnessRunner:
         action_stderr: str = "",
         rolled_back: bool = False,
         rollback_integrity: bool | None = None,
+        output_truncated: bool = False,
+        output_original_bytes: int = 0,
     ) -> ExecutionResult:
         return ExecutionResult(
             thread_id=request.thread_id,
@@ -538,6 +593,8 @@ class HarnessRunner:
             action_expected_exit_codes=action_expected_exit_codes or [],
             action_stdout=redact_text(action_stdout),
             action_stderr=redact_text(action_stderr),
+            output_truncated=output_truncated,
+            output_original_bytes=output_original_bytes,
             rolled_back=rolled_back,
             rollback_integrity=rollback_integrity,
             workspace_before_sha256=before_sha,
@@ -551,6 +608,76 @@ class HarnessRunner:
         )
 
     @staticmethod
+    def _collect_process_output(
+        process: subprocess.Popen[bytes],
+        *,
+        timeout_seconds: float,
+        max_output_bytes: int,
+    ) -> tuple[bytes, bytes, bool, bool]:
+        selector = selectors.DefaultSelector()
+        streams = {"stdout": process.stdout, "stderr": process.stderr}
+        buffers = {"stdout": bytearray(), "stderr": bytearray()}
+        started = time.monotonic()
+        output_exceeded = False
+        timed_out = False
+        try:
+            for name, stream in streams.items():
+                if stream is None:
+                    continue
+                os.set_blocking(stream.fileno(), False)
+                selector.register(stream.fileno(), selectors.EVENT_READ, name)
+            while selector.get_map():
+                remaining_time = timeout_seconds - (time.monotonic() - started)
+                if remaining_time <= 0:
+                    timed_out = True
+                    break
+                events = selector.select(remaining_time)
+                if not events:
+                    timed_out = True
+                    break
+                for key, _ in events:
+                    name = key.data
+                    file_descriptor = key.fd
+                    retained = sum(len(buffer) for buffer in buffers.values())
+                    chunk = os.read(
+                        file_descriptor,
+                        min(65_536, max_output_bytes - retained + 1),
+                    )
+                    if not chunk:
+                        selector.unregister(file_descriptor)
+                        continue
+                    allowance = max_output_bytes - retained
+                    buffers[name].extend(chunk[:allowance])
+                    if len(chunk) > allowance:
+                        output_exceeded = True
+                        break
+                if output_exceeded:
+                    break
+        finally:
+            if timed_out or output_exceeded:
+                with suppress(ProcessLookupError):
+                    os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            selector.close()
+            for stream in streams.values():
+                if stream is not None:
+                    stream.close()
+        return bytes(buffers["stdout"]), bytes(buffers["stderr"]), output_exceeded, timed_out
+
+    @staticmethod
+    def _redact_and_bound_streams(
+        stdout: bytes,
+        stderr: bytes,
+        limit: int,
+    ) -> tuple[str, str]:
+        safe_stdout = redact_text(stdout.decode(errors="ignore")).encode()
+        safe_stderr = redact_text(stderr.decode(errors="ignore")).encode()
+        retained_stdout = safe_stdout[:limit].decode(errors="ignore")
+        retained_stdout_bytes = len(retained_stdout.encode())
+        retained_stderr = safe_stderr[: limit - retained_stdout_bytes].decode(errors="ignore")
+        return retained_stdout, retained_stderr
+
+    @staticmethod
     def _bound_execution_output(result: ExecutionResult, limit: int) -> ExecutionResult:
         if limit < 1:
             raise ValueError("max_output_bytes must be positive")
@@ -558,7 +685,9 @@ class HarnessRunner:
         stderr = result.action_stderr.encode()
         original_bytes = len(stdout) + len(stderr)
         if original_bytes <= limit:
-            return result.model_copy(update={"output_original_bytes": original_bytes})
+            return result.model_copy(
+                update={"output_original_bytes": max(result.output_original_bytes, original_bytes)}
+            )
         retained_stdout = stdout[:limit].decode(errors="ignore")
         stdout_bytes = len(retained_stdout.encode())
         retained_stderr = stderr[: limit - stdout_bytes].decode(errors="ignore")

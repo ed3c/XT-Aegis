@@ -9,6 +9,7 @@ from xt_aegis.models import (
     ActionRequest,
     CommandAction,
     CommandSpec,
+    ExecutionReasonCode,
     ExecutionStatus,
     FileWriteAction,
     Provenance,
@@ -366,6 +367,12 @@ def test_controller_deadline_clamps_a_longer_command_timeout(runner) -> None:  #
 
 
 def test_controller_output_limit_bounds_returned_execution_evidence(runner) -> None:  # type: ignore[no-untyped-def]
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(update={"preconditions": [], "postconditions": []})
+        }
+    )
+    runner.policy.contract = runner.skill.contract
     script = _write_script(runner, "large_output.py", "print('x' * 100)\n")
     request = _command_request(
         action_id="command.output.limit",
@@ -376,10 +383,18 @@ def test_controller_output_limit_bounds_returned_execution_evidence(runner) -> N
 
     result = runner.execute(request, max_output_bytes=16)
 
-    assert result.status == ExecutionStatus.SUCCEEDED
+    assert result.status == ExecutionStatus.ROLLED_BACK
+    assert result.success is False
+    assert result.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
     assert len((result.action_stdout + result.action_stderr).encode()) <= 16
     assert result.output_truncated is True
     assert result.output_original_bytes > 16
+    assert "output budget exceeded" in result.policy_reasons[0]
+
+    replay = runner.execute(request, max_output_bytes=16)
+    assert replay.cached_replay is True
+    assert len((replay.action_stdout + replay.action_stderr).encode()) <= 16
+    assert replay.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
 
 
 def test_signal_termination_is_not_an_accepted_exit(runner) -> None:  # type: ignore[no-untyped-def]

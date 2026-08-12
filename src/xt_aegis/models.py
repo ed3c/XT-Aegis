@@ -39,6 +39,7 @@ class ExecutionReasonCode(StrEnum):
     APPROVAL_REQUIRED = "approval_required"
     BUDGET_EXHAUSTED = "budget_exhausted"
     IDENTITY_CONFLICT = "identity_conflict"
+    OUTPUT_BUDGET_EXHAUSTED = "output_budget_exhausted"
 
 
 class NetworkPolicy(StrEnum):
@@ -181,6 +182,8 @@ class CheckResult(BaseModel):
     duration_ms: float = 0.0
     stdout: str = ""
     stderr: str = ""
+    output_truncated: bool = False
+    output_original_bytes: int = Field(default=0, ge=0)
 
 
 class ExecutionResult(BaseModel):
