@@ -568,3 +568,50 @@ def test_missing_token_usage_fails_closed_before_retry(
     assert result.attempts[0].prompt_tokens is None
     assert result.attempts[0].completion_tokens is None
     assert len(provider.requests) == 1
+
+
+def test_repair_diagnostic_is_redacted_and_byte_bounded_before_provider_reuse(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content="broken\n"),
+                usage=ProviderUsage(prompt_tokens=1, completion_tokens=1),
+            ),
+            ProposalOutcome(
+                status=ProposalStatus.REFUSED,
+                profile=_profile(),
+                diagnostic="done",
+                usage=ProviderUsage(prompt_tokens=1, completion_tokens=0),
+            ),
+        ]
+    )
+    executor = SequenceExecutor(
+        [
+            _execution_result(
+                status=ExecutionStatus.ROLLED_BACK,
+                action_stderr="password=supersecret " + "界" * 100,
+            )
+        ]
+    )
+    controller = DiagnoseRepairController(
+        provider=provider,
+        executor=executor,
+        skill=compiled_skill,
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        budgets=ControllerBudgets(max_attempts=2, max_diagnostic_bytes=64, max_output_bytes=1024),
+        identity_source=FixedIdentitySource(),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert result.stop_reason == ControllerStopReason.PROPOSAL_REJECTED
+    first_diagnostic = result.attempts[0].diagnostic
+    assert "supersecret" not in first_diagnostic
+    assert "[REDACTED]" in first_diagnostic
+    assert len(first_diagnostic.encode()) <= 64
+    assert "supersecret" not in provider.requests[1].task
+    assert first_diagnostic in provider.requests[1].task

@@ -191,10 +191,7 @@ class DiagnoseRepairController:
                         attempt_number=attempt_number,
                         proposal_status=outcome.status,
                         classification=ControllerStopReason.PROPOSAL_REJECTED,
-                        diagnostic=redact_text(
-                            outcome.diagnostic,
-                            limit=self.budgets.max_diagnostic_bytes,
-                        ),
+                        diagnostic=self._bounded_diagnostic(outcome.diagnostic),
                         prompt_tokens=reported_prompt_tokens,
                         completion_tokens=reported_completion_tokens,
                     )
@@ -223,10 +220,7 @@ class DiagnoseRepairController:
                         attempt_number=attempt_number,
                         proposal_status=outcome.status,
                         classification=ControllerStopReason.INFRASTRUCTURE_UNAVAILABLE,
-                        diagnostic=redact_text(
-                            str(exc),
-                            limit=self.budgets.max_diagnostic_bytes,
-                        ),
+                        diagnostic=self._bounded_diagnostic(str(exc)),
                         proposal_sha256=hashlib.sha256(outcome.proposal.content.encode()).hexdigest(),
                         request_digest=envelope.request_identity.digest,
                         action_id=envelope.request.action_id,
@@ -441,7 +435,19 @@ class DiagnoseRepairController:
             parts.extend(execution.policy_reasons)
         else:
             parts.extend(filter(None, [execution.action_stderr, execution.action_stdout]))
-        return redact_text("\n".join(parts), limit=self.budgets.max_diagnostic_bytes)
+        return self._bounded_diagnostic("\n".join(parts))
+
+    def _bounded_diagnostic(self, value: str) -> str:
+        redacted = redact_text(value, limit=1_048_576)
+        encoded = redacted.encode()
+        if len(encoded) <= self.budgets.max_diagnostic_bytes:
+            return redacted
+        suffix = b"\n...[truncated]"
+        if self.budgets.max_diagnostic_bytes <= len(suffix):
+            return suffix[: self.budgets.max_diagnostic_bytes].decode()
+        prefix_limit = self.budgets.max_diagnostic_bytes - len(suffix)
+        prefix = encoded[:prefix_limit].decode(errors="ignore")
+        return prefix + suffix.decode()
 
     @staticmethod
     def _cycle_fingerprint(
