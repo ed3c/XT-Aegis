@@ -57,6 +57,16 @@ class ProposalStatus(StrEnum):
     PROVIDER_ERROR = "provider_error"
 
 
+class ProviderUsage(BaseModel):
+    """Bounded provider counters retained without prompt content."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    prompt_tokens: int | None = Field(default=None, ge=0)
+    completion_tokens: int | None = Field(default=None, ge=0)
+    total_duration_ms: float | None = Field(default=None, ge=0.0)
+
+
 class ProposalRequest(BaseModel):
     """Private task input passed to a provider but not retained as evidence."""
 
@@ -74,6 +84,7 @@ class ProposalOutcome(BaseModel):
     profile: ProviderProfile
     proposal: Proposal | None = None
     diagnostic: str = Field(default="", max_length=4_096)
+    usage: ProviderUsage = Field(default_factory=ProviderUsage)
 
     @model_validator(mode="after")
     def validate_proposal_presence(self) -> ProposalOutcome:
