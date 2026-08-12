@@ -5,8 +5,15 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from ipaddress import ip_address
-from typing import Protocol
+from typing import Any, Protocol, cast
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
+from urllib.request import (
+    HTTPRedirectHandler,
+    ProxyHandler,
+    Request,
+    build_opener,
+)
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
@@ -85,12 +92,100 @@ class OllamaTransport(Protocol):
         """POST one bounded JSON request without redirects or proxies."""
 
 
+class OllamaResponseTooLarge(RuntimeError):
+    """The provider response exceeded the configured byte limit."""
+
+
+class NoRedirectHandler(HTTPRedirectHandler):
+    """Turn redirects into HTTP errors instead of following a new target."""
+
+    def redirect_request(
+        self,
+        req: Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        del req, fp, code, msg, headers, newurl
+        return None
+
+
+class OllamaHttpStream(Protocol):
+    """Minimal urllib response surface used by the bounded transport."""
+
+    status: int
+
+    def __enter__(self) -> OllamaHttpStream: ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+    def read(self, amount: int) -> bytes: ...
+
+
+class OllamaOpener(Protocol):
+    """Injectable stdlib opener boundary for deterministic transport tests."""
+
+    def open(self, request: Request, *, timeout: float) -> OllamaHttpStream: ...
+
+
+class UrllibOllamaTransport:
+    """Bounded local HTTP transport with redirects and environment proxies disabled."""
+
+    def __init__(self, *, opener: OllamaOpener | None = None) -> None:
+        self.opener = opener or cast(
+            OllamaOpener,
+            build_opener(ProxyHandler({}), NoRedirectHandler()),
+        )
+
+    def post_json(
+        self,
+        url: str,
+        payload: bytes,
+        timeout_seconds: float,
+        max_response_bytes: int,
+    ) -> OllamaHttpResponse:
+        request = Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            method="POST",
+        )
+        try:
+            with self.opener.open(request, timeout=timeout_seconds) as response:
+                return OllamaHttpResponse(
+                    status_code=response.status,
+                    body=self._read_bounded(response, max_response_bytes),
+                )
+        except HTTPError as exc:
+            with exc:
+                return OllamaHttpResponse(
+                    status_code=exc.code,
+                    body=self._read_bounded(exc, max_response_bytes),
+                )
+
+    @staticmethod
+    def _read_bounded(response: Any, max_response_bytes: int) -> bytes:
+        body = cast(bytes, response.read(max_response_bytes + 1))
+        if len(body) > max_response_bytes:
+            raise OllamaResponseTooLarge(
+                f"Ollama response exceeded {max_response_bytes} bytes"
+            )
+        return body
+
+
 class OllamaProposalProvider:
     """Translate one non-streaming Ollama response into a provider-neutral outcome."""
 
-    def __init__(self, config: OllamaConfig, *, transport: OllamaTransport) -> None:
+    def __init__(
+        self,
+        config: OllamaConfig,
+        *,
+        transport: OllamaTransport | None = None,
+    ) -> None:
         self.config = config
-        self.transport = transport
+        self.transport = transport or UrllibOllamaTransport()
 
     def propose(self, request: ProposalRequest) -> ProposalOutcome:
         profile = ProviderProfile(
@@ -120,8 +215,17 @@ class OllamaProposalProvider:
                 self.config.timeout_seconds,
                 self.config.max_response_bytes,
             )
+        except OllamaResponseTooLarge as exc:
+            return self._failure(ProposalStatus.OVERSIZED, profile, str(exc))
         except TimeoutError as exc:
             return self._failure(ProposalStatus.TIMED_OUT, profile, str(exc))
+        except URLError as exc:
+            status = (
+                ProposalStatus.TIMED_OUT
+                if isinstance(exc.reason, TimeoutError)
+                else ProposalStatus.PROVIDER_ERROR
+            )
+            return self._failure(status, profile, str(exc.reason))
         except OSError as exc:
             return self._failure(ProposalStatus.PROVIDER_ERROR, profile, str(exc))
 

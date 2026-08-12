@@ -1,15 +1,23 @@
 from __future__ import annotations
 
 import json
+from http.client import HTTPMessage
+from io import BytesIO
+from typing import Any
+from urllib.error import URLError
+from urllib.request import BaseHandler, HTTPRedirectHandler, ProxyHandler, Request
 
 import pytest
 from pydantic import ValidationError
 
+import xt_aegis.providers.ollama as ollama_module
 from xt_aegis.proposals import ProposalRequest, ProposalStatus, SamplingProfile
 from xt_aegis.providers.ollama import (
+    NoRedirectHandler,
     OllamaConfig,
     OllamaHttpResponse,
     OllamaProposalProvider,
+    UrllibOllamaTransport,
 )
 
 
@@ -154,6 +162,7 @@ def test_ollama_failures_return_typed_outcomes_without_proposals(
     ("error", "expected_status"),
     [
         (TimeoutError("provider timed out"), ProposalStatus.TIMED_OUT),
+        (URLError(TimeoutError("provider timed out")), ProposalStatus.TIMED_OUT),
         (OSError("password=supersecret"), ProposalStatus.PROVIDER_ERROR),
     ],
 )
@@ -170,3 +179,96 @@ def test_ollama_transport_failures_are_typed_and_redacted(
     assert outcome.status == expected_status
     assert outcome.proposal is None
     assert "supersecret" not in outcome.diagnostic
+
+
+class FakeHttpStream:
+    def __init__(self, body: bytes, status: int = 200) -> None:
+        self.body = body
+        self.status = status
+
+    def __enter__(self) -> FakeHttpStream:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def read(self, amount: int) -> bytes:
+        return self.body[:amount]
+
+
+class FakeOpener:
+    def __init__(self, stream: FakeHttpStream) -> None:
+        self.stream = stream
+        self.calls: list[tuple[Request, float]] = []
+
+    def open(self, request: Request, *, timeout: float) -> Any:
+        self.calls.append((request, timeout))
+        return self.stream
+
+
+def test_urllib_transport_posts_json_with_a_bounded_read() -> None:
+    opener = FakeOpener(FakeHttpStream(b'{"response":"ok","done":true}'))
+    transport = UrllibOllamaTransport(opener=opener)
+
+    response = transport.post_json(
+        "http://127.0.0.1:11434/api/generate", b'{"model":"qwen3"}', 2.0, 128
+    )
+
+    assert response.status_code == 200
+    assert response.body == b'{"response":"ok","done":true}'
+    request, timeout = opener.calls[0]
+    assert request.full_url == "http://127.0.0.1:11434/api/generate"
+    assert request.get_method() == "POST"
+    assert request.get_header("Content-type") == "application/json"
+    assert timeout == 2.0
+
+
+def test_urllib_transport_oversize_becomes_typed_provider_outcome() -> None:
+    transport = UrllibOllamaTransport(opener=FakeOpener(FakeHttpStream(b"x" * 17)))
+    config = ollama_config().model_copy(update={"max_response_bytes": 16})
+    provider = OllamaProposalProvider(config, transport=transport)
+
+    outcome = provider.propose(ProposalRequest(task="Propose code."))
+
+    assert outcome.status == ProposalStatus.OVERSIZED
+    assert outcome.proposal is None
+
+
+def test_default_transport_disables_proxies_and_redirects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_handlers: tuple[BaseHandler, ...] = ()
+    opener = FakeOpener(FakeHttpStream(b"{}"))
+
+    def capture_build_opener(*handlers: BaseHandler) -> FakeOpener:
+        nonlocal captured_handlers
+        captured_handlers = handlers
+        return opener
+
+    monkeypatch.setattr(ollama_module, "build_opener", capture_build_opener)
+    UrllibOllamaTransport()
+
+    proxy_handlers = [
+        handler for handler in captured_handlers if isinstance(handler, ProxyHandler)
+    ]
+    redirect_handlers = [
+        handler
+        for handler in captured_handlers
+        if isinstance(handler, NoRedirectHandler)
+    ]
+    assert len(proxy_handlers) == 1
+    assert vars(proxy_handlers[0])["proxies"] == {}
+    assert len(redirect_handlers) == 1
+    assert isinstance(redirect_handlers[0], HTTPRedirectHandler)
+    redirect_handler: HTTPRedirectHandler = redirect_handlers[0]
+    assert (
+        redirect_handler.redirect_request(
+            Request("http://127.0.0.1"),
+            BytesIO(),
+            302,
+            "Found",
+            HTTPMessage(),
+            "https://example.com",
+        )
+        is None
+    )
