@@ -61,14 +61,14 @@ git_town_bootstrap_result:
   prompt_id: "git-town-repository-bootstrap"
   prompt_version: "1.0.0"
 
-  repository: "{{OWNER/NAME_OR_URL}}"
-  forge: "{{FORGE_OR_UNRESOLVED}}"
-  default_branch: "{{BRANCH_OR_UNRESOLVED}}"
+  repository: "{{OUTPUT_REPOSITORY}}"
+  forge: "{{OUTPUT_FORGE}}"
+  default_branch: "{{OUTPUT_DEFAULT_BRANCH}}"
 
-  requested_mode: "{{MODE}}"
-  write_authorization: "{{LEVEL}}"
-  adoption_decision: "{{ADOPT|DEFER|REJECT}}"
-  unattended_sync_decision: "{{ELIGIBLE|DEPLOYMENT_BLOCKED|REJECT}}"
+  requested_mode: "{{OUTPUT_REQUESTED_MODE}}"
+  write_authorization: "{{OUTPUT_WRITE_AUTHORIZATION}}"
+  adoption_decision: "{{OUTPUT_ADOPTION_DECISION}}"
+  unattended_sync_decision: "{{OUTPUT_UNATTENDED_SYNC_DECISION}}"
 
   writes_performed: false
   issues_created_or_updated: []
@@ -78,9 +78,9 @@ git_town_bootstrap_result:
   changed_paths: []
 
   git_town:
-    exact_version: "{{VERSION_OR_UNRESOLVED}}"
-    source_commit: "{{SHA_OR_UNRESOLVED}}"
-    license_id: "{{SPDX_OR_UNRESOLVED}}"
+    exact_version: "{{OUTPUT_GIT_TOWN_VERSION}}"
+    source_commit: "{{OUTPUT_SOURCE_COMMIT}}"
+    license_id: "{{OUTPUT_LICENSE_ID}}"
     license_identity_verified: false
     package_identity_verified: false
     binary_identity_verified: false
@@ -90,12 +90,12 @@ git_town_bootstrap_result:
     active_manifest_rows: 0
     lineage_verified: false
     dedicated_checkout_required: true
-    semantic_conflict_owner: "{{OWNER_OR_UNRESOLVED}}"
+    semantic_conflict_owner: "{{OUTPUT_CONFLICT_OWNER}}"
 
   evidence:
-    repository_fixture: "{{passed|failed|not_run|not_applicable}}"
-    exact_binary: "{{passed|failed|not_run|not_applicable}}"
-    live_worker: "{{passed|failed|not_run|not_applicable}}"
+    repository_fixture: "{{OUTPUT_REPOSITORY_FIXTURE_STATUS}}"
+    exact_binary: "{{OUTPUT_EXACT_BINARY_STATUS}}"
+    live_worker: "{{OUTPUT_LIVE_WORKER_STATUS}}"
     paths: []
 
   evals:
@@ -106,18 +106,31 @@ git_town_bootstrap_result:
 
   blockers: []
   residual_risks: []
-  next_safe_action: "{{ACTION_OR_NONE}}"
+  next_safe_action: "{{OUTPUT_NEXT_SAFE_ACTION}}"
 ```
 
 ## Output-value slots
 
-Double-brace values in the machine-readable example are output slots, not user inputs. They are resolved
-from discovered facts or set to `UNRESOLVED`:
+Double-brace values in the machine-readable example are output slots, not user inputs. Resolve them from
+discovered facts or set them to `UNRESOLVED`.
 
-- `{{OWNER/NAME_OR_URL}}`, `{{FORGE_OR_UNRESOLVED}}`, `{{BRANCH_OR_UNRESOLVED}}`;
-- `{{MODE}}`, `{{LEVEL}}`, adoption and unattended-sync verdict enums;
-- `{{VERSION_OR_UNRESOLVED}}`, `{{SHA_OR_UNRESOLVED}}`, `{{SPDX_OR_UNRESOLVED}}`;
-- `{{OWNER_OR_UNRESOLVED}}`, evidence-status enums, and `{{ACTION_OR_NONE}}`.
+| Slot | Meaning or allowed values |
+|---|---|
+| `{{OUTPUT_REPOSITORY}}` | Exact repository identity or URL |
+| `{{OUTPUT_FORGE}}` | Forge name or `UNRESOLVED` |
+| `{{OUTPUT_DEFAULT_BRANCH}}` | Exact default branch or `UNRESOLVED` |
+| `{{OUTPUT_REQUESTED_MODE}}` | Effective requested mode |
+| `{{OUTPUT_WRITE_AUTHORIZATION}}` | Effective write-authorization level |
+| `{{OUTPUT_ADOPTION_DECISION}}` | `ADOPT`, `DEFER`, or `REJECT` |
+| `{{OUTPUT_UNATTENDED_SYNC_DECISION}}` | `ELIGIBLE`, `DEPLOYMENT_BLOCKED`, or `REJECT` |
+| `{{OUTPUT_GIT_TOWN_VERSION}}` | Exact version or `UNRESOLVED` |
+| `{{OUTPUT_SOURCE_COMMIT}}` | Exact upstream commit or `UNRESOLVED` |
+| `{{OUTPUT_LICENSE_ID}}` | SPDX identifier or `UNRESOLVED` |
+| `{{OUTPUT_CONFLICT_OWNER}}` | Named owner/team or `UNRESOLVED` |
+| `{{OUTPUT_REPOSITORY_FIXTURE_STATUS}}` | `passed`, `failed`, `not_run`, or `not_applicable` |
+| `{{OUTPUT_EXACT_BINARY_STATUS}}` | `passed`, `failed`, `not_run`, or `not_applicable` |
+| `{{OUTPUT_LIVE_WORKER_STATUS}}` | `passed`, `failed`, `not_run`, or `not_applicable` |
+| `{{OUTPUT_NEXT_SAFE_ACTION}}` | Exact next safe action or `NONE` |
 
 Do not include credentials, hidden chain-of-thought, private prompts, authorization headers, or unrestricted
 raw logs in this block.
