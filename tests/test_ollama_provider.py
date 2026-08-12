@@ -138,8 +138,7 @@ def test_ollama_config_rejects_non_local_or_credential_bearing_endpoint(
         (
             OllamaHttpResponse(
                 200,
-                b'{"model":"qwen3:4b","response":"partial","done":true,'
-                b'"done_reason":"length"}',
+                b'{"model":"qwen3:4b","response":"partial","done":true,"done_reason":"length"}',
             ),
             ProposalStatus.TRUNCATED,
         ),
@@ -185,9 +184,7 @@ def test_ollama_transport_failures_are_typed_and_redacted(
     error: Exception,
     expected_status: ProposalStatus,
 ) -> None:
-    provider = OllamaProposalProvider(
-        ollama_config(), transport=FakeOllamaTransport(error=error)
-    )
+    provider = OllamaProposalProvider(ollama_config(), transport=FakeOllamaTransport(error=error))
 
     outcome = provider.propose(ProposalRequest(task="Propose code."))
 
@@ -225,9 +222,7 @@ def test_urllib_transport_posts_json_with_a_bounded_read() -> None:
     opener = FakeOpener(FakeHttpStream(b'{"response":"ok","done":true}'))
     transport = UrllibOllamaTransport(opener=opener)
 
-    response = transport.post_json(
-        "http://127.0.0.1:11434/api/generate", b'{"model":"qwen3"}', 2.0, 128
-    )
+    response = transport.post_json("http://127.0.0.1:11434/api/generate", b'{"model":"qwen3"}', 2.0, 128)
 
     assert response.status_code == 200
     assert response.body == b'{"response":"ok","done":true}'
@@ -263,14 +258,8 @@ def test_default_transport_disables_proxies_and_redirects(
     monkeypatch.setattr(ollama_module, "build_opener", capture_build_opener)
     UrllibOllamaTransport()
 
-    proxy_handlers = [
-        handler for handler in captured_handlers if isinstance(handler, ProxyHandler)
-    ]
-    redirect_handlers = [
-        handler
-        for handler in captured_handlers
-        if isinstance(handler, NoRedirectHandler)
-    ]
+    proxy_handlers = [handler for handler in captured_handlers if isinstance(handler, ProxyHandler)]
+    redirect_handlers = [handler for handler in captured_handlers if isinstance(handler, NoRedirectHandler)]
     assert len(proxy_handlers) == 1
     assert vars(proxy_handlers[0])["proxies"] == {}
     assert len(redirect_handlers) == 1

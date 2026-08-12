@@ -169,9 +169,7 @@ class UrllibOllamaTransport:
     def _read_bounded(response: Any, max_response_bytes: int) -> bytes:
         body = cast(bytes, response.read(max_response_bytes + 1))
         if len(body) > max_response_bytes:
-            raise OllamaResponseTooLarge(
-                f"Ollama response exceeded {max_response_bytes} bytes"
-            )
+            raise OllamaResponseTooLarge(f"Ollama response exceeded {max_response_bytes} bytes")
         return body
 
 
@@ -239,9 +237,7 @@ class OllamaProposalProvider:
 
         if not 200 <= response.status_code < 300:
             status = (
-                ProposalStatus.REFUSED
-                if 400 <= response.status_code < 500
-                else ProposalStatus.PROVIDER_ERROR
+                ProposalStatus.REFUSED if 400 <= response.status_code < 500 else ProposalStatus.PROVIDER_ERROR
             )
             return self._failure(
                 status,
@@ -317,9 +313,7 @@ class OllamaProposalProvider:
             return value
 
         duration = decoded.get("total_duration")
-        if isinstance(duration, bool) or (
-            duration is not None and not isinstance(duration, (int, float))
-        ):
+        if isinstance(duration, bool) or (duration is not None and not isinstance(duration, (int, float))):
             raise ValueError("invalid Ollama duration")
         return ProviderUsage(
             prompt_tokens=optional_count("prompt_eval_count"),

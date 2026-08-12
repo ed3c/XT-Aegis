@@ -183,18 +183,14 @@ def build_action_request(
         and all(part not in {"", ".", ".."} for part in target.parts)
     )
     allowed_target = normalized_target and any(
-        fnmatch.fnmatch(target.as_posix(), pattern)
-        for pattern in skill.contract.allowed_write_paths
+        fnmatch.fnmatch(target.as_posix(), pattern) for pattern in skill.contract.allowed_write_paths
     )
     if not allowed_target:
-        raise ValueError(
-            f"target path is outside active skill scope: {trusted.target_path}"
-        )
+        raise ValueError(f"target path is outside active skill scope: {trusted.target_path}")
     content_bytes = len(proposal.content.encode("utf-8"))
     if content_bytes > skill.contract.max_write_bytes:
         raise ValueError(
-            f"proposal content is {content_bytes} bytes; "
-            f"skill limit is {skill.contract.max_write_bytes}"
+            f"proposal content is {content_bytes} bytes; skill limit is {skill.contract.max_write_bytes}"
         )
     source = identity_source or SecureRequestIdentitySource()
     identifiers = source.new_request_ids()

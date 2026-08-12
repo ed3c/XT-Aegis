@@ -49,9 +49,7 @@ def test_proposal_boundary_is_part_of_public_package_api() -> None:
 
 def test_checked_in_proposal_schema_matches_runtime_model() -> None:
     checked_in = json.loads(
-        (ROOT / "verification/schemas/trusted-proposal.schema.json").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "verification/schemas/trusted-proposal.schema.json").read_text(encoding="utf-8")
     )
     assert checked_in.pop("$schema") == "https://json-schema.org/draft/2020-12/schema"
     assert checked_in.pop("$id") == "https://github.com/ed3c/XT-Aegis/trusted-proposal.schema.json"
@@ -99,9 +97,7 @@ def test_valid_proposal_builds_trusted_action_envelope(compiled_skill) -> None: 
     assert envelope.request.action.relative_path == "sample_project/app.py"
     assert envelope.request.action.content == proposal.content
     assert envelope.request.action.expected_sha256 == "a" * 64
-    assert envelope.request_identity == RequestIdentity.from_request(
-        envelope.request, skill=compiled_skill
-    )
+    assert envelope.request_identity == RequestIdentity.from_request(envelope.request, skill=compiled_skill)
 
 
 def test_fake_provider_refusal_is_a_typed_non_execution_result() -> None:
@@ -131,9 +127,7 @@ def test_fake_provider_refusal_is_a_typed_non_execution_result() -> None:
 
 def test_trusted_builder_rejects_content_over_active_skill_byte_limit(compiled_skill) -> None:  # type: ignore[no-untyped-def]
     limited_skill = compiled_skill.model_copy(
-        update={
-            "contract": compiled_skill.contract.model_copy(update={"max_write_bytes": 8})
-        }
+        update={"contract": compiled_skill.contract.model_copy(update={"max_write_bytes": 8})}
     )
     proposal = Proposal(
         kind="replace_file",
@@ -163,7 +157,8 @@ def test_trusted_builder_rejects_content_over_active_skill_byte_limit(compiled_s
 
 @pytest.mark.parametrize("target_path", ["/tmp/outside.py", "../outside.py", "other.py"])
 def test_trusted_builder_rejects_target_outside_active_skill_scope(
-    compiled_skill, target_path: str  # type: ignore[no-untyped-def]
+    compiled_skill,
+    target_path: str,  # type: ignore[no-untyped-def]
 ) -> None:
     proposal = Proposal(
         kind="replace_file",
