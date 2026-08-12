@@ -397,6 +397,67 @@ def test_controller_output_limit_bounds_returned_execution_evidence(runner) -> N
     assert replay.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
 
 
+def test_smaller_output_budget_refuses_cached_success_and_bounds_all_evidence(runner) -> None:  # type: ignore[no-untyped-def]
+    precondition_script = _write_script(runner, "cached_precondition.py", "print('p' * 8)\n")
+    action_script = _write_script(runner, "cached_action.py", "print('a' * 8)\n")
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(
+                update={
+                    "preconditions": [
+                        CommandSpec(
+                            description="cached bounded baseline",
+                            argv=["python3", precondition_script],
+                        )
+                    ],
+                    "postconditions": [],
+                }
+            )
+        }
+    )
+    runner.policy.contract = runner.skill.contract
+    request = _command_request(
+        action_id="command.cached.output.limit",
+        key="cached-output-limit-0001",
+        script=action_script,
+        expected_exit_codes={0},
+    )
+
+    first = runner.execute(request, max_output_bytes=18)
+    replay = runner.execute(request, max_output_bytes=8)
+
+    retained = (
+        sum(len((check.stdout + check.stderr).encode()) for check in replay.preconditions)
+        + len((replay.action_stdout + replay.action_stderr).encode())
+        + sum(len((check.stdout + check.stderr).encode()) for check in replay.postconditions)
+    )
+    assert first.status == ExecutionStatus.SUCCEEDED
+    assert replay.cached_replay is True
+    assert replay.status == ExecutionStatus.BLOCKED
+    assert replay.success is False
+    assert replay.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
+    assert replay.output_truncated is True
+    assert retained <= 8
+
+    original_budget_replay = runner.execute(request, max_output_bytes=18)
+    assert original_budget_replay.status == ExecutionStatus.SUCCEEDED
+
+
+def test_non_positive_output_budget_fails_before_mutation(runner) -> None:  # type: ignore[no-untyped-def]
+    before = runner.workspace.hash_tree()
+    request = _request(
+        action_id="write.invalid.output.limit",
+        key="invalid-output-limit-0001",
+        content=GOOD_CODE,
+    )
+
+    with pytest.raises(ValueError, match="max_output_bytes must be positive"):
+        runner.execute(request, max_output_bytes=0)
+
+    assert runner.workspace.hash_tree() == before
+    assert runner.store.list_events(request.thread_id) == []
+
+
 def test_precondition_output_budget_exhaustion_is_typed_and_persisted(runner) -> None:  # type: ignore[no-untyped-def]
     script = _write_script(runner, "large_precondition_output.py", "print('p' * 100)\n")
     condition = CommandSpec(
@@ -463,6 +524,199 @@ def test_postcondition_output_budget_exhaustion_rolls_back_mutation(runner) -> N
     assert result.output_truncated is True
     assert result.postconditions[0].output_truncated is True
     assert len((result.postconditions[0].stdout + result.postconditions[0].stderr).encode()) <= 16
+
+
+def test_execution_output_budget_is_shared_across_conditions_and_action(runner) -> None:  # type: ignore[no-untyped-def]
+    precondition_script = _write_script(runner, "shared_precondition.py", "print('p' * 8)\n")
+    action_script = _write_script(runner, "shared_action.py", "print('a' * 8)\n")
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(
+                update={
+                    "preconditions": [
+                        CommandSpec(
+                            description="bounded baseline",
+                            argv=["python3", precondition_script],
+                        )
+                    ],
+                    "postconditions": [],
+                }
+            )
+        }
+    )
+    runner.policy.contract = runner.skill.contract
+    request = _command_request(
+        action_id="command.shared.output.limit",
+        key="shared-output-limit-0001",
+        script=action_script,
+        expected_exit_codes={0},
+    )
+
+    result = runner.execute(request, max_output_bytes=12)
+
+    retained = (
+        sum(len((check.stdout + check.stderr).encode()) for check in result.preconditions)
+        + len((result.action_stdout + result.action_stderr).encode())
+        + sum(len((check.stdout + check.stderr).encode()) for check in result.postconditions)
+    )
+    assert retained <= 12
+    assert result.status == ExecutionStatus.ROLLED_BACK
+    assert result.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
+
+
+def test_file_write_respects_output_remaining_after_precondition(runner) -> None:  # type: ignore[no-untyped-def]
+    script = _write_script(runner, "write_budget_precondition.py", "print('p' * 8)\n")
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(
+                update={
+                    "preconditions": [
+                        CommandSpec(
+                            description="bounded baseline",
+                            argv=["python3", script],
+                        )
+                    ],
+                    "postconditions": [],
+                }
+            )
+        }
+    )
+    runner.policy.contract = runner.skill.contract
+    before = runner.workspace.hash_tree()
+    request = _request(
+        action_id="write.shared.output.limit",
+        key="write-shared-output-limit-0001",
+        content=GOOD_CODE,
+    )
+
+    result = runner.execute(request, max_output_bytes=12)
+
+    retained = sum(len((check.stdout + check.stderr).encode()) for check in result.preconditions) + len(
+        (result.action_stdout + result.action_stderr).encode()
+    )
+    assert retained <= 12
+    assert result.status == ExecutionStatus.ROLLED_BACK
+    assert result.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
+    assert result.rollback_integrity is True
+    assert runner.workspace.hash_tree() == before
+
+
+@pytest.mark.parametrize(
+    ("script_body", "limit"),
+    [
+        ("import sys\nsys.stderr.write('e' * 17)\n", 16),
+        ("import sys\nprint('o' * 8)\nsys.stderr.write('e' * 8)\n", 16),
+        ("print('界' * 6)\n", 16),
+    ],
+)
+def test_streaming_output_budget_covers_stderr_mixed_and_multibyte_output(
+    runner,  # type: ignore[no-untyped-def]
+    script_body: str,
+    limit: int,
+) -> None:
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(update={"preconditions": [], "postconditions": []})
+        }
+    )
+    runner.policy.contract = runner.skill.contract
+    script = _write_script(runner, "stream_output.py", script_body)
+    request = _command_request(
+        action_id="command.stream.output",
+        key="stream-output-limit-0001",
+        script=script,
+        expected_exit_codes={0},
+    )
+
+    result = runner.execute(request, max_output_bytes=limit)
+
+    assert result.status == ExecutionStatus.ROLLED_BACK
+    assert result.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
+    assert result.output_truncated is True
+    assert len((result.action_stdout + result.action_stderr).encode()) <= limit
+
+
+def test_exact_output_budget_boundary_succeeds_without_truncation(runner) -> None:  # type: ignore[no-untyped-def]
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(update={"preconditions": [], "postconditions": []})
+        }
+    )
+    runner.policy.contract = runner.skill.contract
+    script = _write_script(runner, "exact_output.py", "import sys\nsys.stdout.write('x' * 16)\n")
+    request = _command_request(
+        action_id="command.exact.output",
+        key="exact-output-limit-0001",
+        script=script,
+        expected_exit_codes={0},
+    )
+
+    result = runner.execute(request, max_output_bytes=16)
+
+    assert result.status == ExecutionStatus.SUCCEEDED
+    assert result.output_truncated is False
+    assert result.output_original_bytes == 16
+    assert result.action_stdout == "x" * 16
+
+
+def test_mutating_command_output_exhaustion_rolls_back_workspace(runner) -> None:  # type: ignore[no-untyped-def]
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(update={"preconditions": [], "postconditions": []})
+        }
+    )
+    runner.policy.contract = runner.skill.contract
+    script = _write_script(
+        runner,
+        "mutate_then_overflow.py",
+        "from pathlib import Path\n"
+        f"Path('sample_project/app.py').write_text({BAD_CODE!r}, encoding='utf-8')\n"
+        "print('x' * 100)\n",
+    )
+    before = runner.workspace.hash_tree()
+    request = _command_request(
+        action_id="command.mutate.output.limit",
+        key="mutate-output-limit-0001",
+        script=script,
+        expected_exit_codes={0},
+    )
+
+    result = runner.execute(request, max_output_bytes=16)
+
+    assert result.status == ExecutionStatus.ROLLED_BACK
+    assert result.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
+    assert result.rollback_integrity is True
+    assert result.workspace_before_sha256 == result.workspace_after_sha256
+    assert runner.workspace.hash_tree() == before
+
+
+def test_timeout_below_output_budget_remains_a_timeout(runner) -> None:  # type: ignore[no-untyped-def]
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(update={"preconditions": [], "postconditions": []})
+        }
+    )
+    runner.policy.contract = runner.skill.contract
+    script = _write_script(
+        runner,
+        "small_output_then_sleep.py",
+        "import time\nprint('ok', flush=True)\ntime.sleep(5)\n",
+    )
+    request = _command_request(
+        action_id="command.timeout.bounded.output",
+        key="timeout-bounded-output-0001",
+        script=script,
+        expected_exit_codes={0},
+        timeout_seconds=0.1,
+    )
+
+    result = runner.execute(request, max_output_bytes=64)
+
+    assert result.status == ExecutionStatus.ROLLED_BACK
+    assert result.reason_code is None
+    assert result.output_truncated is False
+    assert "timed out" in result.action_stderr
+    assert len((result.action_stdout + result.action_stderr).encode()) <= 64
 
 
 def test_signal_termination_is_not_an_accepted_exit(runner) -> None:  # type: ignore[no-untyped-def]

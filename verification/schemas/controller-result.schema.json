@@ -481,6 +481,17 @@
           "title": "Expected Exit Codes",
           "type": "array"
         },
+        "output_original_bytes": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Output Original Bytes",
+          "type": "integer"
+        },
+        "output_truncated": {
+          "default": false,
+          "title": "Output Truncated",
+          "type": "boolean"
+        },
         "passed": {
           "title": "Passed",
           "type": "boolean"
@@ -573,7 +584,8 @@
         "approval_denied",
         "approval_required",
         "budget_exhausted",
-        "identity_conflict"
+        "identity_conflict",
+        "output_budget_exhausted"
       ],
       "title": "ExecutionReasonCode",
       "type": "string"

@@ -70,6 +70,8 @@ class HarnessRunner:
     ) -> ExecutionResult:
         """Execute once and return output bounded for the calling controller."""
 
+        if max_output_bytes < 1:
+            raise ValueError("max_output_bytes must be positive")
         return self._bound_execution_output(
             self._execute(
                 request,
@@ -248,6 +250,8 @@ class HarnessRunner:
         action_stdout = ""
         action_stderr = ""
         rollback_integrity: bool | None = None
+        remaining_output_bytes = max_output_bytes
+        total_output_original_bytes = 0
 
         try:
             transaction = self.workspace.begin_transaction()
@@ -257,9 +261,11 @@ class HarnessRunner:
                 check = self._run_command(
                     condition,
                     deadline=deadline,
-                    max_output_bytes=max_output_bytes,
+                    max_output_bytes=remaining_output_bytes,
                 )
                 preconditions.append(check)
+                total_output_original_bytes += check.output_original_bytes
+                remaining_output_bytes -= len((check.stdout + check.stderr).encode())
                 self.events.emit(
                     trace_id=trace_id,
                     thread_id=request.thread_id,
@@ -299,19 +305,21 @@ class HarnessRunner:
                             else None
                         ),
                         output_truncated=check.output_truncated,
-                        output_original_bytes=check.output_original_bytes,
+                        output_original_bytes=total_output_original_bytes,
                     )
                     return self._persist_and_emit(trace_id, result, "precondition_failed")
 
             action_result = self._execute_action(
                 request,
                 deadline=deadline,
-                max_output_bytes=max_output_bytes,
+                max_output_bytes=remaining_output_bytes,
             )
             action_exit_code = action_result.exit_code
             action_expected_exit_codes = self._expected_exit_codes(request)
             action_stdout = action_result.stdout
             action_stderr = action_result.stderr
+            total_output_original_bytes += action_result.output_original_bytes
+            remaining_output_bytes -= len((action_stdout + action_stderr).encode())
             if not action_result.passed:
                 rollback_integrity = transaction.rollback()
                 after_sha = self.workspace.hash_tree()
@@ -343,7 +351,7 @@ class HarnessRunner:
                         else None
                     ),
                     output_truncated=action_result.output_truncated,
-                    output_original_bytes=action_result.output_original_bytes,
+                    output_original_bytes=total_output_original_bytes,
                 )
                 return self._persist_and_emit(trace_id, result, "action_failed")
 
@@ -351,9 +359,11 @@ class HarnessRunner:
                 check = self._run_command(
                     condition,
                     deadline=deadline,
-                    max_output_bytes=max_output_bytes,
+                    max_output_bytes=remaining_output_bytes,
                 )
                 postconditions.append(check)
+                total_output_original_bytes += check.output_original_bytes
+                remaining_output_bytes -= len((check.stdout + check.stderr).encode())
                 self.events.emit(
                     trace_id=trace_id,
                     thread_id=request.thread_id,
@@ -395,7 +405,7 @@ class HarnessRunner:
                             else None
                         ),
                         output_truncated=check.output_truncated,
-                        output_original_bytes=check.output_original_bytes,
+                        output_original_bytes=total_output_original_bytes,
                     )
                     return self._persist_and_emit(trace_id, result, "postcondition_failed")
 
@@ -417,6 +427,7 @@ class HarnessRunner:
                 action_expected_exit_codes=action_expected_exit_codes,
                 action_stdout=action_stdout,
                 action_stderr=action_stderr,
+                output_original_bytes=total_output_original_bytes,
             )
             return self._persist_and_emit(trace_id, result, "action_succeeded")
 
@@ -498,12 +509,21 @@ class HarnessRunner:
                 os.replace(temporary_path, target)
             finally:
                 temporary_path.unlink(missing_ok=True)
+            message = f"wrote {len(request.action.content.encode('utf-8'))} bytes"
+            stdout, _ = self._redact_and_bound_streams(
+                message.encode(),
+                b"",
+                max_output_bytes,
+            )
+            output_exceeded = len(message.encode()) > max_output_bytes
             return CheckResult(
                 description=f"write {request.action.relative_path}",
-                passed=True,
+                passed=not output_exceeded,
                 exit_code=0,
                 duration_ms=(time.perf_counter() - started) * 1000,
-                stdout=f"wrote {len(request.action.content.encode('utf-8'))} bytes",
+                stdout=stdout,
+                output_truncated=output_exceeded,
+                output_original_bytes=len(message.encode()),
             )
 
         if isinstance(request.action, CommandAction):
@@ -701,26 +721,77 @@ class HarnessRunner:
 
     @staticmethod
     def _bound_execution_output(result: ExecutionResult, limit: int) -> ExecutionResult:
-        if limit < 1:
-            raise ValueError("max_output_bytes must be positive")
-        stdout = result.action_stdout.encode()
-        stderr = result.action_stderr.encode()
-        original_bytes = len(stdout) + len(stderr)
-        if original_bytes <= limit:
-            return result.model_copy(
-                update={"output_original_bytes": max(result.output_original_bytes, original_bytes)}
+        remaining = limit
+        retained_bytes = 0
+
+        def bound_check(check: CheckResult) -> CheckResult:
+            nonlocal remaining, retained_bytes
+            stdout, stderr = HarnessRunner._bound_text_streams(
+                check.stdout,
+                check.stderr,
+                remaining,
             )
-        retained_stdout = stdout[:limit].decode(errors="ignore")
-        stdout_bytes = len(retained_stdout.encode())
-        retained_stderr = stderr[: limit - stdout_bytes].decode(errors="ignore")
-        return result.model_copy(
-            update={
-                "action_stdout": retained_stdout,
-                "action_stderr": retained_stderr,
-                "output_truncated": True,
-                "output_original_bytes": original_bytes,
-            }
+            current_bytes = len((check.stdout + check.stderr).encode())
+            bounded_bytes = len((stdout + stderr).encode())
+            remaining -= bounded_bytes
+            retained_bytes += bounded_bytes
+            original_bytes = max(check.output_original_bytes, current_bytes)
+            return check.model_copy(
+                update={
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "output_truncated": check.output_truncated or original_bytes > bounded_bytes,
+                    "output_original_bytes": original_bytes,
+                }
+            )
+
+        preconditions = [bound_check(check) for check in result.preconditions]
+        action_stdout, action_stderr = HarnessRunner._bound_text_streams(
+            result.action_stdout,
+            result.action_stderr,
+            remaining,
         )
+        action_retained_bytes = len((action_stdout + action_stderr).encode())
+        retained_bytes += action_retained_bytes
+        remaining -= action_retained_bytes
+        postconditions = [bound_check(check) for check in result.postconditions]
+
+        current_bytes = (
+            sum(len((check.stdout + check.stderr).encode()) for check in result.preconditions)
+            + len((result.action_stdout + result.action_stderr).encode())
+            + sum(len((check.stdout + check.stderr).encode()) for check in result.postconditions)
+        )
+        original_bytes = max(result.output_original_bytes, current_bytes)
+        update: dict[str, object] = {
+            "preconditions": preconditions,
+            "postconditions": postconditions,
+            "action_stdout": action_stdout,
+            "action_stderr": action_stderr,
+            "output_truncated": result.output_truncated or original_bytes > retained_bytes,
+            "output_original_bytes": original_bytes,
+        }
+        if result.cached_replay and result.success and original_bytes > limit:
+            update.update(
+                {
+                    "status": ExecutionStatus.BLOCKED,
+                    "success": False,
+                    "reason_code": ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED,
+                    "policy_reasons": [
+                        *result.policy_reasons,
+                        f"cached execution output exceeds current budget: {original_bytes} > {limit} bytes",
+                    ],
+                }
+            )
+        return result.model_copy(update=update)
+
+    @staticmethod
+    def _bound_text_streams(stdout: str, stderr: str, limit: int) -> tuple[str, str]:
+        stdout_bytes = stdout.encode()
+        stderr_bytes = stderr.encode()
+        retained_stdout = stdout_bytes[:limit].decode(errors="ignore")
+        retained_stdout_bytes = len(retained_stdout.encode())
+        retained_stderr = stderr_bytes[: limit - retained_stdout_bytes].decode(errors="ignore")
+        return retained_stdout, retained_stderr
 
     def _emit_identity_conflict(
         self,

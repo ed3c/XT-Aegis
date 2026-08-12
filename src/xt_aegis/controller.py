@@ -90,6 +90,8 @@ class ControllerCheckEvidence(BaseModel):
     actual_exit_code: int | None = None
     expected_exit_codes: list[BoundedExitCode] = Field(default_factory=list, max_length=256)
     duration_ms: float = Field(ge=0.0)
+    output_truncated: bool = False
+    output_original_bytes: int = Field(default=0, ge=0)
 
 
 class ControllerAttempt(BaseModel):
@@ -609,6 +611,8 @@ class DiagnoseRepairController:
     def _classify_execution(execution: ExecutionResult) -> ControllerStopReason:
         if execution.rollback_integrity is False:
             return ControllerStopReason.RECOVERY_FAILED
+        if execution.reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED:
+            return ControllerStopReason.BUDGET_EXHAUSTED
         if execution.success and execution.status == ExecutionStatus.SUCCEEDED:
             return ControllerStopReason.PASSED
         if execution.status == ExecutionStatus.SUSPENDED:
@@ -681,6 +685,8 @@ class DiagnoseRepairController:
                     actual_exit_code=result.exit_code,
                     expected_exit_codes=expected,
                     duration_ms=result.duration_ms,
+                    output_truncated=result.output_truncated,
+                    output_original_bytes=result.output_original_bytes,
                 )
             )
         return evidence
