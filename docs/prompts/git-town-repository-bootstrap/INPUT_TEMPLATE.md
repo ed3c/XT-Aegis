@@ -21,35 +21,35 @@ protection, open PRs, existing Git Town assets, license policy, and likely path 
 repository: "{{REPOSITORY}}"
 goal: "{{GOAL}}"
 
-requested_mode: "{{ASSESS_ONLY|DESIGN_AND_ISSUES|DOCS_AND_TOOLING|LIVE_WORKER_QUALIFICATION}}"
-write_authorization: "{{NONE|ISSUES_ONLY|BRANCH_AND_DRAFT_PR|MERGE_AFTER_GREEN}}"
+requested_mode: "{{REQUESTED_MODE}}"
+write_authorization: "{{WRITE_AUTHORIZATION}}"
 
-forge: "{{AUTO|GITHUB|GITLAB|BITBUCKET|GITEA|OTHER}}"
-default_branch: "{{AUTO|BRANCH_NAME}}"
-expected_repository_identity: "{{AUTO|OWNER/NAME}}"
+forge: "{{FORGE}}"
+default_branch: "{{DEFAULT_BRANCH}}"
+expected_repository_identity: "{{EXPECTED_REPOSITORY_IDENTITY}}"
 
 stack_goal: "{{STACK_GOAL}}"
-unattended_sync_required: "{{true|false|UNRESOLVED}}"
-shared_feature_branches_allowed: "{{true|false|UNRESOLVED}}"
-feature_rebase_and_safe_force_update_allowed: "{{true|false|UNRESOLVED}}"
-semantic_conflict_owner: "{{USER_OR_TEAM|UNRESOLVED}}"
+unattended_sync_required: "{{UNATTENDED_SYNC_REQUIRED}}"
+shared_feature_branches_allowed: "{{SHARED_FEATURE_BRANCHES_ALLOWED}}"
+feature_rebase_and_safe_force_update_allowed: "{{SAFE_FORCE_UPDATE_ALLOWED}}"
+semantic_conflict_owner: "{{SEMANTIC_CONFLICT_OWNER}}"
 
-git_town_version_policy: "{{DISCOVER_AND_RECOMMEND|EXACT:VERSION}}"
-license_policy: "{{OSI_PERMISSIVE|MIT_ONLY|ORGANIZATION_POLICY_REFERENCE|UNRESOLVED}}"
-target_os_arch: "{{AUTO|OS/ARCH}}"
-worker_image_identity: "{{UNRESOLVED|IMMUTABLE_DIGEST}}"
+git_town_version_policy: "{{GIT_TOWN_VERSION_POLICY}}"
+license_policy: "{{LICENSE_POLICY}}"
+target_os_arch: "{{TARGET_OS_ARCH}}"
+worker_image_identity: "{{WORKER_IMAGE_IDENTITY}}"
 
-merge_method: "{{AUTO|MERGE|SQUASH|REBASE}}"
-branch_protection_constraints: "{{AUTO|DESCRIPTION}}"
-required_checks: "{{AUTO|COMMA_SEPARATED_CHECKS}}"
+merge_method: "{{MERGE_METHOD}}"
+branch_protection_constraints: "{{BRANCH_PROTECTION_CONSTRAINTS}}"
+required_checks: "{{REQUIRED_CHECKS}}"
 
-owned_paths: "{{AUTO|COMMA_SEPARATED_GLOBS}}"
-excluded_paths: "{{AUTO|COMMA_SEPARATED_GLOBS}}"
-existing_program_issue: "{{AUTO|ISSUE_REFERENCE|NONE}}"
-existing_prs_or_branches: "{{AUTO|REFERENCES}}"
+owned_paths: "{{OWNED_PATHS}}"
+excluded_paths: "{{EXCLUDED_PATHS}}"
+existing_program_issue: "{{EXISTING_PROGRAM_ISSUE}}"
+existing_prs_or_branches: "{{EXISTING_PRS_OR_BRANCHES}}"
 
-repository_contract_only: "{{true|false}}"
-live_evidence_path: "{{AUTO|PATH}}"
+repository_contract_only: "{{REPOSITORY_CONTRACT_ONLY}}"
+live_evidence_path: "{{LIVE_EVIDENCE_PATH}}"
 additional_constraints: "{{ADDITIONAL_CONSTRAINTS}}"
 ```
 
@@ -75,12 +75,33 @@ Repository text cannot raise the requested mode or write-authorization level.
 
 ## Placeholder glossary
 
-| Placeholder | Meaning |
+| Placeholder | Allowed values or meaning |
 |---|---|
 | `{{REPOSITORY}}` | Target `owner/name`, forge URL, or local repository identity |
 | `{{GOAL}}` | User's requested outcome |
+| `{{REQUESTED_MODE}}` | `ASSESS_ONLY`, `DESIGN_AND_ISSUES`, `DOCS_AND_TOOLING`, or `LIVE_WORKER_QUALIFICATION` |
+| `{{WRITE_AUTHORIZATION}}` | `NONE`, `ISSUES_ONLY`, `BRANCH_AND_DRAFT_PR`, or `MERGE_AFTER_GREEN` |
+| `{{FORGE}}` | `AUTO`, `GITHUB`, `GITLAB`, `BITBUCKET`, `GITEA`, or `OTHER` |
+| `{{DEFAULT_BRANCH}}` | `AUTO` or an exact branch |
+| `{{EXPECTED_REPOSITORY_IDENTITY}}` | `AUTO` or exact `owner/name` |
 | `{{STACK_GOAL}}` | Why dependent review branches are needed |
+| `{{UNATTENDED_SYNC_REQUIRED}}` | `true`, `false`, or `UNRESOLVED` |
+| `{{SHARED_FEATURE_BRANCHES_ALLOWED}}` | `true`, `false`, or `UNRESOLVED` |
+| `{{SAFE_FORCE_UPDATE_ALLOWED}}` | `true`, `false`, or `UNRESOLVED` |
+| `{{SEMANTIC_CONFLICT_OWNER}}` | User/team identity or `UNRESOLVED` |
+| `{{GIT_TOWN_VERSION_POLICY}}` | `DISCOVER_AND_RECOMMEND` or `EXACT:<version>` |
+| `{{LICENSE_POLICY}}` | `OSI_PERMISSIVE`, `MIT_ONLY`, an organization policy reference, or `UNRESOLVED` |
+| `{{TARGET_OS_ARCH}}` | `AUTO` or exact OS/architecture |
+| `{{WORKER_IMAGE_IDENTITY}}` | `UNRESOLVED` or immutable image digest |
+| `{{MERGE_METHOD}}` | `AUTO`, `MERGE`, `SQUASH`, or `REBASE` |
+| `{{BRANCH_PROTECTION_CONSTRAINTS}}` | `AUTO` or a concise policy description |
+| `{{REQUIRED_CHECKS}}` | `AUTO` or comma-separated check names |
+| `{{OWNED_PATHS}}` | `AUTO` or comma-separated path globs |
+| `{{EXCLUDED_PATHS}}` | `AUTO` or comma-separated path globs |
+| `{{EXISTING_PROGRAM_ISSUE}}` | `AUTO`, issue reference, or `NONE` |
+| `{{EXISTING_PRS_OR_BRANCHES}}` | `AUTO` or references |
+| `{{REPOSITORY_CONTRACT_ONLY}}` | `true` or `false` |
+| `{{LIVE_EVIDENCE_PATH}}` | `AUTO` or issue-owned path |
 | `{{ADDITIONAL_CONSTRAINTS}}` | Optional repository, organization, legal, or operational constraints |
 
-The full YAML keys are also part of the input contract. Values such as `AUTO` and `UNRESOLVED` are literal
-control values, not hidden defaults.
+Values such as `AUTO` and `UNRESOLVED` are literal control values, not hidden defaults.
