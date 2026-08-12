@@ -175,6 +175,36 @@ class DiagnoseRepairController:
             completion_tokens = reported_completion_tokens or 0
             total_prompt_tokens += prompt_tokens
             total_completion_tokens += completion_tokens
+            elapsed = self.clock() - started
+            if elapsed > self.budgets.max_wall_seconds:
+                diagnostic = (
+                    f"wall-clock budget exceeded: {elapsed:.3f}s > {self.budgets.max_wall_seconds:.3f}s"
+                )
+                attempts.append(
+                    ControllerAttempt(
+                        attempt_number=attempt_number,
+                        proposal_status=outcome.status,
+                        provider_profile=outcome.profile,
+                        target_path=self.trusted.target_path,
+                        classification=ControllerStopReason.BUDGET_EXHAUSTED,
+                        diagnostic=diagnostic,
+                        proposal_sha256=(
+                            hashlib.sha256(outcome.proposal.content.encode()).hexdigest()
+                            if outcome.proposal is not None
+                            else None
+                        ),
+                        prompt_tokens=reported_prompt_tokens,
+                        completion_tokens=reported_completion_tokens,
+                    )
+                )
+                return self._result(
+                    started=started,
+                    attempts=attempts,
+                    stop_reason=ControllerStopReason.BUDGET_EXHAUSTED,
+                    total_prompt_tokens=total_prompt_tokens,
+                    total_completion_tokens=total_completion_tokens,
+                    diagnostic=diagnostic,
+                )
             budget_reason = self._provider_budget_reason(
                 total_prompt_tokens=total_prompt_tokens,
                 total_completion_tokens=total_completion_tokens,

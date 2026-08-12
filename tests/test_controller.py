@@ -488,6 +488,57 @@ class ClockAdvancingExecutor(SequenceExecutor):
         return result
 
 
+class ClockAdvancingProvider(RecordingProvider):
+    def __init__(
+        self,
+        *,
+        outcomes: list[ProposalOutcome],
+        clock: MutableClock,
+        advance_to: float,
+    ) -> None:
+        super().__init__(outcomes=outcomes)
+        self.clock = clock
+        self.advance_to = advance_to
+
+    def propose(self, request: ProposalRequest) -> ProposalOutcome:
+        outcome = super().propose(request)
+        self.clock.value = self.advance_to
+        return outcome
+
+
+def test_provider_wall_overrun_stops_before_execution(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    clock = MutableClock()
+    provider = ClockAdvancingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content="safe content\n"),
+                usage=ProviderUsage(prompt_tokens=1, completion_tokens=1),
+            )
+        ],
+        clock=clock,
+        advance_to=1.1,
+    )
+    controller = DiagnoseRepairController(
+        provider=provider,
+        executor=RejectingExecutor(),
+        skill=compiled_skill,
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
+        budgets=ControllerBudgets(max_attempts=2, max_wall_seconds=1.0),
+        clock=clock,
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert result.stop_reason == ControllerStopReason.BUDGET_EXHAUSTED
+    assert result.attempts[0].execution_status is None
+    assert "wall-clock budget exceeded" in result.diagnostic
+
+
 def test_wall_budget_stops_before_requesting_another_repair(
     compiled_skill,  # type: ignore[no-untyped-def]
 ) -> None:
