@@ -325,7 +325,7 @@ class CheckpointStore:
             existing = connection.execute(
                 """
                 SELECT approval_id, actor_id, request_digest_version, request_digest,
-                       policy_digest, expires_at, consumed_at
+                       policy_digest, decision, expires_at, consumed_at
                 FROM approvals
                 WHERE thread_id = ? AND action_id = ? AND idempotency_key = ?
                 """,
@@ -342,7 +342,8 @@ class CheckpointStore:
                         "existing approval is bound to a different canonical request or policy"
                     )
                 if (
-                    existing["consumed_at"] is None
+                    existing["decision"] == "pending"
+                    and existing["consumed_at"] is None
                     and existing["expires_at"] is not None
                     and str(existing["expires_at"]) > created_at
                 ):

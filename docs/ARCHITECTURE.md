@@ -1,5 +1,13 @@
 # Architecture
 
+## Status
+
+The canonical request-identity, schema-v2 checkpoint, request-bound approval, and declared command-outcome
+details below are delivered by the same change as PR #31 for `INTENT-001` and `INTENT-002`. When this file
+is read from PR #31 they are under review; when this exact change is present on `main` they are current.
+Status and eval ownership are indexed in [Traceability](TRACEABILITY.md) and
+[Harness evals](HARNESS_EVALS.md).
+
 ## 1. Purpose
 
 XT-Aegis is a deterministic execution and verification boundary for agent-proposed actions. The model may
@@ -105,7 +113,9 @@ an action. Unknown future schema versions are rejected rather than downgraded.
 
 Approvals are exact-request, policy, optional-actor, time, and single-use bindings. Consumption before a
 crash fails closed and the next attempt receives a fresh approval; authenticated identity and distributed
-recovery remain future work.
+recovery remain future work. A pending token may be returned to resume its decision flow, but a decided
+token is never disclosed again: an otherwise identical request that omits it rotates the record to a fresh
+pending token and invalidates the old capability.
 
 ## 4. Verification Plane
 
@@ -165,18 +175,18 @@ Stateless Streamable HTTP is available for localhost use. A remote deployment re
 identity, authorization, origin validation, rate limits, audit controls, and a dedicated deployment threat
 model.
 
-## 5. Implemented versus planned
+## 5. Delivery state and remaining work
 
-| Layer | Implemented now | Remaining work |
+| Layer | Delivered state | Remaining work |
 |---|---|---|
-| Contract | strict YAML front matter and declared command exits | signed policy bundles and migrations |
-| Identity | canonical request and policy digests | signed subjects and cross-service identity |
+| Contract | strict YAML front matter; declared command exits delivered by PR #31 when this change is on `main` | signed policy bundles and migrations |
+| Identity | canonical request and policy digests delivered by PR #31 when this change is on `main` | signed subjects and cross-service identity |
 | Workspace | owned snapshot copy | copy-on-write production profile |
-| Process | argv policy, timeout, declared exit set | broader per-tool schemas |
+| Process | argv policy and timeout; declared exit set delivered by PR #31 when this change is on `main` | broader per-tool schemas |
 | Network | deny intent; sandbox adapters request no egress | runtime conformance corpus |
-| State | SQLite WAL schema v2 | PostgreSQL, leases, fencing tokens |
-| Approval | expiring, single-use exact-request binding | authenticated identity and crash-safe recovery |
-| Trace | SQLite + JSONL with request/exit evidence | OpenTelemetry export |
+| State | SQLite WAL schema v2 delivered by PR #31 when this change is on `main` | PostgreSQL, leases, and fencing tokens |
+| Approval | expiring, single-use exact-request binding delivered by PR #31 when this change is on `main` | authenticated identity and crash-safe recovery |
+| Trace | SQLite + JSONL request/exit evidence delivered by PR #31 when this change is on `main` | OpenTelemetry export |
 | Coding agent | deterministic execution substrate | proposal adapter, strong mutation backend, bounded repair controller |
 | Verification | registry v2, CLI, MCP, sandbox adapters, evidence bundle | signed release evidence and independent runtime matrix |
 | MCP | read-only default; opt-in local execution | authenticated remote mutation adapter |

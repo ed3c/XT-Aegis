@@ -138,6 +138,30 @@ def test_high_risk_action_requires_digest_bound_single_use_approval(runner) -> N
     assert replay.cached_replay is True
 
 
+def test_approved_capability_is_not_redisclosed_to_a_request_without_it(runner) -> None:  # type: ignore[no-untyped-def]
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(
+                update={"risk_level": RiskLevel.HIGH, "requires_approval": True}
+            )
+        }
+    )
+    runner.policy.contract = runner.skill.contract
+    request = _request(action_id="approved.private", key="approval-private-0001", content=GOOD_CODE)
+    first = runner.execute(request)
+    assert first.approval_id is not None
+    runner.approve(first.approval_id, reviewer="test-reviewer")
+
+    missing_capability = runner.execute(request)
+
+    assert missing_capability.status == ExecutionStatus.SUSPENDED
+    assert missing_capability.approval_id is not None
+    assert missing_capability.approval_id != first.approval_id
+    stale_capability = runner.execute(request.model_copy(update={"approval_id": first.approval_id}))
+    assert stale_capability.status == ExecutionStatus.SUSPENDED
+    assert stale_capability.approval_id == missing_capability.approval_id
+
+
 def test_approved_payload_cannot_be_substituted(runner) -> None:  # type: ignore[no-untyped-def]
     runner.skill = runner.skill.model_copy(
         update={

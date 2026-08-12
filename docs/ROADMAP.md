@@ -40,8 +40,8 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 -> structured diagnosis -> bounded repair/selection -> terminal evidence
 ```
 
-- [x] canonical request and policy digest binding for replay and approval (#25);
-- [x] declared command exit-code semantics shared by actions and assertions (#28);
+- [x] canonical request and policy digest binding for replay and approval (#25; delivered when PR #31 is on `main`);
+- [x] declared command exit-code semantics shared by actions and assertions (#28; delivered when PR #31 is on `main`);
 - [ ] provider-neutral proposal adapter and trusted envelope (#26);
 - [ ] strong-isolation mutation backend for Harness actions (#27);
 - [ ] bounded diagnose-repair and candidate-selection controller (#29);

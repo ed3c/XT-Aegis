@@ -3,8 +3,9 @@
 ## Status
 
 Partially implemented architecture contract for issue #35. Canonical request identity and declared command
-outcomes are under review in PR #31; the provider adapter, strong mutation isolation, controller, and
-benchmark remain tracked work. This document does not claim that every component is implemented on `main`.
+outcomes are delivered by PR #31: they are under review when this file is read from that PR and current when
+this exact change is present on `main`. The provider adapter, strong mutation isolation, controller, and
+benchmark remain tracked work.
 
 ## Goal
 
@@ -182,8 +183,9 @@ flowchart LR
     O[#12 runtime conformance] --> B
 ```
 
-PR #31 is the under-review delivery for #25 and #28. PR #23 advances source-bound OpenShell verification
-but does not close #30 or prove the mutation-plane isolation required by #27.
+PR #31 delivers #25 and #28; its state is under review until this change reaches `main`. PR #23 advances
+source-bound OpenShell verification but does not close #30 or prove the mutation-plane isolation required
+by #27.
 
 ## Implementation issue gate
 

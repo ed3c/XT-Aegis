@@ -47,6 +47,67 @@ def test_approval_is_digest_bound_and_can_be_claimed_once(tmp_path: Path, compil
         store.decide_approval(approval_id, decision="denied", reviewer="bob")
 
 
+def test_approved_token_is_not_redisclosed_when_caller_does_not_present_it(
+    tmp_path: Path,
+    compiled_skill,
+) -> None:  # type: ignore[no-untyped-def]
+    store = CheckpointStore(tmp_path / "state.db")
+    request = _request(key="approval-redisclosure-0001")
+    identity = RequestIdentity.from_request(request, skill=compiled_skill)
+    store.start_run(request.thread_id, "safe_demo")
+    approved_id = store.get_or_create_approval(request, identity)
+    store.decide_approval(approved_id, decision="approved", reviewer="alice")
+
+    replacement_id = store.get_or_create_approval(request, identity)
+
+    assert replacement_id != approved_id
+    assert store.approval_state(approved_id, request, identity) == "missing"
+    assert store.approval_state(replacement_id, request, identity) == "pending"
+
+
+def test_expired_approval_is_rejected(tmp_path: Path, compiled_skill) -> None:  # type: ignore[no-untyped-def]
+    store = CheckpointStore(tmp_path / "state.db")
+    request = _request(key="approval-expired-0001")
+    identity = RequestIdentity.from_request(request, skill=compiled_skill)
+    store.start_run(request.thread_id, "safe_demo")
+    approval_id = store.get_or_create_approval(request, identity, ttl_seconds=0)
+
+    assert store.approval_state(approval_id, request, identity) == "expired"
+    assert not store.claim_approval(approval_id, request, identity)
+
+
+def test_cross_actor_approval_is_rejected(tmp_path: Path, compiled_skill) -> None:  # type: ignore[no-untyped-def]
+    store = CheckpointStore(tmp_path / "state.db")
+    request = _request(key="approval-cross-actor-0001")
+    identity = RequestIdentity.from_request(request, skill=compiled_skill)
+    store.start_run(request.thread_id, "safe_demo")
+    approval_id = store.get_or_create_approval(request, identity)
+    store.decide_approval(approval_id, decision="approved", reviewer="alice")
+    changed_actor = request.model_copy(update={"actor_id": "user:bob"})
+    changed_identity = RequestIdentity.from_request(changed_actor, skill=compiled_skill)
+
+    assert store.approval_state(approval_id, changed_actor, changed_identity) == "mismatch"
+    assert not store.claim_approval(approval_id, changed_actor, changed_identity)
+
+
+def test_cross_policy_approval_is_rejected(tmp_path: Path, compiled_skill) -> None:  # type: ignore[no-untyped-def]
+    store = CheckpointStore(tmp_path / "state.db")
+    request = _request(key="approval-cross-policy-0001")
+    identity = RequestIdentity.from_request(request, skill=compiled_skill)
+    store.start_run(request.thread_id, "safe_demo")
+    approval_id = store.get_or_create_approval(request, identity)
+    store.decide_approval(approval_id, decision="approved", reviewer="alice")
+    changed_skill = compiled_skill.model_copy(
+        update={
+            "contract": compiled_skill.contract.model_copy(update={"max_write_bytes": 64}),
+        }
+    )
+    changed_identity = RequestIdentity.from_request(request, skill=changed_skill)
+
+    assert store.approval_state(approval_id, request, changed_identity) == "mismatch"
+    assert not store.claim_approval(approval_id, request, changed_identity)
+
+
 def test_idempotency_key_reuse_with_changed_request_is_rejected(
     tmp_path: Path,
     compiled_skill,

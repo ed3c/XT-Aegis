@@ -1,5 +1,12 @@
 # Threat Model
 
+## Status
+
+The canonical request binding, schema-v2 checkpoint, exact approval, and declared command-outcome controls
+described below are delivered by PR #31 for `INTENT-001` and `INTENT-002`. They are under review when this
+file is read from that PR and current when this exact change is present on `main`. The remaining controls
+describe current or explicitly residual risk as indexed in [Traceability](TRACEABILITY.md).
+
 ## Scope
 
 This document covers the repository implementation, including the SOP-Core and External Verification
@@ -97,11 +104,14 @@ another.
 
 **Controls:** versioned canonical JSON, request and policy SHA-256 digests, globally unique keys bound to one
 identity, validation before cached replay, exact actor/request/policy approval matching, expiry, atomic
-single-use consumption, durable conflict evidence, and fail-closed legacy rows.
+single-use consumption, no redisclosure of decided approval capabilities, durable conflict evidence, and
+fail-closed legacy rows.
 
 **Residual risk:** digests provide integrity, not authenticated identity. A process crash after approval
 consumption fails closed and requires a fresh approval before retry. Remote side effects still need their
-own idempotency and authenticated subjects.
+own idempotency and authenticated subjects. A request that omits or presents the wrong token may rotate an
+unused approved capability to a fresh pending token; this prevents redisclosure but can force re-approval,
+so exposed integrations still require authentication and request-rate controls against availability abuse.
 
 ### T8. Evidence tampering or substitution
 
