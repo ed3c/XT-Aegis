@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import time
 from enum import StrEnum
 from typing import Protocol
@@ -13,7 +14,10 @@ from xt_aegis.proposals import (
     ProposalProvider,
     ProposalRequest,
     ProposalStatus,
+    RequestIdentitySource,
+    SecureRequestIdentitySource,
     TrustedEnvelopeConfig,
+    build_action_request,
 )
 from xt_aegis.redaction import redact_text
 
@@ -59,6 +63,10 @@ class ControllerAttempt(BaseModel):
     execution_status: ExecutionStatus | None = None
     classification: ControllerStopReason
     diagnostic: str
+    proposal_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    request_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    action_id: str | None = None
+    idempotency_key: str | None = None
     prompt_tokens: int = Field(default=0, ge=0)
     completion_tokens: int = Field(default=0, ge=0)
 
@@ -95,12 +103,14 @@ class DiagnoseRepairController:
         skill: CompiledSkill,
         trusted: TrustedEnvelopeConfig,
         budgets: ControllerBudgets,
+        identity_source: RequestIdentitySource | None = None,
     ) -> None:
         self.provider = provider
         self.executor = executor
         self.skill = skill
         self.trusted = trusted
         self.budgets = budgets
+        self.identity_source = identity_source or SecureRequestIdentitySource()
 
     def run(self, *, task: str) -> ControllerResult:
         started = time.monotonic()
@@ -126,4 +136,36 @@ class DiagnoseRepairController:
                 total_completion_tokens=completion_tokens,
                 duration_ms=(time.monotonic() - started) * 1000,
             )
-        raise NotImplementedError("ready proposal execution is not implemented")
+        if outcome.proposal is None:  # guarded by ProposalOutcome validation
+            raise AssertionError("ready proposal outcome omitted proposal content")
+        envelope = build_action_request(
+            outcome,
+            trusted=self.trusted,
+            skill=self.skill,
+            identity_source=self.identity_source,
+        )
+        execution = self.executor.execute(envelope.request)
+        if execution.success and execution.status == ExecutionStatus.SUCCEEDED:
+            attempt = ControllerAttempt(
+                attempt_number=1,
+                proposal_status=outcome.status,
+                execution_status=execution.status,
+                classification=ControllerStopReason.PASSED,
+                diagnostic="",
+                proposal_sha256=hashlib.sha256(outcome.proposal.content.encode()).hexdigest(),
+                request_digest=envelope.request_identity.digest,
+                action_id=envelope.request.action_id,
+                idempotency_key=envelope.request.idempotency_key,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+            return ControllerResult(
+                success=True,
+                stop_reason=ControllerStopReason.PASSED,
+                attempts=[attempt],
+                total_attempts=1,
+                total_prompt_tokens=prompt_tokens,
+                total_completion_tokens=completion_tokens,
+                duration_ms=(time.monotonic() - started) * 1000,
+            )
+        raise NotImplementedError("failed execution classification is not implemented")
