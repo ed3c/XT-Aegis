@@ -3,10 +3,10 @@
 ## Status
 
 Partially implemented architecture contract for issue #35. Canonical request identity, declared command
-outcomes, and the provider-neutral proposal boundary are current on `main`. The finite controller core is
-under review in the #29 change when read from its branch and current only when that exact change is present on
-`main`. Strong mutation isolation, process-restart resume, candidate selection, and model-backed benchmark
-evidence remain tracked work.
+outcomes, the provider-neutral proposal boundary, and the finite controller core are current on `main`.
+Streaming command-output enforcement is under review in #53. Strong mutation isolation, hard provider-token
+admission, process-restart resume, candidate selection, and model-backed benchmark evidence remain tracked
+work.
 
 ## Goal
 
@@ -149,15 +149,19 @@ The controller must enforce finite maximums for:
 - candidate branches when branch-and-evaluate is enabled later.
 
 Budget checks occur before the next provider or execution call. The Ollama adapter receives the remaining
-provider timeout and proposal-byte limit; `HarnessRunner` clamps command timeouts and returned action output
-to the controller's remaining allowance. Exhaustion is a terminal, schema-valid result.
+provider timeout and proposal-byte limit. The #53 implementation under review gives `HarnessRunner` one
+shared byte allowance across preconditions, the action, and postconditions; command pipes are read
+incrementally, and the child process group is terminated when the reader observes the first excess byte.
+Only bounded, redacted output is retained or persisted. A cached success is refused when replayed under a
+smaller allowance than its recorded output, rather than being relabeled as a valid bounded success.
+`output_original_bytes` is an exact count when the process exits normally and a lower bound when the process
+is terminated at the first observed excess byte. Exhaustion is a terminal, schema-valid result.
 
 The wall budget is a cooperative provider/executor deadline plus a terminal gate. A non-conforming provider
 or an in-process file write cannot be preempted by this Python controller; an overrun is recorded and no
 later side effect is started. Prompt/completion counters are likewise provider-reported cooperative limits:
-an over-reporting call is rejected before execution, but cannot be retroactively shortened. Returned action
-output is bounded as retained evidence after the child exits; hard streaming process-output termination and
-strong process cancellation remain planned work.
+an over-reporting call is rejected before execution, but cannot be retroactively shortened. Streaming
+command-output termination does not provide OS isolation or a memory/CPU quota; those remain #27 work.
 
 ## Attempt evidence
 

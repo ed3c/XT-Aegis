@@ -3,8 +3,8 @@
 ## Status
 
 The canonical request-identity, schema-v2 checkpoint, request-bound approval, and declared command-outcome
-controls are current on `main`. The provider-neutral proposal boundary described below is under review in
-the #26 change when read from its branch and current only when that exact change is present on `main`.
+controls, provider-neutral proposal boundary, and finite controller core are current on `main`. Streaming
+command-output enforcement is under review in #53.
 Status and eval ownership are indexed in [Traceability](TRACEABILITY.md) and [Harness
 evals](HARNESS_EVALS.md).
 
@@ -204,7 +204,7 @@ model.
 | State | SQLite WAL schema v2 | PostgreSQL, leases, and fencing tokens |
 | Approval | expiring, single-use exact-request binding | authenticated identity and crash-safe recovery |
 | Trace | SQLite + JSONL request/exit evidence | OpenTelemetry export |
-| Coding agent | deterministic execution substrate and provider boundary; #29 finite controller core when this exact change is on `main` | strong mutation backend, restart resume, candidate selection, live provider evidence |
+| Coding agent | deterministic execution substrate, provider boundary, and #29 finite controller core; #53 streaming command-output enforcement when this exact change reaches `main` | strong mutation backend, hard provider-token admission, restart resume, candidate selection, live provider evidence |
 | Verification | registry v2, CLI, MCP, sandbox adapters, evidence bundle | signed release evidence and independent runtime matrix |
 | MCP | read-only default; opt-in local execution | authenticated remote mutation adapter |
 
