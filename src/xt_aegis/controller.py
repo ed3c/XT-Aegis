@@ -15,6 +15,7 @@ from xt_aegis.proposals import (
     ProposalProvider,
     ProposalRequest,
     ProposalStatus,
+    ProviderProfile,
     RequestIdentitySource,
     SecureRequestIdentitySource,
     TrustedEnvelopeConfig,
@@ -54,6 +55,16 @@ class ControllerBudgets(BaseModel):
     equivalent_failure_limit: int = Field(default=2, ge=2, le=100)
 
 
+class ControllerRunContext(BaseModel):
+    """Trusted source and backend identity attached to every run."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source_commit: str = Field(pattern=r"^[a-f0-9]{40}$")
+    source_dirty: bool
+    backend_profile: str = Field(min_length=1, max_length=160)
+
+
 class ControllerAttempt(BaseModel):
     """Bounded evidence for one provider proposal and optional execution."""
 
@@ -61,11 +72,14 @@ class ControllerAttempt(BaseModel):
 
     attempt_number: int = Field(ge=1)
     proposal_status: ProposalStatus
+    provider_profile: ProviderProfile
+    target_path: str
     execution_status: ExecutionStatus | None = None
     classification: ControllerStopReason
     diagnostic: str
     proposal_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     request_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    policy_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     cycle_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     action_id: str | None = None
     idempotency_key: str | None = None
@@ -82,6 +96,8 @@ class ControllerResult(BaseModel):
     success: bool
     stop_reason: ControllerStopReason
     diagnostic: str
+    context: ControllerRunContext
+    budgets: ControllerBudgets
     attempts: list[ControllerAttempt]
     total_attempts: int = Field(ge=0)
     total_prompt_tokens: int = Field(ge=0)
@@ -113,6 +129,7 @@ class DiagnoseRepairController:
         skill: CompiledSkill,
         trusted: TrustedEnvelopeConfig,
         budgets: ControllerBudgets,
+        context: ControllerRunContext,
         identity_source: RequestIdentitySource | None = None,
         clock: Callable[[], float] | None = None,
     ) -> None:
@@ -121,6 +138,7 @@ class DiagnoseRepairController:
         self.skill = skill
         self.trusted = trusted
         self.budgets = budgets
+        self.context = context
         self.identity_source = identity_source or SecureRequestIdentitySource()
         self.clock = clock or time.monotonic
 
@@ -167,6 +185,8 @@ class DiagnoseRepairController:
                     ControllerAttempt(
                         attempt_number=attempt_number,
                         proposal_status=outcome.status,
+                        provider_profile=outcome.profile,
+                        target_path=self.trusted.target_path,
                         classification=ControllerStopReason.BUDGET_EXHAUSTED,
                         diagnostic=budget_reason,
                         proposal_sha256=(
@@ -190,6 +210,8 @@ class DiagnoseRepairController:
                     ControllerAttempt(
                         attempt_number=attempt_number,
                         proposal_status=outcome.status,
+                        provider_profile=outcome.profile,
+                        target_path=self.trusted.target_path,
                         classification=ControllerStopReason.PROPOSAL_REJECTED,
                         diagnostic=self._bounded_diagnostic(outcome.diagnostic),
                         prompt_tokens=reported_prompt_tokens,
@@ -219,10 +241,13 @@ class DiagnoseRepairController:
                     ControllerAttempt(
                         attempt_number=attempt_number,
                         proposal_status=outcome.status,
+                        provider_profile=outcome.profile,
+                        target_path=self.trusted.target_path,
                         classification=ControllerStopReason.INFRASTRUCTURE_UNAVAILABLE,
                         diagnostic=self._bounded_diagnostic(str(exc)),
                         proposal_sha256=hashlib.sha256(outcome.proposal.content.encode()).hexdigest(),
                         request_digest=envelope.request_identity.digest,
+                        policy_digest=envelope.request_identity.policy_digest,
                         action_id=envelope.request.action_id,
                         idempotency_key=envelope.request.idempotency_key,
                         prompt_tokens=reported_prompt_tokens,
@@ -267,11 +292,14 @@ class DiagnoseRepairController:
                 ControllerAttempt(
                     attempt_number=attempt_number,
                     proposal_status=outcome.status,
+                    provider_profile=outcome.profile,
+                    target_path=self.trusted.target_path,
                     execution_status=execution.status,
                     classification=classification,
                     diagnostic=diagnostic,
                     proposal_sha256=proposal_sha256,
                     request_digest=envelope.request_identity.digest,
+                    policy_digest=envelope.request_identity.policy_digest,
                     cycle_fingerprint=cycle_fingerprint,
                     action_id=envelope.request.action_id,
                     idempotency_key=envelope.request.idempotency_key,
@@ -378,6 +406,8 @@ class DiagnoseRepairController:
             diagnostic=diagnostic
             if diagnostic is not None
             else (attempts[-1].diagnostic if attempts else ""),
+            context=self.context,
+            budgets=self.budgets,
             attempts=attempts,
             total_attempts=len(attempts),
             total_prompt_tokens=total_prompt_tokens,

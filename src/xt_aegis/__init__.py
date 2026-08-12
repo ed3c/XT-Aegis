@@ -1,5 +1,14 @@
 """XT-Aegis: evidence-first deterministic controls around agent actions."""
 
+from xt_aegis.controller import (
+    ControllerAttempt,
+    ControllerBudgets,
+    ControllerResult,
+    ControllerRunContext,
+    ControllerStopReason,
+    DiagnoseRepairController,
+    InfrastructureUnavailableError,
+)
 from xt_aegis.models import (
     ActionRequest,
     CommandAction,
@@ -39,11 +48,18 @@ __all__ = [
     "CommandAction",
     "CommandSpec",
     "CompiledSkill",
+    "ControllerAttempt",
+    "ControllerBudgets",
+    "ControllerResult",
+    "ControllerRunContext",
+    "ControllerStopReason",
+    "DiagnoseRepairController",
     "ExecutionResult",
     "ExecutionStatus",
     "FakeProposalProvider",
     "FileWriteAction",
     "HarnessRunner",
+    "InfrastructureUnavailableError",
     "Proposal",
     "ProposalOutcome",
     "ProposalProvider",

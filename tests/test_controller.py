@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import NoReturn
 
 import pytest
 
+import xt_aegis
 from xt_aegis.controller import (
     ControllerBudgets,
+    ControllerResult,
+    ControllerRunContext,
     ControllerStopReason,
     DiagnoseRepairController,
     InfrastructureUnavailableError,
@@ -24,6 +29,8 @@ from xt_aegis.proposals import (
     TrustedRequestIds,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def _profile() -> ProviderProfile:
     return ProviderProfile(
@@ -37,6 +44,25 @@ def _profile() -> ProviderProfile:
             max_output_tokens=256,
         ),
     )
+
+
+def _context() -> ControllerRunContext:
+    return ControllerRunContext(
+        source_commit="f" * 40,
+        source_dirty=False,
+        backend_profile="workspace-transaction:test",
+    )
+
+
+def test_controller_contract_is_public_and_matches_checked_in_schema() -> None:
+    assert xt_aegis.DiagnoseRepairController is DiagnoseRepairController
+    assert xt_aegis.ControllerResult is ControllerResult
+    checked_in = json.loads(
+        (ROOT / "verification/schemas/controller-result.schema.json").read_text(encoding="utf-8")
+    )
+    assert checked_in.pop("$schema") == "https://json-schema.org/draft/2020-12/schema"
+    assert checked_in.pop("$id") == "https://github.com/ed3c/XT-Aegis/controller-result.schema.json"
+    assert checked_in == ControllerResult.model_json_schema()
 
 
 class RejectingExecutor:
@@ -130,6 +156,7 @@ def test_proposal_rejection_is_terminal_without_execution(compiled_skill) -> Non
         executor=RejectingExecutor(),
         skill=compiled_skill,
         trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
         budgets=ControllerBudgets(max_attempts=2),
     )
 
@@ -172,6 +199,7 @@ def test_ready_proposal_executes_once_and_records_passed_evidence(
         executor=runner,
         skill=compiled_skill,
         trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
         budgets=ControllerBudgets(max_attempts=2),
         identity_source=FixedIdentitySource(),
     )
@@ -189,7 +217,12 @@ def test_ready_proposal_executes_once_and_records_passed_evidence(
     assert attempt.action_id == "action:controller"
     assert attempt.idempotency_key == "idem:controller:0001"
     assert attempt.request_digest is not None
+    assert attempt.policy_digest is not None
     assert attempt.proposal_sha256 is not None
+    assert attempt.provider_profile == _profile()
+    assert attempt.target_path == "sample_project/app.py"
+    assert result.context == _context()
+    assert result.budgets.max_attempts == 2
     assert "TAX_RATE" in (runner.workspace.root / "sample_project/app.py").read_text(encoding="utf-8")
 
 
@@ -239,6 +272,7 @@ def test_assertion_failure_repairs_with_fresh_identity_and_preserves_both_attemp
         executor=runner,
         skill=compiled_skill,
         trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
         budgets=ControllerBudgets(max_attempts=2),
         identity_source=identities,
     )
@@ -325,6 +359,7 @@ def test_non_retryable_execution_outcomes_stop_immediately(
         executor=executor,
         skill=compiled_skill,
         trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
         budgets=ControllerBudgets(max_attempts=3),
         identity_source=FixedIdentitySource(),
     )
@@ -357,6 +392,7 @@ def test_provider_token_budget_violation_stops_before_execution(
         executor=RejectingExecutor(),
         skill=compiled_skill,
         trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
         budgets=ControllerBudgets(
             max_attempts=2,
             max_prompt_tokens=10,
@@ -404,6 +440,7 @@ def test_repeated_equivalent_proposal_failure_cycle_stops_before_third_attempt(
         executor=runner,
         skill=compiled_skill,
         trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
         budgets=ControllerBudgets(max_attempts=3, equivalent_failure_limit=2),
         identity_source=SequenceIdentitySource(
             [
@@ -480,6 +517,7 @@ def test_wall_budget_stops_before_requesting_another_repair(
         executor=executor,
         skill=compiled_skill,
         trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
         budgets=ControllerBudgets(max_attempts=3, max_wall_seconds=1.0),
         identity_source=FixedIdentitySource(),
         clock=clock,
@@ -519,6 +557,7 @@ def test_execution_output_budget_stops_before_repair(
         executor=executor,
         skill=compiled_skill,
         trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
         budgets=ControllerBudgets(max_attempts=2, max_output_bytes=32),
         identity_source=FixedIdentitySource(),
     )
@@ -557,6 +596,7 @@ def test_missing_token_usage_fails_closed_before_retry(
         executor=executor,
         skill=compiled_skill,
         trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
         budgets=ControllerBudgets(max_attempts=2),
         identity_source=FixedIdentitySource(),
     )
@@ -602,6 +642,7 @@ def test_repair_diagnostic_is_redacted_and_byte_bounded_before_provider_reuse(
         executor=executor,
         skill=compiled_skill,
         trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
         budgets=ControllerBudgets(max_attempts=2, max_diagnostic_bytes=64, max_output_bytes=1024),
         identity_source=FixedIdentitySource(),
     )
