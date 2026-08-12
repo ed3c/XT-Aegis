@@ -22,6 +22,7 @@ class SamplingProfile(BaseModel):
 
     temperature: float = Field(ge=0.0, le=2.0)
     seed: int | None = None
+    context_tokens: int = Field(ge=1, le=1_048_576)
     max_output_tokens: int = Field(ge=1, le=32_768)
 
 

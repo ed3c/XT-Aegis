@@ -3,7 +3,7 @@
 ## Status
 
 Partially implemented architecture contract for issue #35. Canonical request identity and declared command
-outcomes are current on `main`. The provider-neutral proposal boundary and optional local Ollama adapter are
+outcomes are current on `main`. The provider-neutral proposal boundary and experimental optional local Ollama adapter are
 under review in the #26 change when read from its branch and current only when that exact change is present on
 `main`. Strong mutation isolation, the controller, and benchmark remain tracked work.
 
@@ -49,7 +49,7 @@ Returns a typed provider outcome: ready, refused, timed out, malformed, oversize
 error. Provider credentials, prompts, and wire formats stay outside the deterministic runner. Malformed or
 non-ready output never reaches mutation.
 
-The first optional adapter uses Ollama's non-streaming local generate API for code-only `replace_file`
+The first experimental optional adapter uses Ollama's non-streaming local generate API for code-only `replace_file`
 proposals. Its default transport accepts only a loopback HTTP origin, disables environment proxies, rejects
 redirects, bounds response bytes and time, and checks the returned model against the configured model. The
 configured provider version is retained as operator-supplied profile metadata; it is not a server

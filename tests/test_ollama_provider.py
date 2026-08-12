@@ -51,7 +51,7 @@ def ollama_config() -> OllamaConfig:
         endpoint="http://127.0.0.1:11434",
         model="qwen3:4b",
         version="0.11.0",
-        sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+        sampling=SamplingProfile(temperature=0.0, seed=7, context_tokens=8192, max_output_tokens=256),
         timeout_seconds=3.0,
         max_response_bytes=4096,
     )
@@ -104,7 +104,12 @@ def test_ollama_code_only_response_becomes_ready_proposal() -> None:
         "prompt": "Replace the tax implementation.",
         "stream": False,
         "think": False,
-        "options": {"temperature": 0.0, "seed": 7, "num_predict": 256},
+        "options": {
+            "temperature": 0.0,
+            "seed": 7,
+            "num_ctx": 8192,
+            "num_predict": 256,
+        },
     }
 
 
@@ -126,7 +131,7 @@ def test_ollama_config_rejects_non_local_or_credential_bearing_endpoint(
             endpoint=endpoint,
             model="qwen3:4b",
             version="0.11.0",
-            sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+            sampling=SamplingProfile(temperature=0.0, seed=7, context_tokens=8192, max_output_tokens=256),
         )
 
 
@@ -136,6 +141,27 @@ def test_ollama_config_rejects_non_local_or_credential_bearing_endpoint(
         (OllamaHttpResponse(200, b"\xff"), ProposalStatus.MALFORMED),
         (OllamaHttpResponse(200, b"not json"), ProposalStatus.MALFORMED),
         (OllamaHttpResponse(200, b"1" + b"0" * 5000), ProposalStatus.MALFORMED),
+        (
+            OllamaHttpResponse(
+                200,
+                b'{"model":"qwen3:4b","response":"code","done":"true"}',
+            ),
+            ProposalStatus.MALFORMED,
+        ),
+        (
+            OllamaHttpResponse(
+                200,
+                b'{"model":"qwen3:4b","response":"code","done":true,"prompt_eval_count":"12"}',
+            ),
+            ProposalStatus.MALFORMED,
+        ),
+        (
+            OllamaHttpResponse(
+                200,
+                b'{"model":"qwen3:4b","response":"code","done":true,"total_duration":Infinity}',
+            ),
+            ProposalStatus.MALFORMED,
+        ),
         (OllamaHttpResponse(200, b'{"done":true}'), ProposalStatus.MALFORMED),
         (
             OllamaHttpResponse(200, b'{"response":"partial","done":false}'),

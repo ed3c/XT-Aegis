@@ -68,7 +68,7 @@ outcome and combines its proposal with a trusted target, actor label, optional e
 identifiers, fixed provenance/kind, and the active compiled skill. It rejects path or byte-limit violations
 before identity allocation and does not execute the request.
 
-The optional Ollama adapter is local-only: plain HTTP loopback origins, no URL credentials/path/query,
+The experimental optional Ollama adapter is local-only: plain HTTP loopback origins, no URL credentials/path/query,
 environment proxies disabled, redirects refused, bounded response reads, typed failure outcomes, and exact
 configured-model response matching. Provider version metadata is configured rather than remotely attested.
 This adapter does not authorize a mutation or prove live-model correctness.

@@ -76,7 +76,7 @@ class OllamaConfig(BaseModel):
 class OllamaGenerateResponse(BaseModel):
     """Strict subset of the non-streaming generate response used by the adapter."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
     model: str | None = None
     created_at: str | None = None
@@ -86,12 +86,12 @@ class OllamaGenerateResponse(BaseModel):
     done_reason: str | None = None
     error: str | None = None
     context: list[int] | None = None
-    total_duration: int | float | None = Field(default=None, ge=0)
-    load_duration: int | float | None = Field(default=None, ge=0)
+    total_duration: int | float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    load_duration: int | float | None = Field(default=None, ge=0, allow_inf_nan=False)
     prompt_eval_count: int | None = Field(default=None, ge=0)
-    prompt_eval_duration: int | float | None = Field(default=None, ge=0)
+    prompt_eval_duration: int | float | None = Field(default=None, ge=0, allow_inf_nan=False)
     eval_count: int | None = Field(default=None, ge=0)
-    eval_duration: int | float | None = Field(default=None, ge=0)
+    eval_duration: int | float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,6 +222,7 @@ class OllamaProposalProvider:
                 "options": {
                     "temperature": self.config.sampling.temperature,
                     "seed": self.config.sampling.seed,
+                    "num_ctx": self.config.sampling.context_tokens,
                     "num_predict": self.config.sampling.max_output_tokens,
                 },
             },

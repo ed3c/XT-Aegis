@@ -61,7 +61,7 @@ def test_valid_proposal_builds_trusted_action_envelope(compiled_skill) -> None: 
         provider="fake",
         model="deterministic",
         version="1.0",
-        sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+        sampling=SamplingProfile(temperature=0.0, seed=7, context_tokens=8192, max_output_tokens=256),
     )
     outcome = ProposalOutcome(
         status=ProposalStatus.READY,
@@ -122,7 +122,7 @@ def test_fake_provider_returns_deterministic_non_execution_results(
         provider="fake",
         model="deterministic",
         version="1.0",
-        sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+        sampling=SamplingProfile(temperature=0.0, seed=7, context_tokens=8192, max_output_tokens=256),
     )
     provider = FakeProposalProvider(
         outcomes=[
@@ -142,6 +142,24 @@ def test_fake_provider_returns_deterministic_non_execution_results(
     assert outcome.profile == profile
 
 
+def test_fake_provider_returns_a_deterministic_ready_proposal() -> None:
+    profile = ProviderProfile(
+        provider="fake",
+        model="deterministic",
+        version="1.0",
+        sampling=SamplingProfile(temperature=0.0, seed=7, context_tokens=8192, max_output_tokens=256),
+    )
+    ready = ProposalOutcome(
+        status=ProposalStatus.READY,
+        profile=profile,
+        proposal=Proposal(content="safe code\n"),
+    )
+
+    outcome = FakeProposalProvider(outcomes=[ready]).propose(ProposalRequest(task="Propose code."))
+
+    assert outcome == ready
+
+
 def test_trusted_builder_rejects_content_over_active_skill_byte_limit(compiled_skill) -> None:  # type: ignore[no-untyped-def]
     limited_skill = compiled_skill.model_copy(
         update={"contract": compiled_skill.contract.model_copy(update={"max_write_bytes": 8})}
@@ -150,7 +168,7 @@ def test_trusted_builder_rejects_content_over_active_skill_byte_limit(compiled_s
         provider="fake",
         model="deterministic",
         version="1.0",
-        sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+        sampling=SamplingProfile(temperature=0.0, seed=7, context_tokens=8192, max_output_tokens=256),
     )
     outcome = ProposalOutcome(
         status=ProposalStatus.READY,
@@ -182,7 +200,7 @@ def test_trusted_builder_rejects_target_outside_active_skill_scope(
         provider="fake",
         model="deterministic",
         version="1.0",
-        sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+        sampling=SamplingProfile(temperature=0.0, seed=7, context_tokens=8192, max_output_tokens=256),
     )
     outcome = ProposalOutcome(
         status=ProposalStatus.READY,
@@ -222,7 +240,7 @@ def test_changed_proposal_gets_fresh_request_identity(compiled_skill) -> None:  
         provider="fake",
         model="deterministic",
         version="1.0",
-        sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+        sampling=SamplingProfile(temperature=0.0, seed=7, context_tokens=8192, max_output_tokens=256),
     )
     identities = SequenceIdentitySource(
         [
@@ -271,7 +289,7 @@ def test_non_ready_outcome_cannot_build_an_action_request(compiled_skill) -> Non
         provider="fake",
         model="deterministic",
         version="1.0",
-        sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+        sampling=SamplingProfile(temperature=0.0, seed=7, context_tokens=8192, max_output_tokens=256),
     )
     with pytest.raises(ValueError, match="ready proposal outcome"):
         build_action_request(
