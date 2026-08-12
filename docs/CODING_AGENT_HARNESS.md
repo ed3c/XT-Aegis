@@ -114,7 +114,9 @@ no conformant backend is ready.
 Lives outside `HarnessRunner`. It converts bounded, redacted failure evidence into a provider-neutral
 repair request and records every attempt. The #29 implementation under review covers deterministic
 classification, fresh request identity, repeated-cycle detection, strict run context, and finite
-attempt/token/time/proposal/diagnostic/output budgets. It does not promote a live-model uplift claim.
+attempt/token/time/proposal/diagnostic/retained-output budgets. Executor results are accepted only when
+their thread, action, idempotency, request-digest version/value, and policy identities match the trusted
+envelope. It does not promote a live-model uplift claim.
 
 ## Failure taxonomy
 
@@ -146,8 +148,13 @@ The controller must enforce finite maximums for:
 - repeated-equivalent failures;
 - candidate branches when branch-and-evaluate is enabled later.
 
-Budget checks occur before the next provider or execution call. Exhaustion is a terminal, schema-valid
-result.
+Budget checks occur before the next provider or execution call. The Ollama adapter receives the remaining
+provider timeout and proposal-byte limit; `HarnessRunner` clamps command timeouts and returned action output
+to the controller's remaining allowance. Exhaustion is a terminal, schema-valid result.
+
+The wall budget is a cooperative provider/executor deadline plus a terminal gate. A non-conforming provider
+or an in-process file write cannot be preempted by this Python controller; an overrun is recorded and no
+later side effect is started. Strong process cancellation remains planned work.
 
 ## Attempt evidence
 

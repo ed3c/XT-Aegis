@@ -19,6 +19,7 @@ from xt_aegis.models import (
     CommandAction,
     CommandSpec,
     CompiledSkill,
+    ExecutionReasonCode,
     ExecutionResult,
     ExecutionStatus,
     FileWriteAction,
@@ -57,12 +58,32 @@ class HarnessRunner:
     def deny(self, approval_id: str, *, reviewer: str) -> None:
         self.store.decide_approval(approval_id, decision="denied", reviewer=reviewer)
 
-    def execute(self, request: ActionRequest) -> ExecutionResult:
+    def execute(
+        self,
+        request: ActionRequest,
+        *,
+        timeout_seconds: float | None = None,
+        max_output_bytes: int = 16_384,
+    ) -> ExecutionResult:
+        """Execute once and return output bounded for the calling controller."""
+
+        return self._bound_execution_output(
+            self._execute(request, timeout_seconds=timeout_seconds),
+            max_output_bytes,
+        )
+
+    def _execute(
+        self,
+        request: ActionRequest,
+        *,
+        timeout_seconds: float | None,
+    ) -> ExecutionResult:
         trace_id = self.events.new_trace_id()
         identity = RequestIdentity.from_request(request, skill=self.skill)
         self.store.start_run(request.thread_id, self.skill.contract.name)
         started_at = _utc_now()
         started_clock = time.perf_counter()
+        deadline = started_clock + timeout_seconds if timeout_seconds is not None else None
         before_sha = self.workspace.hash_tree()
 
         self.events.emit(
@@ -122,6 +143,7 @@ class HarnessRunner:
                 started_at=started_at,
                 started_clock=started_clock,
                 policy_reasons=exc.reasons,
+                reason_code=ExecutionReasonCode.POLICY_DENIED,
             )
             return self._persist_and_emit(trace_id, result, "policy_blocked")
 
@@ -166,6 +188,7 @@ class HarnessRunner:
                 started_at=started_at,
                 started_clock=started_clock,
                 policy_reasons=budget_reasons,
+                reason_code=ExecutionReasonCode.BUDGET_EXHAUSTED,
             )
             return self._persist_and_emit(trace_id, result, "budget_blocked")
 
@@ -188,6 +211,7 @@ class HarnessRunner:
                     started_clock=started_clock,
                     approval_id=request.approval_id,
                     policy_reasons=["human approval was denied for this exact request"],
+                    reason_code=ExecutionReasonCode.APPROVAL_DENIED,
                 )
                 return self._persist_and_emit(trace_id, result, "approval_denied")
 
@@ -204,6 +228,7 @@ class HarnessRunner:
                 started_clock=started_clock,
                 approval_id=approval_id,
                 policy_reasons=["human approval is required before this exact request may execute"],
+                reason_code=ExecutionReasonCode.APPROVAL_REQUIRED,
             )
             return self._persist_and_emit(trace_id, result, "approval_required")
 
@@ -221,7 +246,7 @@ class HarnessRunner:
             before_sha = transaction.before_sha256
 
             for condition in self.skill.contract.preconditions:
-                check = self._run_command(condition)
+                check = self._run_command(condition, deadline=deadline)
                 preconditions.append(check)
                 self.events.emit(
                     trace_id=trace_id,
@@ -254,7 +279,7 @@ class HarnessRunner:
                     )
                     return self._persist_and_emit(trace_id, result, "precondition_failed")
 
-            action_result = self._execute_action(request)
+            action_result = self._execute_action(request, deadline=deadline)
             action_exit_code = action_result.exit_code
             action_expected_exit_codes = self._expected_exit_codes(request)
             action_stdout = action_result.stdout
@@ -283,7 +308,7 @@ class HarnessRunner:
                 return self._persist_and_emit(trace_id, result, "action_failed")
 
             for condition in self.skill.contract.postconditions:
-                check = self._run_command(condition)
+                check = self._run_command(condition, deadline=deadline)
                 postconditions.append(check)
                 self.events.emit(
                     trace_id=trace_id,
@@ -398,7 +423,7 @@ class HarnessRunner:
             return sorted(request.action.command.expected_exit_codes)
         return [0]
 
-    def _execute_action(self, request: ActionRequest) -> CheckResult:
+    def _execute_action(self, request: ActionRequest, *, deadline: float | None) -> CheckResult:
         if isinstance(request.action, FileWriteAction):
             started = time.perf_counter()
             target = self.workspace.resolve_relative(request.action.relative_path)
@@ -422,11 +447,11 @@ class HarnessRunner:
             )
 
         if isinstance(request.action, CommandAction):
-            return self._run_command(request.action.command)
+            return self._run_command(request.action.command, deadline=deadline)
 
         raise TypeError(f"unsupported action: {type(request.action).__name__}")
 
-    def _run_command(self, command: CommandSpec) -> CheckResult:
+    def _run_command(self, command: CommandSpec, *, deadline: float | None) -> CheckResult:
         cwd = self.workspace.resolve_relative(command.cwd)
         home = self.workspace.run_root / "home"
         home.mkdir(parents=True, exist_ok=True)
@@ -439,6 +464,9 @@ class HarnessRunner:
             "PYTHONUNBUFFERED": "1",
         }
         started = time.perf_counter()
+        timeout_seconds = command.timeout_seconds
+        if deadline is not None:
+            timeout_seconds = max(0.001, min(timeout_seconds, deadline - started))
         try:
             completed = subprocess.run(
                 command.argv,
@@ -447,7 +475,7 @@ class HarnessRunner:
                 shell=False,
                 capture_output=True,
                 text=True,
-                timeout=command.timeout_seconds,
+                timeout=timeout_seconds,
                 check=False,
             )
             exit_code: int | None = completed.returncode
@@ -458,7 +486,7 @@ class HarnessRunner:
             exit_code = None
             stdout = redact_text(exc.stdout or "") if isinstance(exc.stdout, str) else ""
             stderr = redact_text((exc.stderr or "") if isinstance(exc.stderr, str) else "")
-            stderr = f"{stderr}\ncommand timed out after {command.timeout_seconds}s".strip()
+            stderr = f"{stderr}\ncommand timed out after {timeout_seconds}s".strip()
             passed = False
         duration_ms = (time.perf_counter() - started) * 1000
         return CheckResult(
@@ -483,6 +511,7 @@ class HarnessRunner:
         started_at: str,
         started_clock: float,
         policy_reasons: list[str] | None = None,
+        reason_code: ExecutionReasonCode | None = None,
         approval_id: str | None = None,
         preconditions: list[CheckResult] | None = None,
         postconditions: list[CheckResult] | None = None,
@@ -501,6 +530,7 @@ class HarnessRunner:
             status=status,
             success=success,
             policy_reasons=policy_reasons or [],
+            reason_code=reason_code,
             approval_id=approval_id,
             preconditions=preconditions or [],
             postconditions=postconditions or [],
@@ -518,6 +548,27 @@ class HarnessRunner:
             started_at=started_at,
             finished_at=_utc_now(),
             duration_ms=(time.perf_counter() - started_clock) * 1000,
+        )
+
+    @staticmethod
+    def _bound_execution_output(result: ExecutionResult, limit: int) -> ExecutionResult:
+        if limit < 1:
+            raise ValueError("max_output_bytes must be positive")
+        stdout = result.action_stdout.encode()
+        stderr = result.action_stderr.encode()
+        original_bytes = len(stdout) + len(stderr)
+        if original_bytes <= limit:
+            return result.model_copy(update={"output_original_bytes": original_bytes})
+        retained_stdout = stdout[:limit].decode(errors="ignore")
+        stdout_bytes = len(retained_stdout.encode())
+        retained_stderr = stderr[: limit - stdout_bytes].decode(errors="ignore")
+        return result.model_copy(
+            update={
+                "action_stdout": retained_stdout,
+                "action_stderr": retained_stderr,
+                "output_truncated": True,
+                "output_original_bytes": original_bytes,
+            }
         )
 
     def _emit_identity_conflict(
@@ -543,6 +594,7 @@ class HarnessRunner:
             started_at=started_at,
             started_clock=started_clock,
             policy_reasons=[reason],
+            reason_code=ExecutionReasonCode.IDENTITY_CONFLICT,
         )
         self.events.emit(
             trace_id=trace_id,

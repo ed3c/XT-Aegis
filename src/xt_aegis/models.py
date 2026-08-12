@@ -31,6 +31,16 @@ class ExecutionStatus(StrEnum):
     FAILED = "failed"
 
 
+class ExecutionReasonCode(StrEnum):
+    """Machine-readable reason for a terminal executor decision."""
+
+    POLICY_DENIED = "policy_denied"
+    APPROVAL_DENIED = "approval_denied"
+    APPROVAL_REQUIRED = "approval_required"
+    BUDGET_EXHAUSTED = "budget_exhausted"
+    IDENTITY_CONFLICT = "identity_conflict"
+
+
 class NetworkPolicy(StrEnum):
     DENY = "deny"
     ALLOWLIST = "allowlist"
@@ -184,6 +194,7 @@ class ExecutionResult(BaseModel):
     step_number: int
     status: ExecutionStatus
     success: bool
+    reason_code: ExecutionReasonCode | None = None
     policy_reasons: list[str] = Field(default_factory=list)
     approval_id: str | None = None
     preconditions: list[CheckResult] = Field(default_factory=list)
@@ -192,6 +203,8 @@ class ExecutionResult(BaseModel):
     action_expected_exit_codes: list[int] = Field(default_factory=list)
     action_stdout: str = ""
     action_stderr: str = ""
+    output_truncated: bool = False
+    output_original_bytes: int = Field(default=0, ge=0)
     rolled_back: bool = False
     rollback_integrity: bool | None = None
     workspace_before_sha256: str

@@ -1,446 +1,748 @@
 {
-    "$defs": {
-        "ControllerAttempt": {
-            "additionalProperties": false,
-            "description": "Bounded evidence for one provider proposal and optional execution.",
-            "properties": {
-                "action_id": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "title": "Action Id"
-                },
-                "attempt_number": {
-                    "minimum": 1,
-                    "title": "Attempt Number",
-                    "type": "integer"
-                },
-                "classification": {
-                    "$ref": "#/$defs/ControllerStopReason"
-                },
-                "completion_tokens": {
-                    "anyOf": [
-                        {
-                            "minimum": 0,
-                            "type": "integer"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "title": "Completion Tokens"
-                },
-                "cycle_fingerprint": {
-                    "anyOf": [
-                        {
-                            "pattern": "^[a-f0-9]{64}$",
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "title": "Cycle Fingerprint"
-                },
-                "diagnostic": {
-                    "title": "Diagnostic",
-                    "type": "string"
-                },
-                "execution_status": {
-                    "anyOf": [
-                        {
-                            "$ref": "#/$defs/ExecutionStatus"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null
-                },
-                "idempotency_key": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "title": "Idempotency Key"
-                },
-                "output_bytes": {
-                    "default": 0,
-                    "minimum": 0,
-                    "title": "Output Bytes",
-                    "type": "integer"
-                },
-                "policy_digest": {
-                    "anyOf": [
-                        {
-                            "pattern": "^[a-f0-9]{64}$",
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "title": "Policy Digest"
-                },
-                "prompt_tokens": {
-                    "anyOf": [
-                        {
-                            "minimum": 0,
-                            "type": "integer"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "title": "Prompt Tokens"
-                },
-                "proposal_sha256": {
-                    "anyOf": [
-                        {
-                            "pattern": "^[a-f0-9]{64}$",
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "title": "Proposal Sha256"
-                },
-                "proposal_status": {
-                    "$ref": "#/$defs/ProposalStatus"
-                },
-                "provider_profile": {
-                    "$ref": "#/$defs/ProviderProfile"
-                },
-                "request_digest": {
-                    "anyOf": [
-                        {
-                            "pattern": "^[a-f0-9]{64}$",
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "title": "Request Digest"
-                },
-                "target_path": {
-                    "title": "Target Path",
-                    "type": "string"
-                }
+  "$defs": {
+    "ControllerAttempt": {
+      "additionalProperties": false,
+      "description": "Bounded evidence for one provider proposal and optional execution.",
+      "properties": {
+        "action_exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
             },
-            "required": [
-                "attempt_number",
-                "proposal_status",
-                "provider_profile",
-                "target_path",
-                "classification",
-                "diagnostic"
-            ],
-            "title": "ControllerAttempt",
-            "type": "object"
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Action Exit Code"
         },
-        "ControllerBudgets": {
-            "additionalProperties": false,
-            "description": "Finite limits owned by trusted controller configuration.",
-            "properties": {
-                "equivalent_failure_limit": {
-                    "default": 2,
-                    "maximum": 100,
-                    "minimum": 2,
-                    "title": "Equivalent Failure Limit",
-                    "type": "integer"
-                },
-                "max_attempts": {
-                    "default": 3,
-                    "maximum": 100,
-                    "minimum": 1,
-                    "title": "Max Attempts",
-                    "type": "integer"
-                },
-                "max_completion_tokens": {
-                    "default": 8192,
-                    "minimum": 1,
-                    "title": "Max Completion Tokens",
-                    "type": "integer"
-                },
-                "max_diagnostic_bytes": {
-                    "default": 8192,
-                    "maximum": 1048576,
-                    "minimum": 1,
-                    "title": "Max Diagnostic Bytes",
-                    "type": "integer"
-                },
-                "max_output_bytes": {
-                    "default": 16384,
-                    "maximum": 10485760,
-                    "minimum": 1,
-                    "title": "Max Output Bytes",
-                    "type": "integer"
-                },
-                "max_prompt_tokens": {
-                    "default": 65536,
-                    "minimum": 1,
-                    "title": "Max Prompt Tokens",
-                    "type": "integer"
-                },
-                "max_proposal_bytes": {
-                    "default": 262144,
-                    "maximum": 10485760,
-                    "minimum": 1,
-                    "title": "Max Proposal Bytes",
-                    "type": "integer"
-                },
-                "max_wall_seconds": {
-                    "default": 120.0,
-                    "maximum": 86400.0,
-                    "minimum": 0.001,
-                    "title": "Max Wall Seconds",
-                    "type": "number"
-                }
+        "action_expected_exit_codes": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Action Expected Exit Codes",
+          "type": "array"
+        },
+        "action_id": {
+          "anyOf": [
+            {
+              "type": "string"
             },
-            "title": "ControllerBudgets",
-            "type": "object"
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Action Id"
         },
-        "ControllerRunContext": {
-            "additionalProperties": false,
-            "description": "Trusted source and backend identity attached to every run.",
-            "properties": {
-                "backend_profile": {
-                    "maxLength": 160,
-                    "minLength": 1,
-                    "title": "Backend Profile",
-                    "type": "string"
-                },
-                "source_commit": {
-                    "pattern": "^[a-f0-9]{40}$",
-                    "title": "Source Commit",
-                    "type": "string"
-                },
-                "source_dirty": {
-                    "title": "Source Dirty",
-                    "type": "boolean"
-                }
-            },
-            "required": [
-                "source_commit",
-                "source_dirty",
-                "backend_profile"
-            ],
-            "title": "ControllerRunContext",
-            "type": "object"
-        },
-        "ControllerStopReason": {
-            "description": "Terminal controller outcomes kept distinct from runner statuses.",
-            "enum": [
-                "proposal_rejected",
-                "policy_denied",
-                "approval_required",
-                "baseline_invalid",
-                "infrastructure_unavailable",
-                "execution_failed",
-                "assertion_failed",
-                "recovery_failed",
-                "repeated_failure",
-                "budget_exhausted",
-                "passed"
-            ],
-            "title": "ControllerStopReason",
+        "artifact_identities": {
+          "additionalProperties": {
             "type": "string"
+          },
+          "title": "Artifact Identities",
+          "type": "object"
         },
-        "ExecutionStatus": {
-            "enum": [
-                "succeeded",
-                "rolled_back",
-                "blocked",
-                "suspended",
-                "failed"
-            ],
-            "title": "ExecutionStatus",
-            "type": "string"
-        },
-        "ProposalStatus": {
-            "enum": [
-                "ready",
-                "refused",
-                "timed_out",
-                "malformed",
-                "oversized",
-                "truncated",
-                "provider_error"
-            ],
-            "title": "ProposalStatus",
-            "type": "string"
-        },
-        "ProviderProfile": {
-            "additionalProperties": false,
-            "description": "Provider identity metadata; it carries no execution authority.",
-            "properties": {
-                "model": {
-                    "maxLength": 160,
-                    "minLength": 1,
-                    "title": "Model",
-                    "type": "string"
-                },
-                "provider": {
-                    "maxLength": 64,
-                    "minLength": 1,
-                    "title": "Provider",
-                    "type": "string"
-                },
-                "sampling": {
-                    "$ref": "#/$defs/SamplingProfile"
-                },
-                "version": {
-                    "maxLength": 80,
-                    "minLength": 1,
-                    "title": "Version",
-                    "type": "string"
-                }
+        "assertions_passed": {
+          "anyOf": [
+            {
+              "type": "boolean"
             },
-            "required": [
-                "provider",
-                "model",
-                "version",
-                "sampling"
-            ],
-            "title": "ProviderProfile",
-            "type": "object"
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assertions Passed"
         },
-        "SamplingProfile": {
-            "additionalProperties": false,
-            "description": "Bounded sampling metadata retained for exact-profile reproduction.",
-            "properties": {
-                "context_tokens": {
-                    "maximum": 1048576,
-                    "minimum": 1,
-                    "title": "Context Tokens",
-                    "type": "integer"
-                },
-                "max_output_tokens": {
-                    "maximum": 32768,
-                    "minimum": 1,
-                    "title": "Max Output Tokens",
-                    "type": "integer"
-                },
-                "seed": {
-                    "anyOf": [
-                        {
-                            "type": "integer"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "title": "Seed"
-                },
-                "temperature": {
-                    "maximum": 2.0,
-                    "minimum": 0.0,
-                    "title": "Temperature",
-                    "type": "number"
-                }
+        "attempt_number": {
+          "minimum": 1,
+          "title": "Attempt Number",
+          "type": "integer"
+        },
+        "backend_profile": {
+          "title": "Backend Profile",
+          "type": "string"
+        },
+        "classification": {
+          "$ref": "#/$defs/ControllerStopReason"
+        },
+        "completion_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
             },
-            "required": [
-                "temperature",
-                "context_tokens",
-                "max_output_tokens"
-            ],
-            "title": "SamplingProfile",
-            "type": "object"
-        }
-    },
-    "$id": "https://github.com/ed3c/XT-Aegis/controller-result.schema.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "description": "Schema-valid terminal evidence for a finite controller run.",
-    "properties": {
-        "attempts": {
-            "items": {
-                "$ref": "#/$defs/ControllerAttempt"
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completion Tokens"
+        },
+        "cycle_fingerprint": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
             },
-            "title": "Attempts",
-            "type": "array"
-        },
-        "budgets": {
-            "$ref": "#/$defs/ControllerBudgets"
-        },
-        "context": {
-            "$ref": "#/$defs/ControllerRunContext"
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cycle Fingerprint"
         },
         "diagnostic": {
-            "title": "Diagnostic",
+          "title": "Diagnostic",
+          "type": "string"
+        },
+        "execution_duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Duration Ms"
+        },
+        "execution_policy_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Policy Digest"
+        },
+        "execution_reason_code": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "execution_request_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Request Digest"
+        },
+        "execution_request_digest_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Request Digest Version"
+        },
+        "execution_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "execution_success": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Success"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Idempotency Key"
+        },
+        "isolation_verdict": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Isolation Verdict"
+        },
+        "limitations": {
+          "items": {
             "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Limitations",
+          "type": "array"
+        },
+        "next_transition": {
+          "enum": [
+            "repair",
+            "stop"
+          ],
+          "title": "Next Transition",
+          "type": "string"
+        },
+        "output_bytes": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Output Bytes",
+          "type": "integer"
+        },
+        "output_truncated": {
+          "default": false,
+          "title": "Output Truncated",
+          "type": "boolean"
+        },
+        "policy_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Policy Digest"
+        },
+        "postconditions": {
+          "items": {
+            "$ref": "#/$defs/ControllerCheckEvidence"
+          },
+          "title": "Postconditions",
+          "type": "array"
+        },
+        "preconditions": {
+          "items": {
+            "$ref": "#/$defs/ControllerCheckEvidence"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        },
+        "prompt_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Tokens"
+        },
+        "proposal_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposal Sha256"
+        },
+        "proposal_status": {
+          "$ref": "#/$defs/ProposalStatus"
+        },
+        "provider_profile": {
+          "$ref": "#/$defs/ProviderProfile"
+        },
+        "readiness_verdict": {
+          "title": "Readiness Verdict",
+          "type": "boolean"
+        },
+        "request_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Digest"
+        },
+        "request_digest_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Digest Version"
+        },
+        "rollback_integrity": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rollback Integrity"
+        },
+        "target_path": {
+          "title": "Target Path",
+          "type": "string"
+        },
+        "workspace_after_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workspace After Sha256"
+        },
+        "workspace_before_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workspace Before Sha256"
+        }
+      },
+      "required": [
+        "attempt_number",
+        "proposal_status",
+        "provider_profile",
+        "target_path",
+        "backend_profile",
+        "readiness_verdict",
+        "classification",
+        "next_transition",
+        "diagnostic"
+      ],
+      "title": "ControllerAttempt",
+      "type": "object"
+    },
+    "ControllerBudgets": {
+      "additionalProperties": false,
+      "description": "Finite limits owned by trusted controller configuration.",
+      "properties": {
+        "equivalent_failure_limit": {
+          "default": 2,
+          "maximum": 100,
+          "minimum": 2,
+          "title": "Equivalent Failure Limit",
+          "type": "integer"
+        },
+        "max_attempts": {
+          "default": 3,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "max_completion_tokens": {
+          "default": 8192,
+          "minimum": 1,
+          "title": "Max Completion Tokens",
+          "type": "integer"
+        },
+        "max_diagnostic_bytes": {
+          "default": 8192,
+          "maximum": 1048576,
+          "minimum": 1,
+          "title": "Max Diagnostic Bytes",
+          "type": "integer"
+        },
+        "max_output_bytes": {
+          "default": 16384,
+          "maximum": 10485760,
+          "minimum": 1,
+          "title": "Max Output Bytes",
+          "type": "integer"
+        },
+        "max_prompt_tokens": {
+          "default": 65536,
+          "minimum": 1,
+          "title": "Max Prompt Tokens",
+          "type": "integer"
+        },
+        "max_proposal_bytes": {
+          "default": 262144,
+          "maximum": 10485760,
+          "minimum": 1,
+          "title": "Max Proposal Bytes",
+          "type": "integer"
+        },
+        "max_wall_seconds": {
+          "default": 120.0,
+          "maximum": 86400.0,
+          "minimum": 0.001,
+          "title": "Max Wall Seconds",
+          "type": "number"
+        }
+      },
+      "title": "ControllerBudgets",
+      "type": "object"
+    },
+    "ControllerCheckEvidence": {
+      "additionalProperties": false,
+      "description": "Secret-safe condition evidence sufficient to reconstruct a verdict.",
+      "properties": {
+        "actual_exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actual Exit Code"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
         },
         "duration_ms": {
-            "minimum": 0.0,
-            "title": "Duration Ms",
-            "type": "number"
+          "minimum": 0.0,
+          "title": "Duration Ms",
+          "type": "number"
         },
-        "stop_reason": {
-            "$ref": "#/$defs/ControllerStopReason"
-        },
-        "success": {
-            "title": "Success",
-            "type": "boolean"
-        },
-        "token_usage_complete": {
-            "title": "Token Usage Complete",
-            "type": "boolean"
-        },
-        "total_attempts": {
-            "minimum": 0,
-            "title": "Total Attempts",
+        "expected_exit_codes": {
+          "items": {
             "type": "integer"
+          },
+          "title": "Expected Exit Codes",
+          "type": "array"
         },
-        "total_completion_tokens": {
-            "minimum": 0,
-            "title": "Total Completion Tokens",
-            "type": "integer"
-        },
-        "total_output_bytes": {
-            "minimum": 0,
-            "title": "Total Output Bytes",
-            "type": "integer"
-        },
-        "total_prompt_tokens": {
-            "minimum": 0,
-            "title": "Total Prompt Tokens",
-            "type": "integer"
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
         }
-    },
-    "required": [
-        "success",
-        "stop_reason",
-        "diagnostic",
-        "context",
-        "budgets",
-        "attempts",
-        "total_attempts",
-        "total_prompt_tokens",
-        "total_completion_tokens",
-        "total_output_bytes",
-        "token_usage_complete",
+      },
+      "required": [
+        "description",
+        "passed",
         "duration_ms"
-    ],
-    "title": "ControllerResult",
-    "type": "object"
+      ],
+      "title": "ControllerCheckEvidence",
+      "type": "object"
+    },
+    "ControllerRunContext": {
+      "additionalProperties": false,
+      "description": "Trusted source and backend identity attached to every run.",
+      "properties": {
+        "backend_profile": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Backend Profile",
+          "type": "string"
+        },
+        "isolation_verdict": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Isolation Verdict"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Limitations",
+          "type": "array"
+        },
+        "readiness_verdict": {
+          "title": "Readiness Verdict",
+          "type": "boolean"
+        },
+        "source_commit": {
+          "pattern": "^[a-f0-9]{40}$",
+          "title": "Source Commit",
+          "type": "string"
+        },
+        "source_dirty": {
+          "title": "Source Dirty",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "source_commit",
+        "source_dirty",
+        "backend_profile",
+        "readiness_verdict"
+      ],
+      "title": "ControllerRunContext",
+      "type": "object"
+    },
+    "ControllerStopReason": {
+      "description": "Terminal controller outcomes kept distinct from runner statuses.",
+      "enum": [
+        "proposal_rejected",
+        "policy_denied",
+        "approval_required",
+        "baseline_invalid",
+        "infrastructure_unavailable",
+        "execution_failed",
+        "assertion_failed",
+        "recovery_failed",
+        "repeated_failure",
+        "budget_exhausted",
+        "passed"
+      ],
+      "title": "ControllerStopReason",
+      "type": "string"
+    },
+    "ExecutionReasonCode": {
+      "description": "Machine-readable reason for a terminal executor decision.",
+      "enum": [
+        "policy_denied",
+        "approval_denied",
+        "approval_required",
+        "budget_exhausted",
+        "identity_conflict"
+      ],
+      "title": "ExecutionReasonCode",
+      "type": "string"
+    },
+    "ExecutionStatus": {
+      "enum": [
+        "succeeded",
+        "rolled_back",
+        "blocked",
+        "suspended",
+        "failed"
+      ],
+      "title": "ExecutionStatus",
+      "type": "string"
+    },
+    "ProposalStatus": {
+      "enum": [
+        "ready",
+        "refused",
+        "timed_out",
+        "malformed",
+        "oversized",
+        "truncated",
+        "provider_error"
+      ],
+      "title": "ProposalStatus",
+      "type": "string"
+    },
+    "ProviderProfile": {
+      "additionalProperties": false,
+      "description": "Provider identity metadata; it carries no execution authority.",
+      "properties": {
+        "model": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "sampling": {
+          "$ref": "#/$defs/SamplingProfile"
+        },
+        "version": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "version",
+        "sampling"
+      ],
+      "title": "ProviderProfile",
+      "type": "object"
+    },
+    "SamplingProfile": {
+      "additionalProperties": false,
+      "description": "Bounded sampling metadata retained for exact-profile reproduction.",
+      "properties": {
+        "context_tokens": {
+          "maximum": 1048576,
+          "minimum": 1,
+          "title": "Context Tokens",
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "maximum": 32768,
+          "minimum": 1,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "temperature": {
+          "maximum": 2.0,
+          "minimum": 0.0,
+          "title": "Temperature",
+          "type": "number"
+        }
+      },
+      "required": [
+        "temperature",
+        "context_tokens",
+        "max_output_tokens"
+      ],
+      "title": "SamplingProfile",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/ed3c/XT-Aegis/controller-result.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Schema-valid terminal evidence for a finite controller run.",
+  "properties": {
+    "attempts": {
+      "items": {
+        "$ref": "#/$defs/ControllerAttempt"
+      },
+      "title": "Attempts",
+      "type": "array"
+    },
+    "budgets": {
+      "$ref": "#/$defs/ControllerBudgets"
+    },
+    "context": {
+      "$ref": "#/$defs/ControllerRunContext"
+    },
+    "diagnostic": {
+      "title": "Diagnostic",
+      "type": "string"
+    },
+    "duration_ms": {
+      "minimum": 0.0,
+      "title": "Duration Ms",
+      "type": "number"
+    },
+    "stop_reason": {
+      "$ref": "#/$defs/ControllerStopReason"
+    },
+    "success": {
+      "title": "Success",
+      "type": "boolean"
+    },
+    "token_usage_complete": {
+      "title": "Token Usage Complete",
+      "type": "boolean"
+    },
+    "total_attempts": {
+      "minimum": 0,
+      "title": "Total Attempts",
+      "type": "integer"
+    },
+    "total_completion_tokens": {
+      "minimum": 0,
+      "title": "Total Completion Tokens",
+      "type": "integer"
+    },
+    "total_output_bytes": {
+      "minimum": 0,
+      "title": "Total Output Bytes",
+      "type": "integer"
+    },
+    "total_prompt_tokens": {
+      "minimum": 0,
+      "title": "Total Prompt Tokens",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "success",
+    "stop_reason",
+    "diagnostic",
+    "context",
+    "budgets",
+    "attempts",
+    "total_attempts",
+    "total_prompt_tokens",
+    "total_completion_tokens",
+    "total_output_bytes",
+    "token_usage_complete",
+    "duration_ms"
+  ],
+  "title": "ControllerResult",
+  "type": "object"
 }

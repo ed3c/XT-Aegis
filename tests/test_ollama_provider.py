@@ -127,16 +127,34 @@ def test_ollama_honors_request_level_completion_and_response_budgets() -> None:
             task="Propose code.",
             max_prompt_tokens=64,
             max_completion_tokens=17,
+            timeout_seconds=1.5,
+            max_proposal_bytes=32,
             max_response_bytes=1024,
         )
     )
 
     assert outcome.status == ProposalStatus.READY
-    _, raw_payload, _, max_response_bytes = transport.calls[0]
+    _, raw_payload, timeout_seconds, max_response_bytes = transport.calls[0]
+    assert timeout_seconds == 1.5
     assert max_response_bytes == 1024
     payload = json.loads(raw_payload)
     assert payload["options"]["num_predict"] == 17
     assert payload["options"]["num_ctx"] == 81
+
+
+def test_ollama_rejects_proposal_larger_than_request_content_budget() -> None:
+    transport = FakeOllamaTransport(
+        OllamaHttpResponse(
+            status_code=200,
+            body=b'{"model":"qwen3:4b","response":"12345","done":true}',
+        )
+    )
+    provider = OllamaProposalProvider(ollama_config(), transport=transport)
+
+    outcome = provider.propose(ProposalRequest(task="Propose code.", max_proposal_bytes=4))
+
+    assert outcome.status == ProposalStatus.OVERSIZED
+    assert outcome.proposal is None
 
 
 @pytest.mark.parametrize(

@@ -225,6 +225,10 @@ class OllamaProposalProvider:
             self.config.max_response_bytes,
             request.max_response_bytes or self.config.max_response_bytes,
         )
+        timeout_seconds = min(
+            self.config.timeout_seconds,
+            request.timeout_seconds or self.config.timeout_seconds,
+        )
         payload = json.dumps(
             {
                 "model": self.config.model,
@@ -244,7 +248,7 @@ class OllamaProposalProvider:
             response = self.transport.post_json(
                 f"{self.config.endpoint}/api/generate",
                 payload,
-                self.config.timeout_seconds,
+                timeout_seconds,
                 response_limit,
             )
         except OllamaResponseTooLarge as exc:
@@ -294,6 +298,12 @@ class OllamaProposalProvider:
                 ProposalStatus.MALFORMED,
                 profile,
                 "Ollama response omitted required completion fields",
+            )
+        if request.max_proposal_bytes is not None and len(content.encode()) > request.max_proposal_bytes:
+            return self._failure(
+                ProposalStatus.OVERSIZED,
+                profile,
+                f"Ollama proposal exceeded {request.max_proposal_bytes} bytes",
             )
 
         try:

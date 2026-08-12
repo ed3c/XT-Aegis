@@ -6,12 +6,21 @@ import hashlib
 import time
 from collections.abc import Callable
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from xt_aegis.models import ActionRequest, CompiledSkill, ExecutionResult, ExecutionStatus
+from xt_aegis.models import (
+    ActionRequest,
+    CheckResult,
+    CommandSpec,
+    CompiledSkill,
+    ExecutionReasonCode,
+    ExecutionResult,
+    ExecutionStatus,
+)
 from xt_aegis.proposals import (
+    ProposalOutcome,
     ProposalProvider,
     ProposalRequest,
     ProposalStatus,
@@ -63,6 +72,21 @@ class ControllerRunContext(BaseModel):
     source_commit: str = Field(pattern=r"^[a-f0-9]{40}$")
     source_dirty: bool
     backend_profile: str = Field(min_length=1, max_length=160)
+    readiness_verdict: bool
+    isolation_verdict: bool | None = None
+    limitations: list[str] = Field(default_factory=list, max_length=32)
+
+
+class ControllerCheckEvidence(BaseModel):
+    """Secret-safe condition evidence sufficient to reconstruct a verdict."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    description: str
+    passed: bool
+    actual_exit_code: int | None = None
+    expected_exit_codes: list[int] = Field(default_factory=list)
+    duration_ms: float = Field(ge=0.0)
 
 
 class ControllerAttempt(BaseModel):
@@ -74,18 +98,40 @@ class ControllerAttempt(BaseModel):
     proposal_status: ProposalStatus
     provider_profile: ProviderProfile
     target_path: str
+    backend_profile: str
+    readiness_verdict: bool
+    isolation_verdict: bool | None = None
     execution_status: ExecutionStatus | None = None
+    execution_reason_code: ExecutionReasonCode | None = None
+    execution_success: bool | None = None
     classification: ControllerStopReason
+    next_transition: Literal["repair", "stop"]
     diagnostic: str
     proposal_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    request_digest_version: str | None = None
     request_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     policy_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    execution_request_digest_version: str | None = None
+    execution_request_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    execution_policy_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     cycle_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     action_id: str | None = None
     idempotency_key: str | None = None
     prompt_tokens: int | None = Field(default=None, ge=0)
     completion_tokens: int | None = Field(default=None, ge=0)
     output_bytes: int = Field(default=0, ge=0)
+    output_truncated: bool = False
+    preconditions: list[ControllerCheckEvidence] = Field(default_factory=list)
+    postconditions: list[ControllerCheckEvidence] = Field(default_factory=list)
+    assertions_passed: bool | None = None
+    rollback_integrity: bool | None = None
+    action_exit_code: int | None = None
+    action_expected_exit_codes: list[int] = Field(default_factory=list)
+    execution_duration_ms: float | None = Field(default=None, ge=0.0)
+    workspace_before_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    workspace_after_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    artifact_identities: dict[str, str] = Field(default_factory=dict)
+    limitations: list[str] = Field(default_factory=list, max_length=32)
 
 
 class ControllerResult(BaseModel):
@@ -110,7 +156,13 @@ class ControllerResult(BaseModel):
 class ActionExecutor(Protocol):
     """Public execution seam implemented by ``HarnessRunner``."""
 
-    def execute(self, request: ActionRequest) -> ExecutionResult:
+    def execute(
+        self,
+        request: ActionRequest,
+        *,
+        timeout_seconds: float,
+        max_output_bytes: int,
+    ) -> ExecutionResult:
         """Execute one trusted action request."""
 
 
@@ -152,7 +204,9 @@ class DiagnoseRepairController:
             task=task,
             max_prompt_tokens=self.budgets.max_prompt_tokens,
             max_completion_tokens=self.budgets.max_completion_tokens,
-            max_response_bytes=self.budgets.max_output_bytes,
+            timeout_seconds=self.budgets.max_wall_seconds,
+            max_proposal_bytes=self.budgets.max_proposal_bytes,
+            max_response_bytes=min(self.budgets.max_proposal_bytes + 16_384, 10_485_760),
         )
 
         for attempt_number in range(1, self.budgets.max_attempts + 1):
@@ -181,12 +235,11 @@ class DiagnoseRepairController:
                     f"wall-clock budget exceeded: {elapsed:.3f}s > {self.budgets.max_wall_seconds:.3f}s"
                 )
                 attempts.append(
-                    ControllerAttempt(
+                    self._attempt(
                         attempt_number=attempt_number,
-                        proposal_status=outcome.status,
-                        provider_profile=outcome.profile,
-                        target_path=self.trusted.target_path,
+                        outcome=outcome,
                         classification=ControllerStopReason.BUDGET_EXHAUSTED,
+                        next_transition="stop",
                         diagnostic=diagnostic,
                         proposal_sha256=(
                             hashlib.sha256(outcome.proposal.content.encode()).hexdigest()
@@ -212,12 +265,11 @@ class DiagnoseRepairController:
             )
             if budget_reason is not None:
                 attempts.append(
-                    ControllerAttempt(
+                    self._attempt(
                         attempt_number=attempt_number,
-                        proposal_status=outcome.status,
-                        provider_profile=outcome.profile,
-                        target_path=self.trusted.target_path,
+                        outcome=outcome,
                         classification=ControllerStopReason.BUDGET_EXHAUSTED,
+                        next_transition="stop",
                         diagnostic=budget_reason,
                         proposal_sha256=(
                             hashlib.sha256(outcome.proposal.content.encode()).hexdigest()
@@ -237,12 +289,11 @@ class DiagnoseRepairController:
                 )
             if outcome.status != ProposalStatus.READY:
                 attempts.append(
-                    ControllerAttempt(
+                    self._attempt(
                         attempt_number=attempt_number,
-                        proposal_status=outcome.status,
-                        provider_profile=outcome.profile,
-                        target_path=self.trusted.target_path,
+                        outcome=outcome,
                         classification=ControllerStopReason.PROPOSAL_REJECTED,
+                        next_transition="stop",
                         diagnostic=self._bounded_diagnostic(outcome.diagnostic),
                         prompt_tokens=reported_prompt_tokens,
                         completion_tokens=reported_completion_tokens,
@@ -265,17 +316,29 @@ class DiagnoseRepairController:
                 identity_source=self.identity_source,
             )
             try:
-                execution = self.executor.execute(envelope.request)
+                remaining_seconds = max(
+                    0.001,
+                    self.budgets.max_wall_seconds - (self.clock() - started),
+                )
+                remaining_output_bytes = max(
+                    1,
+                    self.budgets.max_output_bytes - sum(attempt.output_bytes for attempt in attempts),
+                )
+                execution = self.executor.execute(
+                    envelope.request,
+                    timeout_seconds=remaining_seconds,
+                    max_output_bytes=remaining_output_bytes,
+                )
             except InfrastructureUnavailableError as exc:
                 attempts.append(
-                    ControllerAttempt(
+                    self._attempt(
                         attempt_number=attempt_number,
-                        proposal_status=outcome.status,
-                        provider_profile=outcome.profile,
-                        target_path=self.trusted.target_path,
+                        outcome=outcome,
                         classification=ControllerStopReason.INFRASTRUCTURE_UNAVAILABLE,
+                        next_transition="stop",
                         diagnostic=self._bounded_diagnostic(str(exc)),
                         proposal_sha256=hashlib.sha256(outcome.proposal.content.encode()).hexdigest(),
+                        request_digest_version=envelope.request_identity.version,
                         request_digest=envelope.request_identity.digest,
                         policy_digest=envelope.request_identity.policy_digest,
                         action_id=envelope.request.action_id,
@@ -291,25 +354,37 @@ class DiagnoseRepairController:
                     total_prompt_tokens=total_prompt_tokens,
                     total_completion_tokens=total_completion_tokens,
                 )
-            classification = self._classify_execution(execution)
+            identity_reason = self._execution_identity_reason(
+                execution=execution,
+                request=envelope.request,
+                request_digest_version=envelope.request_identity.version,
+                request_digest=envelope.request_identity.digest,
+                policy_digest=envelope.request_identity.policy_digest,
+            )
+            classification = (
+                ControllerStopReason.RECOVERY_FAILED
+                if identity_reason is not None
+                else self._classify_execution(execution)
+            )
             diagnostic = self._execution_diagnostic(execution, classification)
-            output_bytes = len(execution.action_stdout.encode()) + len(execution.action_stderr.encode())
-            if (
-                sum(attempt.output_bytes for attempt in attempts) + output_bytes
-                > self.budgets.max_output_bytes
-            ):
+            if identity_reason is not None:
+                diagnostic = self._bounded_diagnostic(identity_reason)
+            retained_output_bytes = len(execution.action_stdout.encode()) + len(
+                execution.action_stderr.encode()
+            )
+            reported_output_bytes = max(execution.output_original_bytes, retained_output_bytes)
+            output_bytes = min(reported_output_bytes, remaining_output_bytes)
+            output_truncated = execution.output_truncated or reported_output_bytes > remaining_output_bytes
+            if output_truncated and identity_reason is None:
                 classification = ControllerStopReason.BUDGET_EXHAUSTED
                 diagnostic = (
                     "execution output budget exceeded: "
-                    f"{sum(attempt.output_bytes for attempt in attempts) + output_bytes} > "
+                    f"{sum(attempt.output_bytes for attempt in attempts) + reported_output_bytes} > "
                     f"{self.budgets.max_output_bytes}"
                 )
             proposal_sha256 = hashlib.sha256(outcome.proposal.content.encode()).hexdigest()
             cycle_fingerprint: str | None = None
-            if classification in {
-                ControllerStopReason.EXECUTION_FAILED,
-                ControllerStopReason.ASSERTION_FAILED,
-            }:
+            if self._is_retryable(classification):
                 cycle_fingerprint = self._cycle_fingerprint(
                     proposal_sha256=proposal_sha256,
                     classification=classification,
@@ -319,23 +394,52 @@ class DiagnoseRepairController:
                 if cycle_counts[cycle_fingerprint] >= self.budgets.equivalent_failure_limit:
                     classification = ControllerStopReason.REPEATED_FAILURE
             attempts.append(
-                ControllerAttempt(
+                self._attempt(
                     attempt_number=attempt_number,
-                    proposal_status=outcome.status,
-                    provider_profile=outcome.profile,
-                    target_path=self.trusted.target_path,
+                    outcome=outcome,
                     execution_status=execution.status,
+                    execution_reason_code=execution.reason_code,
+                    execution_success=execution.success,
                     classification=classification,
+                    next_transition=("repair" if self._is_retryable(classification) else "stop"),
                     diagnostic=diagnostic,
                     proposal_sha256=proposal_sha256,
+                    request_digest_version=envelope.request_identity.version,
                     request_digest=envelope.request_identity.digest,
                     policy_digest=envelope.request_identity.policy_digest,
+                    execution_request_digest_version=execution.request_digest_version,
+                    execution_request_digest=execution.request_digest,
+                    execution_policy_digest=execution.policy_digest,
                     cycle_fingerprint=cycle_fingerprint,
                     action_id=envelope.request.action_id,
                     idempotency_key=envelope.request.idempotency_key,
                     prompt_tokens=reported_prompt_tokens,
                     completion_tokens=reported_completion_tokens,
                     output_bytes=output_bytes,
+                    output_truncated=output_truncated,
+                    preconditions=self._check_evidence(
+                        execution.preconditions,
+                        self.skill.contract.preconditions,
+                    ),
+                    postconditions=self._check_evidence(
+                        execution.postconditions,
+                        self.skill.contract.postconditions,
+                    ),
+                    assertions_passed=(
+                        all(check.passed for check in execution.postconditions)
+                        if execution.postconditions
+                        else None
+                    ),
+                    rollback_integrity=execution.rollback_integrity,
+                    action_exit_code=execution.action_exit_code,
+                    action_expected_exit_codes=execution.action_expected_exit_codes,
+                    execution_duration_ms=execution.duration_ms,
+                    workspace_before_sha256=execution.workspace_before_sha256,
+                    workspace_after_sha256=execution.workspace_after_sha256,
+                    artifact_identities={
+                        "workspace_before_sha256": execution.workspace_before_sha256,
+                        "workspace_after_sha256": execution.workspace_after_sha256,
+                    },
                 )
             )
             if classification == ControllerStopReason.PASSED:
@@ -346,10 +450,19 @@ class DiagnoseRepairController:
                     total_prompt_tokens=total_prompt_tokens,
                     total_completion_tokens=total_completion_tokens,
                 )
-            if classification not in {
-                ControllerStopReason.EXECUTION_FAILED,
-                ControllerStopReason.ASSERTION_FAILED,
-            }:
+            if (
+                self._is_retryable(classification)
+                and sum(attempt.output_bytes for attempt in attempts) >= self.budgets.max_output_bytes
+            ):
+                return self._result(
+                    started=started,
+                    attempts=attempts,
+                    stop_reason=ControllerStopReason.BUDGET_EXHAUSTED,
+                    total_prompt_tokens=total_prompt_tokens,
+                    total_completion_tokens=total_completion_tokens,
+                    diagnostic="no execution output budget remains for another attempt",
+                )
+            if not self._is_retryable(classification):
                 return self._result(
                     started=started,
                     attempts=attempts,
@@ -394,10 +507,42 @@ class DiagnoseRepairController:
                 ),
                 max_prompt_tokens=self.budgets.max_prompt_tokens - total_prompt_tokens,
                 max_completion_tokens=self.budgets.max_completion_tokens - total_completion_tokens,
-                max_response_bytes=self.budgets.max_output_bytes,
+                timeout_seconds=max(
+                    0.001,
+                    self.budgets.max_wall_seconds - (self.clock() - started),
+                ),
+                max_proposal_bytes=self.budgets.max_proposal_bytes,
+                max_response_bytes=min(self.budgets.max_proposal_bytes + 16_384, 10_485_760),
             )
 
         raise AssertionError("finite controller loop exited without a terminal result")
+
+    def _attempt(
+        self,
+        *,
+        attempt_number: int,
+        outcome: ProposalOutcome,
+        classification: ControllerStopReason,
+        next_transition: Literal["repair", "stop"],
+        diagnostic: str,
+        **evidence: Any,
+    ) -> ControllerAttempt:
+        """Construct every attempt through the same run-context binding."""
+
+        return ControllerAttempt(
+            attempt_number=attempt_number,
+            proposal_status=outcome.status,
+            provider_profile=outcome.profile,
+            target_path=self.trusted.target_path,
+            backend_profile=self.context.backend_profile,
+            readiness_verdict=self.context.readiness_verdict,
+            isolation_verdict=self.context.isolation_verdict,
+            classification=classification,
+            next_transition=next_transition,
+            diagnostic=diagnostic,
+            limitations=self.context.limitations,
+            **evidence,
+        )
 
     def _provider_budget_reason(
         self,
@@ -460,18 +605,75 @@ class DiagnoseRepairController:
             return ControllerStopReason.APPROVAL_REQUIRED
         if any(not check.passed for check in execution.preconditions):
             return ControllerStopReason.BASELINE_INVALID
-        reasons = " ".join(execution.policy_reasons).lower()
         if execution.status == ExecutionStatus.BLOCKED:
-            if "approval" in reasons:
+            if execution.reason_code in {
+                ExecutionReasonCode.APPROVAL_DENIED,
+                ExecutionReasonCode.APPROVAL_REQUIRED,
+            }:
                 return ControllerStopReason.APPROVAL_REQUIRED
-            if "isolation" in reasons or "backend" in reasons or "infrastructure" in reasons:
-                return ControllerStopReason.INFRASTRUCTURE_UNAVAILABLE
-            if "budget" in reasons:
+            if execution.reason_code == ExecutionReasonCode.BUDGET_EXHAUSTED:
                 return ControllerStopReason.BUDGET_EXHAUSTED
             return ControllerStopReason.POLICY_DENIED
         if any(not check.passed for check in execution.postconditions):
             return ControllerStopReason.ASSERTION_FAILED
         return ControllerStopReason.EXECUTION_FAILED
+
+    @staticmethod
+    def _is_retryable(classification: ControllerStopReason) -> bool:
+        return classification in {
+            ControllerStopReason.EXECUTION_FAILED,
+            ControllerStopReason.ASSERTION_FAILED,
+        }
+
+    @staticmethod
+    def _execution_identity_reason(
+        *,
+        execution: ExecutionResult,
+        request: ActionRequest,
+        request_digest_version: str,
+        request_digest: str,
+        policy_digest: str,
+    ) -> str | None:
+        expected = {
+            "thread_id": request.thread_id,
+            "action_id": request.action_id,
+            "idempotency_key": request.idempotency_key,
+            "request_digest_version": request_digest_version,
+            "request_digest": request_digest,
+            "policy_digest": policy_digest,
+        }
+        actual = {
+            "thread_id": execution.thread_id,
+            "action_id": execution.action_id,
+            "idempotency_key": execution.idempotency_key,
+            "request_digest_version": execution.request_digest_version,
+            "request_digest": execution.request_digest,
+            "policy_digest": execution.policy_digest,
+        }
+        mismatches = [name for name, value in expected.items() if actual[name] != value]
+        if not mismatches:
+            return None
+        return "execution result identity mismatch: " + ", ".join(mismatches)
+
+    @staticmethod
+    def _check_evidence(
+        results: list[CheckResult],
+        specifications: list[CommandSpec],
+    ) -> list[ControllerCheckEvidence]:
+        evidence: list[ControllerCheckEvidence] = []
+        for index, result in enumerate(results):
+            specification = specifications[index] if index < len(specifications) else None
+            expected = sorted(specification.expected_exit_codes) if specification is not None else []
+            evidence.append(
+                ControllerCheckEvidence(
+                    description=result.description,
+                    passed=result.passed,
+                    actual_exit_code=result.exit_code,
+                    expected_exit_codes=expected,
+                    duration_ms=result.duration_ms,
+                )
+            )
+        return evidence
 
     def _execution_diagnostic(
         self,

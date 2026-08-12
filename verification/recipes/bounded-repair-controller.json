@@ -8,6 +8,7 @@
       "-m",
       "pytest",
       "tests/test_controller.py",
+      "tests/test_runner.py",
       "tests/test_proposals.py",
       "tests/test_ollama_provider.py",
       "-q"
