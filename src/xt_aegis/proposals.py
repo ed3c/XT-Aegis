@@ -163,6 +163,12 @@ def build_action_request(
 ) -> TrustedActionEnvelope:
     """Build one policy-bound request without accepting provider authority fields."""
 
+    content_bytes = len(proposal.content.encode("utf-8"))
+    if content_bytes > skill.contract.max_write_bytes:
+        raise ValueError(
+            f"proposal content is {content_bytes} bytes; "
+            f"skill limit is {skill.contract.max_write_bytes}"
+        )
     source = identity_source or SecureRequestIdentitySource()
     identifiers = source.new_request_ids()
     request = ActionRequest(

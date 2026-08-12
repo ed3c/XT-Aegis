@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from xt_aegis.identity import RequestIdentity
 from xt_aegis.models import FileWriteAction, Provenance
 from xt_aegis.proposals import (
@@ -93,3 +95,35 @@ def test_fake_provider_refusal_is_a_typed_non_execution_result() -> None:
     assert outcome.proposal is None
     assert outcome.diagnostic == "provider refused the request"
     assert outcome.profile == profile
+
+
+def test_trusted_builder_rejects_content_over_active_skill_byte_limit(compiled_skill) -> None:  # type: ignore[no-untyped-def]
+    limited_skill = compiled_skill.model_copy(
+        update={
+            "contract": compiled_skill.contract.model_copy(update={"max_write_bytes": 8})
+        }
+    )
+    proposal = Proposal(
+        kind="replace_file",
+        content="é" * 5,
+        profile=ProviderProfile(
+            provider="fake",
+            model="deterministic",
+            version="1.0",
+            sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+        ),
+    )
+    trusted = TrustedEnvelopeConfig(target_path="sample_project/app.py")
+    ids = TrustedRequestIds(
+        thread_id="thread:trusted",
+        action_id="action:trusted",
+        idempotency_key="idem:trusted:0002",
+    )
+
+    with pytest.raises(ValueError, match="proposal content is 10 bytes; skill limit is 8"):
+        build_action_request(
+            proposal,
+            trusted=trusted,
+            skill=limited_skill,
+            identity_source=FixedIdentitySource(ids),
+        )
