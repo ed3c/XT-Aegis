@@ -2,10 +2,11 @@
 
 ## Status
 
-Partially implemented architecture contract for issue #35. Canonical request identity and declared command
-outcomes are current on `main`. The provider-neutral proposal boundary and experimental optional local Ollama adapter are
-under review in the #26 change when read from its branch and current only when that exact change is present on
-`main`. Strong mutation isolation, the controller, and benchmark remain tracked work.
+Partially implemented architecture contract for issue #35. Canonical request identity, declared command
+outcomes, and the provider-neutral proposal boundary are current on `main`. The finite controller core is
+under review in the #29 change when read from its branch and current only when that exact change is present on
+`main`. Strong mutation isolation, process-restart resume, candidate selection, and model-backed benchmark
+evidence remain tracked work.
 
 ## Goal
 
@@ -111,7 +112,9 @@ no conformant backend is ready.
 ### Diagnose-repair controller
 
 Lives outside `HarnessRunner`. It converts bounded, redacted failure evidence into a provider-neutral
-repair request and records every attempt.
+repair request and records every attempt. The #29 implementation under review covers deterministic
+classification, fresh request identity, repeated-cycle detection, strict run context, and finite
+attempt/token/time/proposal/diagnostic/output budgets. It does not promote a live-model uplift claim.
 
 ## Failure taxonomy
 

@@ -204,7 +204,7 @@ model.
 | State | SQLite WAL schema v2 | PostgreSQL, leases, and fencing tokens |
 | Approval | expiring, single-use exact-request binding | authenticated identity and crash-safe recovery |
 | Trace | SQLite + JSONL request/exit evidence | OpenTelemetry export |
-| Coding agent | deterministic execution substrate; #26 proposal boundary when this exact change is on `main` | strong mutation backend, bounded repair controller, live provider evidence |
+| Coding agent | deterministic execution substrate and provider boundary; #29 finite controller core when this exact change is on `main` | strong mutation backend, restart resume, candidate selection, live provider evidence |
 | Verification | registry v2, CLI, MCP, sandbox adapters, evidence bundle | signed release evidence and independent runtime matrix |
 | MCP | read-only default; opt-in local execution | authenticated remote mutation adapter |
 

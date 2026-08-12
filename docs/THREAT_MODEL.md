@@ -65,6 +65,22 @@ is not remotely attested; local host compromise, HTTP implementation flaws, mode
 handling inside Ollama remain outside this adapter's guarantee. A ready proposal is untrusted data until the
 existing policy, approval, isolation, execution, and assertion boundaries accept it.
 
+### T1B. Repair-loop amplification or stale authority reuse
+
+**Scenario:** A controller retries policy, approval, infrastructure, or recovery failures; reuses a prior
+request identity for changed content; leaks an unbounded or secret-bearing diagnostic into the next prompt;
+or continues after its attempt, token, wall-time, proposal, diagnostic, output, or repeated-cycle budget.
+
+**Controls:** orchestration remains outside `HarnessRunner`; only execution and assertion failures are
+retryable; every ready proposal passes through a fresh trusted envelope; attempt evidence binds provider,
+source commit/dirty state, backend profile, target, proposal/request/policy digests, and configured budgets;
+diagnostics are redacted and UTF-8 byte bounded before reuse; equivalent failures use a stable fingerprint;
+and missing token usage stops before another provider call.
+
+**Residual risk:** deterministic fake-provider tests do not establish live model correctness, privacy,
+availability, cost, or uplift. Controller state is not yet resumed across process restart, branch-and-select
+is not implemented, and command mutation still requires #27 strong isolation before autonomous use.
+
 ### T2. Shell, interpreter, or outcome-contract injection
 
 **Scenario:** A recipe or action supplies command chaining, a path-qualified executable, inline code, or an

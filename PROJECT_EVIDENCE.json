@@ -619,6 +619,49 @@
       ]
     },
     {
+      "id": "bounded-repair-controller",
+      "claim": "A provider-neutral controller retries only execution or assertion failures within finite attempt, token, wall-time, proposal, diagnostic, output, and repeated-cycle budgets while preserving source-bound terminal evidence.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/controller.py",
+        "src/xt_aegis/proposals.py",
+        "src/xt_aegis/providers/ollama.py",
+        "tests/test_controller.py",
+        "tests/test_ollama_provider.py",
+        "verification/schemas/controller-result.schema.json",
+        "docs/CODING_AGENT_HARNESS.md",
+        "docs/THREAT_MODEL.md"
+      ],
+      "verification": {
+        "argv": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_controller.py",
+          "tests/test_proposals.py",
+          "tests/test_ollama_provider.py",
+          "-q"
+        ],
+        "cwd": ".",
+        "timeout_seconds": 120,
+        "expected_exit_codes": [
+          0
+        ],
+        "network": "deny",
+        "max_output_bytes": 1048576,
+        "artifacts": []
+      },
+      "expected": {
+        "status": "verified",
+        "assertions": {}
+      },
+      "limitations": [
+        "Tests use deterministic fake providers or injected transports; no live model correctness, privacy, availability, performance, cost, or uplift claim is established.",
+        "Controller state is not resumed across process restart and branch-and-select candidate evaluation is not implemented.",
+        "The controller does not add command mutation isolation; autonomous command retries remain gated by issue #27 and live runtime conformance."
+      ]
+    },
+    {
       "id": "production-sandbox-profile",
       "claim": "A published profile proves isolation against host-secret reads, workspace escapes, resource exhaustion, and denied egress on supported hosts.",
       "status": "planned",
