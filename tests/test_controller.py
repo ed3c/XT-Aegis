@@ -91,6 +91,8 @@ def _execution_result(
     preconditions: list[CheckResult] | None = None,
     postconditions: list[CheckResult] | None = None,
     rollback_integrity: bool | None = True,
+    action_stdout: str = "",
+    action_stderr: str = "",
 ) -> ExecutionResult:
     return ExecutionResult(
         thread_id="thread:fake",
@@ -104,6 +106,8 @@ def _execution_result(
         postconditions=postconditions or [],
         rolled_back=status == ExecutionStatus.ROLLED_BACK,
         rollback_integrity=rollback_integrity,
+        action_stdout=action_stdout,
+        action_stderr=action_stderr,
         workspace_before_sha256="a" * 64,
         workspace_after_sha256="a" * 64,
         started_at="2026-08-12T00:00:00+00:00",
@@ -333,3 +337,234 @@ def test_non_retryable_execution_outcomes_stop_immediately(
     assert result.attempts[0].classification == expected_reason
     assert len(provider.requests) == 1
     assert len(executor.requests) == 1
+
+
+def test_provider_token_budget_violation_stops_before_execution(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content="safe content\n"),
+                usage=ProviderUsage(prompt_tokens=11, completion_tokens=4),
+            )
+        ]
+    )
+    controller = DiagnoseRepairController(
+        provider=provider,
+        executor=RejectingExecutor(),
+        skill=compiled_skill,
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        budgets=ControllerBudgets(
+            max_attempts=2,
+            max_prompt_tokens=10,
+            max_completion_tokens=8,
+        ),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert result.stop_reason == ControllerStopReason.BUDGET_EXHAUSTED
+    assert result.attempts[0].classification == ControllerStopReason.BUDGET_EXHAUSTED
+    assert "prompt token budget" in result.attempts[0].diagnostic
+    assert provider.requests[0].max_prompt_tokens == 10
+    assert provider.requests[0].max_completion_tokens == 8
+
+
+def test_repeated_equivalent_proposal_failure_cycle_stops_before_third_attempt(
+    compiled_skill,
+    runner,  # type: ignore[no-untyped-def]
+) -> None:
+    broken = "def calculate_tax(amount: float) -> float:\n    return amount * 0.10\n"
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content=broken),
+                usage=ProviderUsage(prompt_tokens=1, completion_tokens=1),
+            ),
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content=broken),
+                usage=ProviderUsage(prompt_tokens=1, completion_tokens=1),
+            ),
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content="must not be requested\n"),
+            ),
+        ]
+    )
+    controller = DiagnoseRepairController(
+        provider=provider,
+        executor=runner,
+        skill=compiled_skill,
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        budgets=ControllerBudgets(max_attempts=3, equivalent_failure_limit=2),
+        identity_source=SequenceIdentitySource(
+            [
+                TrustedRequestIds(
+                    thread_id="thread:repeat:first",
+                    action_id="action:repeat:first",
+                    idempotency_key="idem:repeat:first",
+                ),
+                TrustedRequestIds(
+                    thread_id="thread:repeat:second",
+                    action_id="action:repeat:second",
+                    idempotency_key="idem:repeat:second",
+                ),
+            ]
+        ),
+    )
+
+    result = controller.run(task="Preserve the declared tax behavior.")
+
+    assert result.stop_reason == ControllerStopReason.REPEATED_FAILURE
+    assert result.total_attempts == 2
+    assert result.attempts[0].classification == ControllerStopReason.ASSERTION_FAILED
+    assert result.attempts[1].classification == ControllerStopReason.REPEATED_FAILURE
+    assert result.attempts[0].cycle_fingerprint == result.attempts[1].cycle_fingerprint
+    assert len(provider.requests) == 2
+
+
+class MutableClock:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def __call__(self) -> float:
+        return self.value
+
+
+class ClockAdvancingExecutor(SequenceExecutor):
+    def __init__(self, outcome: ExecutionResult, *, clock: MutableClock, advance_to: float) -> None:
+        super().__init__([outcome])
+        self.clock = clock
+        self.advance_to = advance_to
+
+    def execute(self, request: ActionRequest) -> ExecutionResult:
+        result = super().execute(request)
+        self.clock.value = self.advance_to
+        return result
+
+
+def test_wall_budget_stops_before_requesting_another_repair(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    clock = MutableClock()
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content="broken\n"),
+                usage=ProviderUsage(prompt_tokens=1, completion_tokens=1),
+            ),
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content="must not be requested\n"),
+            ),
+        ]
+    )
+    executor = ClockAdvancingExecutor(
+        _execution_result(status=ExecutionStatus.ROLLED_BACK, action_stderr="command failed"),
+        clock=clock,
+        advance_to=1.1,
+    )
+    controller = DiagnoseRepairController(
+        provider=provider,
+        executor=executor,
+        skill=compiled_skill,
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        budgets=ControllerBudgets(max_attempts=3, max_wall_seconds=1.0),
+        identity_source=FixedIdentitySource(),
+        clock=clock,
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert result.stop_reason == ControllerStopReason.BUDGET_EXHAUSTED
+    assert result.total_attempts == 1
+    assert result.duration_ms == 1100.0
+    assert "wall-clock budget exceeded" in result.diagnostic
+    assert len(provider.requests) == 1
+
+
+def test_execution_output_budget_stops_before_repair(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content="broken\n"),
+            )
+        ]
+    )
+    executor = SequenceExecutor(
+        [
+            _execution_result(
+                status=ExecutionStatus.ROLLED_BACK,
+                action_stderr="x" * 33,
+            )
+        ]
+    )
+    controller = DiagnoseRepairController(
+        provider=provider,
+        executor=executor,
+        skill=compiled_skill,
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        budgets=ControllerBudgets(max_attempts=2, max_output_bytes=32),
+        identity_source=FixedIdentitySource(),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert result.stop_reason == ControllerStopReason.BUDGET_EXHAUSTED
+    assert result.attempts[0].classification == ControllerStopReason.BUDGET_EXHAUSTED
+    assert result.attempts[0].output_bytes == 33
+    assert result.total_output_bytes == 33
+    assert len(provider.requests) == 1
+
+
+def test_missing_token_usage_fails_closed_before_retry(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content="broken\n"),
+            ),
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content="must not be requested\n"),
+            ),
+        ]
+    )
+    executor = SequenceExecutor(
+        [_execution_result(status=ExecutionStatus.ROLLED_BACK, action_stderr="command failed")]
+    )
+    controller = DiagnoseRepairController(
+        provider=provider,
+        executor=executor,
+        skill=compiled_skill,
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        budgets=ControllerBudgets(max_attempts=2),
+        identity_source=FixedIdentitySource(),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert result.stop_reason == ControllerStopReason.BUDGET_EXHAUSTED
+    assert result.token_usage_complete is False
+    assert result.attempts[0].prompt_tokens is None
+    assert result.attempts[0].completion_tokens is None
+    assert len(provider.requests) == 1

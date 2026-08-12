@@ -113,6 +113,32 @@ def test_ollama_code_only_response_becomes_ready_proposal() -> None:
     }
 
 
+def test_ollama_honors_request_level_completion_and_response_budgets() -> None:
+    transport = FakeOllamaTransport(
+        OllamaHttpResponse(
+            status_code=200,
+            body=b'{"model":"qwen3:4b","response":"code","done":true,"eval_count":4}',
+        )
+    )
+    provider = OllamaProposalProvider(ollama_config(), transport=transport)
+
+    outcome = provider.propose(
+        ProposalRequest(
+            task="Propose code.",
+            max_prompt_tokens=64,
+            max_completion_tokens=17,
+            max_response_bytes=1024,
+        )
+    )
+
+    assert outcome.status == ProposalStatus.READY
+    _, raw_payload, _, max_response_bytes = transport.calls[0]
+    assert max_response_bytes == 1024
+    payload = json.loads(raw_payload)
+    assert payload["options"]["num_predict"] == 17
+    assert payload["options"]["num_ctx"] == 81
+
+
 @pytest.mark.parametrize(
     "endpoint",
     [

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from collections.abc import Callable
 from enum import StrEnum
 from typing import Protocol
 
@@ -65,10 +66,12 @@ class ControllerAttempt(BaseModel):
     diagnostic: str
     proposal_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     request_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    cycle_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     action_id: str | None = None
     idempotency_key: str | None = None
-    prompt_tokens: int = Field(default=0, ge=0)
-    completion_tokens: int = Field(default=0, ge=0)
+    prompt_tokens: int | None = Field(default=None, ge=0)
+    completion_tokens: int | None = Field(default=None, ge=0)
+    output_bytes: int = Field(default=0, ge=0)
 
 
 class ControllerResult(BaseModel):
@@ -78,10 +81,13 @@ class ControllerResult(BaseModel):
 
     success: bool
     stop_reason: ControllerStopReason
+    diagnostic: str
     attempts: list[ControllerAttempt]
     total_attempts: int = Field(ge=0)
     total_prompt_tokens: int = Field(ge=0)
     total_completion_tokens: int = Field(ge=0)
+    total_output_bytes: int = Field(ge=0)
+    token_usage_complete: bool
     duration_ms: float = Field(ge=0.0)
 
 
@@ -108,6 +114,7 @@ class DiagnoseRepairController:
         trusted: TrustedEnvelopeConfig,
         budgets: ControllerBudgets,
         identity_source: RequestIdentitySource | None = None,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         self.provider = provider
         self.executor = executor
@@ -115,20 +122,69 @@ class DiagnoseRepairController:
         self.trusted = trusted
         self.budgets = budgets
         self.identity_source = identity_source or SecureRequestIdentitySource()
+        self.clock = clock or time.monotonic
 
     def run(self, *, task: str) -> ControllerResult:
-        started = time.monotonic()
+        started = self.clock()
         attempts: list[ControllerAttempt] = []
         total_prompt_tokens = 0
         total_completion_tokens = 0
-        request = ProposalRequest(task=task)
+        cycle_counts: dict[str, int] = {}
+        request = ProposalRequest(
+            task=task,
+            max_prompt_tokens=self.budgets.max_prompt_tokens,
+            max_completion_tokens=self.budgets.max_completion_tokens,
+            max_response_bytes=self.budgets.max_output_bytes,
+        )
 
         for attempt_number in range(1, self.budgets.max_attempts + 1):
+            if self.clock() - started > self.budgets.max_wall_seconds:
+                elapsed = self.clock() - started
+                return self._result(
+                    started=started,
+                    attempts=attempts,
+                    stop_reason=ControllerStopReason.BUDGET_EXHAUSTED,
+                    total_prompt_tokens=total_prompt_tokens,
+                    total_completion_tokens=total_completion_tokens,
+                    diagnostic=(
+                        f"wall-clock budget exceeded: {elapsed:.3f}s > {self.budgets.max_wall_seconds:.3f}s"
+                    ),
+                )
             outcome = self.provider.propose(request)
-            prompt_tokens = outcome.usage.prompt_tokens or 0
-            completion_tokens = outcome.usage.completion_tokens or 0
+            reported_prompt_tokens = outcome.usage.prompt_tokens
+            reported_completion_tokens = outcome.usage.completion_tokens
+            prompt_tokens = reported_prompt_tokens or 0
+            completion_tokens = reported_completion_tokens or 0
             total_prompt_tokens += prompt_tokens
             total_completion_tokens += completion_tokens
+            budget_reason = self._provider_budget_reason(
+                total_prompt_tokens=total_prompt_tokens,
+                total_completion_tokens=total_completion_tokens,
+                proposal_content=outcome.proposal.content if outcome.proposal is not None else None,
+            )
+            if budget_reason is not None:
+                attempts.append(
+                    ControllerAttempt(
+                        attempt_number=attempt_number,
+                        proposal_status=outcome.status,
+                        classification=ControllerStopReason.BUDGET_EXHAUSTED,
+                        diagnostic=budget_reason,
+                        proposal_sha256=(
+                            hashlib.sha256(outcome.proposal.content.encode()).hexdigest()
+                            if outcome.proposal is not None
+                            else None
+                        ),
+                        prompt_tokens=reported_prompt_tokens,
+                        completion_tokens=reported_completion_tokens,
+                    )
+                )
+                return self._result(
+                    started=started,
+                    attempts=attempts,
+                    stop_reason=ControllerStopReason.BUDGET_EXHAUSTED,
+                    total_prompt_tokens=total_prompt_tokens,
+                    total_completion_tokens=total_completion_tokens,
+                )
             if outcome.status != ProposalStatus.READY:
                 attempts.append(
                     ControllerAttempt(
@@ -139,8 +195,8 @@ class DiagnoseRepairController:
                             outcome.diagnostic,
                             limit=self.budgets.max_diagnostic_bytes,
                         ),
-                        prompt_tokens=prompt_tokens,
-                        completion_tokens=completion_tokens,
+                        prompt_tokens=reported_prompt_tokens,
+                        completion_tokens=reported_completion_tokens,
                     )
                 )
                 return self._result(
@@ -175,8 +231,8 @@ class DiagnoseRepairController:
                         request_digest=envelope.request_identity.digest,
                         action_id=envelope.request.action_id,
                         idempotency_key=envelope.request.idempotency_key,
-                        prompt_tokens=prompt_tokens,
-                        completion_tokens=completion_tokens,
+                        prompt_tokens=reported_prompt_tokens,
+                        completion_tokens=reported_completion_tokens,
                     )
                 )
                 return self._result(
@@ -188,6 +244,31 @@ class DiagnoseRepairController:
                 )
             classification = self._classify_execution(execution)
             diagnostic = self._execution_diagnostic(execution, classification)
+            output_bytes = len(execution.action_stdout.encode()) + len(execution.action_stderr.encode())
+            if (
+                sum(attempt.output_bytes for attempt in attempts) + output_bytes
+                > self.budgets.max_output_bytes
+            ):
+                classification = ControllerStopReason.BUDGET_EXHAUSTED
+                diagnostic = (
+                    "execution output budget exceeded: "
+                    f"{sum(attempt.output_bytes for attempt in attempts) + output_bytes} > "
+                    f"{self.budgets.max_output_bytes}"
+                )
+            proposal_sha256 = hashlib.sha256(outcome.proposal.content.encode()).hexdigest()
+            cycle_fingerprint: str | None = None
+            if classification in {
+                ControllerStopReason.EXECUTION_FAILED,
+                ControllerStopReason.ASSERTION_FAILED,
+            }:
+                cycle_fingerprint = self._cycle_fingerprint(
+                    proposal_sha256=proposal_sha256,
+                    classification=classification,
+                    execution=execution,
+                )
+                cycle_counts[cycle_fingerprint] = cycle_counts.get(cycle_fingerprint, 0) + 1
+                if cycle_counts[cycle_fingerprint] >= self.budgets.equivalent_failure_limit:
+                    classification = ControllerStopReason.REPEATED_FAILURE
             attempts.append(
                 ControllerAttempt(
                     attempt_number=attempt_number,
@@ -195,12 +276,14 @@ class DiagnoseRepairController:
                     execution_status=execution.status,
                     classification=classification,
                     diagnostic=diagnostic,
-                    proposal_sha256=hashlib.sha256(outcome.proposal.content.encode()).hexdigest(),
+                    proposal_sha256=proposal_sha256,
                     request_digest=envelope.request_identity.digest,
+                    cycle_fingerprint=cycle_fingerprint,
                     action_id=envelope.request.action_id,
                     idempotency_key=envelope.request.idempotency_key,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
+                    prompt_tokens=reported_prompt_tokens,
+                    completion_tokens=reported_completion_tokens,
+                    output_bytes=output_bytes,
                 )
             )
             if classification == ControllerStopReason.PASSED:
@@ -229,15 +312,61 @@ class DiagnoseRepairController:
                     stop_reason=ControllerStopReason.BUDGET_EXHAUSTED,
                     total_prompt_tokens=total_prompt_tokens,
                     total_completion_tokens=total_completion_tokens,
+                    diagnostic=f"attempt budget exhausted: {attempt_number}",
+                )
+            if reported_prompt_tokens is None or reported_completion_tokens is None:
+                return self._result(
+                    started=started,
+                    attempts=attempts,
+                    stop_reason=ControllerStopReason.BUDGET_EXHAUSTED,
+                    total_prompt_tokens=total_prompt_tokens,
+                    total_completion_tokens=total_completion_tokens,
+                    diagnostic="provider token usage unavailable before retry",
+                )
+            if (
+                total_prompt_tokens >= self.budgets.max_prompt_tokens
+                or total_completion_tokens >= self.budgets.max_completion_tokens
+            ):
+                return self._result(
+                    started=started,
+                    attempts=attempts,
+                    stop_reason=ControllerStopReason.BUDGET_EXHAUSTED,
+                    total_prompt_tokens=total_prompt_tokens,
+                    total_completion_tokens=total_completion_tokens,
+                    diagnostic="no provider token budget remains for another attempt",
                 )
             request = ProposalRequest(
                 task=(
                     f"{task}\n\nRepair attempt {attempt_number + 1}. "
                     f"Prior {classification.value}: {diagnostic}"
-                )
+                ),
+                max_prompt_tokens=self.budgets.max_prompt_tokens - total_prompt_tokens,
+                max_completion_tokens=self.budgets.max_completion_tokens - total_completion_tokens,
+                max_response_bytes=self.budgets.max_output_bytes,
             )
 
         raise AssertionError("finite controller loop exited without a terminal result")
+
+    def _provider_budget_reason(
+        self,
+        *,
+        total_prompt_tokens: int,
+        total_completion_tokens: int,
+        proposal_content: str | None,
+    ) -> str | None:
+        if total_prompt_tokens > self.budgets.max_prompt_tokens:
+            return f"prompt token budget exceeded: {total_prompt_tokens} > {self.budgets.max_prompt_tokens}"
+        if total_completion_tokens > self.budgets.max_completion_tokens:
+            return (
+                f"completion token budget exceeded: {total_completion_tokens} > "
+                f"{self.budgets.max_completion_tokens}"
+            )
+        if proposal_content is not None and len(proposal_content.encode()) > self.budgets.max_proposal_bytes:
+            return (
+                f"proposal byte budget exceeded: {len(proposal_content.encode())} > "
+                f"{self.budgets.max_proposal_bytes}"
+            )
+        return None
 
     def _result(
         self,
@@ -247,15 +376,24 @@ class DiagnoseRepairController:
         stop_reason: ControllerStopReason,
         total_prompt_tokens: int,
         total_completion_tokens: int,
+        diagnostic: str | None = None,
     ) -> ControllerResult:
         return ControllerResult(
             success=stop_reason == ControllerStopReason.PASSED,
             stop_reason=stop_reason,
+            diagnostic=diagnostic
+            if diagnostic is not None
+            else (attempts[-1].diagnostic if attempts else ""),
             attempts=attempts,
             total_attempts=len(attempts),
             total_prompt_tokens=total_prompt_tokens,
             total_completion_tokens=total_completion_tokens,
-            duration_ms=(time.monotonic() - started) * 1000,
+            total_output_bytes=sum(attempt.output_bytes for attempt in attempts),
+            token_usage_complete=all(
+                attempt.prompt_tokens is not None and attempt.completion_tokens is not None
+                for attempt in attempts
+            ),
+            duration_ms=(self.clock() - started) * 1000,
         )
 
     @staticmethod
@@ -304,3 +442,27 @@ class DiagnoseRepairController:
         else:
             parts.extend(filter(None, [execution.action_stderr, execution.action_stdout]))
         return redact_text("\n".join(parts), limit=self.budgets.max_diagnostic_bytes)
+
+    @staticmethod
+    def _cycle_fingerprint(
+        *,
+        proposal_sha256: str,
+        classification: ControllerStopReason,
+        execution: ExecutionResult,
+    ) -> str:
+        components = [
+            proposal_sha256,
+            classification.value,
+            str(execution.action_exit_code),
+            str(execution.rollback_integrity),
+            *execution.policy_reasons,
+            *(
+                f"pre:{check.description}:{check.exit_code}:{check.passed}"
+                for check in execution.preconditions
+            ),
+            *(
+                f"post:{check.description}:{check.exit_code}:{check.passed}"
+                for check in execution.postconditions
+            ),
+        ]
+        return hashlib.sha256("\n".join(components).encode()).hexdigest()
