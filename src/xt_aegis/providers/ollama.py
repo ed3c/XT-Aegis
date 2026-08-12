@@ -8,7 +8,7 @@ from ipaddress import ip_address
 from typing import Protocol
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from xt_aegis.proposals import (
     Proposal,
@@ -19,6 +19,7 @@ from xt_aegis.proposals import (
     ProviderUsage,
     SamplingProfile,
 )
+from xt_aegis.redaction import redact_text
 
 
 class OllamaConfig(BaseModel):
@@ -112,29 +113,119 @@ class OllamaProposalProvider:
             },
             separators=(",", ":"),
         ).encode()
-        response = self.transport.post_json(
-            f"{self.config.endpoint.rstrip('/')}/api/generate",
-            payload,
-            self.config.timeout_seconds,
-            self.config.max_response_bytes,
-        )
-        decoded = json.loads(response.body.decode("utf-8"))
-        proposal = Proposal(
-            kind="replace_file",
-            content=decoded["response"],
-            profile=profile,
-        )
+        try:
+            response = self.transport.post_json(
+                f"{self.config.endpoint}/api/generate",
+                payload,
+                self.config.timeout_seconds,
+                self.config.max_response_bytes,
+            )
+        except TimeoutError as exc:
+            return self._failure(ProposalStatus.TIMED_OUT, profile, str(exc))
+        except OSError as exc:
+            return self._failure(ProposalStatus.PROVIDER_ERROR, profile, str(exc))
+
+        decoded = self._decode_response(response.body)
+        if decoded is None:
+            return self._failure(
+                ProposalStatus.MALFORMED,
+                profile,
+                "Ollama response was not valid UTF-8 JSON",
+            )
+
+        if not 200 <= response.status_code < 300:
+            status = (
+                ProposalStatus.REFUSED
+                if 400 <= response.status_code < 500
+                else ProposalStatus.PROVIDER_ERROR
+            )
+            return self._failure(
+                status,
+                profile,
+                self._response_error(decoded, response.status_code),
+            )
+
+        error = decoded.get("error")
+        if isinstance(error, str) and error:
+            return self._failure(ProposalStatus.REFUSED, profile, error)
+        if decoded.get("done") is False:
+            return self._failure(
+                ProposalStatus.TRUNCATED,
+                profile,
+                "Ollama response did not reach a completed state",
+            )
+        content = decoded.get("response")
+        if decoded.get("done") is not True or not isinstance(content, str) or not content:
+            return self._failure(
+                ProposalStatus.MALFORMED,
+                profile,
+                "Ollama response omitted required completion fields",
+            )
+
+        try:
+            proposal = Proposal(
+                kind="replace_file",
+                content=content,
+                profile=profile,
+            )
+            usage = self._usage(decoded)
+        except (TypeError, ValueError, ValidationError):
+            return self._failure(
+                ProposalStatus.MALFORMED,
+                profile,
+                "Ollama response contained invalid completion metadata",
+            )
         return ProposalOutcome(
             status=ProposalStatus.READY,
             profile=profile,
             proposal=proposal,
-            usage=ProviderUsage(
-                prompt_tokens=decoded.get("prompt_eval_count"),
-                completion_tokens=decoded.get("eval_count"),
-                total_duration_ms=(
-                    decoded["total_duration"] / 1_000_000
-                    if decoded.get("total_duration") is not None
-                    else None
-                ),
-            ),
+            usage=usage,
+        )
+
+    @staticmethod
+    def _decode_response(body: bytes) -> dict[str, object] | None:
+        try:
+            decoded = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        return decoded if isinstance(decoded, dict) else None
+
+    @staticmethod
+    def _response_error(decoded: dict[str, object], status_code: int) -> str:
+        error = decoded.get("error")
+        if isinstance(error, str) and error:
+            return f"Ollama HTTP {status_code}: {error}"
+        return f"Ollama HTTP {status_code}"
+
+    @staticmethod
+    def _usage(decoded: dict[str, object]) -> ProviderUsage:
+        def optional_count(field: str) -> int | None:
+            value = decoded.get(field)
+            if value is None:
+                return None
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"invalid Ollama counter: {field}")
+            return value
+
+        duration = decoded.get("total_duration")
+        if isinstance(duration, bool) or (
+            duration is not None and not isinstance(duration, (int, float))
+        ):
+            raise ValueError("invalid Ollama duration")
+        return ProviderUsage(
+            prompt_tokens=optional_count("prompt_eval_count"),
+            completion_tokens=optional_count("eval_count"),
+            total_duration_ms=duration / 1_000_000 if duration is not None else None,
+        )
+
+    @staticmethod
+    def _failure(
+        status: ProposalStatus,
+        profile: ProviderProfile,
+        diagnostic: str,
+    ) -> ProposalOutcome:
+        return ProposalOutcome(
+            status=status,
+            profile=profile,
+            diagnostic=redact_text(diagnostic, limit=512),
         )
