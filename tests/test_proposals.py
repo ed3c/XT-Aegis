@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
+import xt_aegis
 from xt_aegis.identity import RequestIdentity
 from xt_aegis.models import FileWriteAction, Provenance
 from xt_aegis.proposals import (
@@ -24,6 +26,20 @@ class FixedIdentitySource:
 
     def new_request_ids(self) -> TrustedRequestIds:
         return self.value
+
+
+class SequenceIdentitySource:
+    def __init__(self, values: list[TrustedRequestIds]) -> None:
+        self.values = iter(values)
+
+    def new_request_ids(self) -> TrustedRequestIds:
+        return next(self.values)
+
+
+def test_proposal_boundary_is_part_of_public_package_api() -> None:
+    assert xt_aegis.Proposal is Proposal
+    assert xt_aegis.ProposalProvider.__name__ == "ProposalProvider"
+    assert xt_aegis.build_action_request is build_action_request
 
 
 def test_valid_proposal_builds_trusted_action_envelope(compiled_skill) -> None:  # type: ignore[no-untyped-def]
@@ -156,3 +172,67 @@ def test_trusted_builder_rejects_target_outside_active_skill_scope(
             skill=compiled_skill,
             identity_source=FixedIdentitySource(ids),
         )
+
+
+def test_proposal_schema_rejects_provider_control_plane_fields() -> None:
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        Proposal.model_validate(
+            {
+                "kind": "replace_file",
+                "content": "safe content\n",
+                "profile": {
+                    "provider": "fake",
+                    "model": "deterministic",
+                    "version": "1.0",
+                    "sampling": {
+                        "temperature": 0.0,
+                        "seed": 7,
+                        "max_output_tokens": 256,
+                    },
+                },
+                "target_path": "outside.py",
+                "thread_id": "provider-controlled",
+                "approval_id": "0" * 24,
+            }
+        )
+
+
+def test_changed_proposal_gets_fresh_request_identity(compiled_skill) -> None:  # type: ignore[no-untyped-def]
+    profile = ProviderProfile(
+        provider="fake",
+        model="deterministic",
+        version="1.0",
+        sampling=SamplingProfile(temperature=0.0, seed=7, max_output_tokens=256),
+    )
+    identities = SequenceIdentitySource(
+        [
+            TrustedRequestIds(
+                thread_id="thread:first",
+                action_id="action:first",
+                idempotency_key="idem:first:0001",
+            ),
+            TrustedRequestIds(
+                thread_id="thread:second",
+                action_id="action:second",
+                idempotency_key="idem:second:0002",
+            ),
+        ]
+    )
+    trusted = TrustedEnvelopeConfig(target_path="sample_project/app.py")
+
+    first = build_action_request(
+        Proposal(kind="replace_file", content="first\n", profile=profile),
+        trusted=trusted,
+        skill=compiled_skill,
+        identity_source=identities,
+    )
+    second = build_action_request(
+        Proposal(kind="replace_file", content="second\n", profile=profile),
+        trusted=trusted,
+        skill=compiled_skill,
+        identity_source=identities,
+    )
+
+    assert first.request.action_id != second.request.action_id
+    assert first.request.idempotency_key != second.request.idempotency_key
+    assert first.request_identity.digest != second.request_identity.digest
