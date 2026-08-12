@@ -114,58 +114,163 @@ class DiagnoseRepairController:
 
     def run(self, *, task: str) -> ControllerResult:
         started = time.monotonic()
-        outcome = self.provider.propose(ProposalRequest(task=task))
-        prompt_tokens = outcome.usage.prompt_tokens or 0
-        completion_tokens = outcome.usage.completion_tokens or 0
-        if outcome.status != ProposalStatus.READY:
-            diagnostic = redact_text(outcome.diagnostic, limit=self.budgets.max_diagnostic_bytes)
-            attempt = ControllerAttempt(
-                attempt_number=1,
-                proposal_status=outcome.status,
-                classification=ControllerStopReason.PROPOSAL_REJECTED,
-                diagnostic=diagnostic,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
+        attempts: list[ControllerAttempt] = []
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
+        request = ProposalRequest(task=task)
+
+        for attempt_number in range(1, self.budgets.max_attempts + 1):
+            outcome = self.provider.propose(request)
+            prompt_tokens = outcome.usage.prompt_tokens or 0
+            completion_tokens = outcome.usage.completion_tokens or 0
+            total_prompt_tokens += prompt_tokens
+            total_completion_tokens += completion_tokens
+            if outcome.status != ProposalStatus.READY:
+                attempts.append(
+                    ControllerAttempt(
+                        attempt_number=attempt_number,
+                        proposal_status=outcome.status,
+                        classification=ControllerStopReason.PROPOSAL_REJECTED,
+                        diagnostic=redact_text(
+                            outcome.diagnostic,
+                            limit=self.budgets.max_diagnostic_bytes,
+                        ),
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                    )
+                )
+                return self._result(
+                    started=started,
+                    attempts=attempts,
+                    stop_reason=ControllerStopReason.PROPOSAL_REJECTED,
+                    total_prompt_tokens=total_prompt_tokens,
+                    total_completion_tokens=total_completion_tokens,
+                )
+
+            if outcome.proposal is None:  # guarded by ProposalOutcome validation
+                raise AssertionError("ready proposal outcome omitted proposal content")
+            envelope = build_action_request(
+                outcome,
+                trusted=self.trusted,
+                skill=self.skill,
+                identity_source=self.identity_source,
             )
-            return ControllerResult(
-                success=False,
-                stop_reason=ControllerStopReason.PROPOSAL_REJECTED,
-                attempts=[attempt],
-                total_attempts=1,
-                total_prompt_tokens=prompt_tokens,
-                total_completion_tokens=completion_tokens,
-                duration_ms=(time.monotonic() - started) * 1000,
+            execution = self.executor.execute(envelope.request)
+            classification = self._classify_execution(execution)
+            diagnostic = self._execution_diagnostic(execution, classification)
+            attempts.append(
+                ControllerAttempt(
+                    attempt_number=attempt_number,
+                    proposal_status=outcome.status,
+                    execution_status=execution.status,
+                    classification=classification,
+                    diagnostic=diagnostic,
+                    proposal_sha256=hashlib.sha256(outcome.proposal.content.encode()).hexdigest(),
+                    request_digest=envelope.request_identity.digest,
+                    action_id=envelope.request.action_id,
+                    idempotency_key=envelope.request.idempotency_key,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
             )
-        if outcome.proposal is None:  # guarded by ProposalOutcome validation
-            raise AssertionError("ready proposal outcome omitted proposal content")
-        envelope = build_action_request(
-            outcome,
-            trusted=self.trusted,
-            skill=self.skill,
-            identity_source=self.identity_source,
+            if classification == ControllerStopReason.PASSED:
+                return self._result(
+                    started=started,
+                    attempts=attempts,
+                    stop_reason=classification,
+                    total_prompt_tokens=total_prompt_tokens,
+                    total_completion_tokens=total_completion_tokens,
+                )
+            if classification not in {
+                ControllerStopReason.EXECUTION_FAILED,
+                ControllerStopReason.ASSERTION_FAILED,
+            }:
+                return self._result(
+                    started=started,
+                    attempts=attempts,
+                    stop_reason=classification,
+                    total_prompt_tokens=total_prompt_tokens,
+                    total_completion_tokens=total_completion_tokens,
+                )
+            if attempt_number == self.budgets.max_attempts:
+                return self._result(
+                    started=started,
+                    attempts=attempts,
+                    stop_reason=ControllerStopReason.BUDGET_EXHAUSTED,
+                    total_prompt_tokens=total_prompt_tokens,
+                    total_completion_tokens=total_completion_tokens,
+                )
+            request = ProposalRequest(
+                task=(
+                    f"{task}\n\nRepair attempt {attempt_number + 1}. "
+                    f"Prior {classification.value}: {diagnostic}"
+                )
+            )
+
+        raise AssertionError("finite controller loop exited without a terminal result")
+
+    def _result(
+        self,
+        *,
+        started: float,
+        attempts: list[ControllerAttempt],
+        stop_reason: ControllerStopReason,
+        total_prompt_tokens: int,
+        total_completion_tokens: int,
+    ) -> ControllerResult:
+        return ControllerResult(
+            success=stop_reason == ControllerStopReason.PASSED,
+            stop_reason=stop_reason,
+            attempts=attempts,
+            total_attempts=len(attempts),
+            total_prompt_tokens=total_prompt_tokens,
+            total_completion_tokens=total_completion_tokens,
+            duration_ms=(time.monotonic() - started) * 1000,
         )
-        execution = self.executor.execute(envelope.request)
+
+    @staticmethod
+    def _classify_execution(execution: ExecutionResult) -> ControllerStopReason:
         if execution.success and execution.status == ExecutionStatus.SUCCEEDED:
-            attempt = ControllerAttempt(
-                attempt_number=1,
-                proposal_status=outcome.status,
-                execution_status=execution.status,
-                classification=ControllerStopReason.PASSED,
-                diagnostic="",
-                proposal_sha256=hashlib.sha256(outcome.proposal.content.encode()).hexdigest(),
-                request_digest=envelope.request_identity.digest,
-                action_id=envelope.request.action_id,
-                idempotency_key=envelope.request.idempotency_key,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
+            return ControllerStopReason.PASSED
+        if execution.rollback_integrity is False:
+            return ControllerStopReason.RECOVERY_FAILED
+        if execution.status == ExecutionStatus.SUSPENDED:
+            return ControllerStopReason.APPROVAL_REQUIRED
+        if any(not check.passed for check in execution.preconditions):
+            return ControllerStopReason.BASELINE_INVALID
+        reasons = " ".join(execution.policy_reasons).lower()
+        if execution.status == ExecutionStatus.BLOCKED:
+            if "approval" in reasons:
+                return ControllerStopReason.APPROVAL_REQUIRED
+            if "isolation" in reasons or "backend" in reasons or "infrastructure" in reasons:
+                return ControllerStopReason.INFRASTRUCTURE_UNAVAILABLE
+            if "budget" in reasons:
+                return ControllerStopReason.BUDGET_EXHAUSTED
+            return ControllerStopReason.POLICY_DENIED
+        if any(not check.passed for check in execution.postconditions):
+            return ControllerStopReason.ASSERTION_FAILED
+        return ControllerStopReason.EXECUTION_FAILED
+
+    def _execution_diagnostic(
+        self,
+        execution: ExecutionResult,
+        classification: ControllerStopReason,
+    ) -> str:
+        parts: list[str] = []
+        if classification == ControllerStopReason.BASELINE_INVALID:
+            parts.extend(
+                f"precondition failed: {check.description}: {check.stderr}"
+                for check in execution.preconditions
+                if not check.passed
             )
-            return ControllerResult(
-                success=True,
-                stop_reason=ControllerStopReason.PASSED,
-                attempts=[attempt],
-                total_attempts=1,
-                total_prompt_tokens=prompt_tokens,
-                total_completion_tokens=completion_tokens,
-                duration_ms=(time.monotonic() - started) * 1000,
+        elif classification == ControllerStopReason.ASSERTION_FAILED:
+            parts.extend(
+                f"postcondition failed: {check.description}: {check.stderr}"
+                for check in execution.postconditions
+                if not check.passed
             )
-        raise NotImplementedError("failed execution classification is not implemented")
+        elif execution.policy_reasons:
+            parts.extend(execution.policy_reasons)
+        else:
+            parts.extend(filter(None, [execution.action_stderr, execution.action_stdout]))
+        return redact_text("\n".join(parts), limit=self.budgets.max_diagnostic_bytes)
