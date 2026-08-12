@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import secrets
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from xt_aegis.identity import RequestIdentity
 from xt_aegis.models import ActionRequest, CompiledSkill, FileWriteAction, Provenance
@@ -42,6 +43,68 @@ class Proposal(BaseModel):
     content: str = Field(min_length=1, max_length=262_144)
     explanation: str | None = Field(default=None, max_length=4_096)
     profile: ProviderProfile
+
+
+class ProposalStatus(StrEnum):
+    READY = "ready"
+    REFUSED = "refused"
+    TIMED_OUT = "timed_out"
+    MALFORMED = "malformed"
+    OVERSIZED = "oversized"
+    TRUNCATED = "truncated"
+    PROVIDER_ERROR = "provider_error"
+
+
+class ProposalRequest(BaseModel):
+    """Private task input passed to a provider but not retained as evidence."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    task: str = Field(min_length=1, max_length=32_768)
+
+
+class ProposalOutcome(BaseModel):
+    """Typed provider result; only ready outcomes may contain a proposal."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: ProposalStatus
+    profile: ProviderProfile
+    proposal: Proposal | None = None
+    diagnostic: str = Field(default="", max_length=4_096)
+
+    @model_validator(mode="after")
+    def validate_proposal_presence(self) -> ProposalOutcome:
+        if self.status == ProposalStatus.READY and self.proposal is None:
+            raise ValueError("ready proposal outcome requires proposal content")
+        if self.status != ProposalStatus.READY and self.proposal is not None:
+            raise ValueError("non-ready proposal outcome cannot contain proposal content")
+        return self
+
+
+class ProposalProvider(Protocol):
+    """Provider-neutral proposal boundary."""
+
+    def propose(self, request: ProposalRequest) -> ProposalOutcome:
+        """Return one bounded typed outcome without executing it."""
+
+
+class FakeProposalProvider:
+    """Deterministic provider used to drive proposal and controller tests."""
+
+    def __init__(self, *, outcomes: list[ProposalOutcome]) -> None:
+        if not outcomes:
+            raise ValueError("fake provider requires at least one outcome")
+        self._outcomes = list(outcomes)
+        self._index = 0
+
+    def propose(self, request: ProposalRequest) -> ProposalOutcome:
+        del request
+        if self._index >= len(self._outcomes):
+            raise RuntimeError("fake provider outcome sequence exhausted")
+        outcome = self._outcomes[self._index]
+        self._index += 1
+        return outcome
 
 
 class TrustedEnvelopeConfig(BaseModel):
