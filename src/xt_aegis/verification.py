@@ -431,7 +431,8 @@ class OpenShellBackend:
 class OciBackend:
     """Rootless Docker or Podman verifier image adapter."""
 
-    strong_isolation = True
+    name: BackendName
+    strong_isolation: bool = True
 
     def __init__(self, name: BackendName) -> None:
         if name not in {BackendName.DOCKER, BackendName.PODMAN}:
@@ -568,12 +569,13 @@ class OciBackend:
 def backends() -> dict[BackendName, SandboxBackend]:
     """Construct available backend adapters."""
 
-    return {
+    adapters: dict[BackendName, SandboxBackend] = {
         BackendName.OPENSHELL: OpenShellBackend(),
         BackendName.PODMAN: OciBackend(BackendName.PODMAN),
         BackendName.DOCKER: OciBackend(BackendName.DOCKER),
         BackendName.UNSAFE_LOCAL: UnsafeLocalBackend(),
     }
+    return adapters
 
 
 def select_backend(requested: BackendName, root: Path) -> SandboxBackend:
