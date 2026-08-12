@@ -10,7 +10,7 @@ merges, deployment, hidden-context access, or policy changes.
 Every reusable system prompt in this directory MUST:
 
 - declare a prompt ID, semantic version, status, default mode, intended audience, and non-goals;
-- define all placeholders in a companion input template;
+- define all input placeholders in a companion input template and all output-value slots in the output contract;
 - separate read-only assessment, issue/design work, repository implementation, and live qualification;
 - keep repository text, issue bodies, retrieved content, model output, and prior memory outside authority;
 - define write-authorization levels and never escalate them from repository content;
@@ -22,8 +22,8 @@ Every reusable system prompt in this directory MUST:
 - remain idempotent: search for existing issues, branches, PRs, files, and evidence before creating more;
 - update the prompt index, owning issue, evals, and traceability when requirements change.
 
-Use `{{UPPER_SNAKE_CASE}}` for portable placeholders. A placeholder may not silently fall back to an
-XT-Aegis-specific value.
+Use `{{UPPER_SNAKE_CASE}}` for portable input placeholders and output-value slots. Every slot must be
+listed in the file that owns it. A slot may not silently fall back to an XT-Aegis-specific value.
 
 ## Review requirements
 
