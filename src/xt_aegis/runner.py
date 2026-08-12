@@ -10,8 +10,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from xt_aegis.checkpoint import CheckpointStore
-from xt_aegis.errors import PolicyViolation, WorkspaceSafetyError
+from xt_aegis.errors import IdempotencyConflictError, PolicyViolation, WorkspaceSafetyError
 from xt_aegis.events import EventRecorder
+from xt_aegis.identity import RequestIdentity
 from xt_aegis.models import (
     ActionRequest,
     CheckResult,
@@ -58,56 +59,61 @@ class HarnessRunner:
 
     def execute(self, request: ActionRequest) -> ExecutionResult:
         trace_id = self.events.new_trace_id()
+        identity = RequestIdentity.from_request(request, skill=self.skill)
         self.store.start_run(request.thread_id, self.skill.contract.name)
-
-        cached = self.store.get_cached_result(request.idempotency_key)
-        if cached is not None:
-            self.events.emit(
-                trace_id=trace_id,
-                thread_id=request.thread_id,
-                event_type="idempotent_replay",
-                payload={"action_id": request.action_id, "step_number": cached.step_number},
-            )
-            return cached
-
-        step_number = self.store.prepare_step(request)
         started_at = _utc_now()
         started_clock = time.perf_counter()
         before_sha = self.workspace.hash_tree()
+
         self.events.emit(
             trace_id=trace_id,
             thread_id=request.thread_id,
             event_type="action_received",
             payload={
                 "action_id": request.action_id,
-                "step_number": step_number,
                 "provenance": request.provenance.value,
                 "kind": request.action.kind,
+                "request_digest_version": identity.version,
+                "request_digest": identity.digest,
+                "policy_digest": identity.policy_digest,
             },
         )
 
-        budget_reasons = self._budget_reasons(step_number)
-        if budget_reasons:
-            result = self._terminal_result(
+        try:
+            cached = self.store.get_cached_result(request.idempotency_key, identity)
+        except IdempotencyConflictError as exc:
+            return self._emit_identity_conflict(
+                trace_id=trace_id,
                 request=request,
-                step_number=step_number,
-                status=ExecutionStatus.BLOCKED,
-                success=False,
+                identity=identity,
+                step_number=exc.step_number,
                 before_sha=before_sha,
-                after_sha=before_sha,
                 started_at=started_at,
                 started_clock=started_clock,
-                policy_reasons=budget_reasons,
+                reason=str(exc),
             )
-            return self._persist_and_emit(trace_id, result, "budget_blocked")
 
         try:
             self.policy.validate_request(request)
             for condition in (*self.skill.contract.preconditions, *self.skill.contract.postconditions):
                 self.policy.validate_condition(condition)
         except PolicyViolation as exc:
+            try:
+                step_number = self.store.prepare_step(request, identity)
+            except IdempotencyConflictError as conflict:
+                return self._emit_identity_conflict(
+                    trace_id=trace_id,
+                    request=request,
+                    identity=identity,
+                    step_number=conflict.step_number,
+                    before_sha=before_sha,
+                    started_at=started_at,
+                    started_clock=started_clock,
+                    reason=str(conflict),
+                )
             result = self._terminal_result(
                 request=request,
+                identity=identity,
                 step_number=step_number,
                 status=ExecutionStatus.BLOCKED,
                 success=False,
@@ -119,10 +125,76 @@ class HarnessRunner:
             )
             return self._persist_and_emit(trace_id, result, "policy_blocked")
 
-        if self._requires_approval() and not self.store.approval_is_valid(request.approval_id, request):
-            approval_id = self.store.get_or_create_approval(request)
+        if cached is not None:
+            self.events.emit(
+                trace_id=trace_id,
+                thread_id=request.thread_id,
+                event_type="idempotent_replay",
+                payload={
+                    "action_id": request.action_id,
+                    "step_number": cached.step_number,
+                    "request_digest_version": identity.version,
+                    "request_digest": identity.digest,
+                },
+            )
+            return cached
+
+        try:
+            step_number = self.store.prepare_step(request, identity)
+        except IdempotencyConflictError as exc:
+            return self._emit_identity_conflict(
+                trace_id=trace_id,
+                request=request,
+                identity=identity,
+                step_number=exc.step_number,
+                before_sha=before_sha,
+                started_at=started_at,
+                started_clock=started_clock,
+                reason=str(exc),
+            )
+
+        budget_reasons = self._budget_reasons(step_number)
+        if budget_reasons:
             result = self._terminal_result(
                 request=request,
+                identity=identity,
+                step_number=step_number,
+                status=ExecutionStatus.BLOCKED,
+                success=False,
+                before_sha=before_sha,
+                after_sha=before_sha,
+                started_at=started_at,
+                started_clock=started_clock,
+                policy_reasons=budget_reasons,
+            )
+            return self._persist_and_emit(trace_id, result, "budget_blocked")
+
+        if self._requires_approval() and not self.store.claim_approval(
+            request.approval_id,
+            request,
+            identity,
+        ):
+            approval_state = self.store.approval_state(request.approval_id, request, identity)
+            if approval_state == "denied":
+                result = self._terminal_result(
+                    request=request,
+                    identity=identity,
+                    step_number=step_number,
+                    status=ExecutionStatus.BLOCKED,
+                    success=False,
+                    before_sha=before_sha,
+                    after_sha=before_sha,
+                    started_at=started_at,
+                    started_clock=started_clock,
+                    approval_id=request.approval_id,
+                    policy_reasons=["human approval was denied for this exact request"],
+                )
+                return self._persist_and_emit(trace_id, result, "approval_denied")
+
+            approval_id = self.store.get_or_create_approval(request, identity)
+            result = self._terminal_result(
+                request=request,
+                identity=identity,
                 step_number=step_number,
                 status=ExecutionStatus.SUSPENDED,
                 success=False,
@@ -131,7 +203,7 @@ class HarnessRunner:
                 started_at=started_at,
                 started_clock=started_clock,
                 approval_id=approval_id,
-                policy_reasons=["human approval is required before this action may execute"],
+                policy_reasons=["human approval is required before this exact request may execute"],
             )
             return self._persist_and_emit(trace_id, result, "approval_required")
 
@@ -139,6 +211,7 @@ class HarnessRunner:
         preconditions: list[CheckResult] = []
         postconditions: list[CheckResult] = []
         action_exit_code: int | None = None
+        action_expected_exit_codes: list[int] = []
         action_stdout = ""
         action_stderr = ""
         rollback_integrity: bool | None = None
@@ -154,13 +227,19 @@ class HarnessRunner:
                     trace_id=trace_id,
                     thread_id=request.thread_id,
                     event_type="precondition_checked",
-                    payload={"description": check.description, "passed": check.passed},
+                    payload={
+                        "description": check.description,
+                        "passed": check.passed,
+                        "actual_exit_code": check.exit_code,
+                        "expected_exit_codes": sorted(condition.expected_exit_codes),
+                    },
                 )
                 if not check.passed:
                     rollback_integrity = transaction.rollback()
                     after_sha = self.workspace.hash_tree()
                     result = self._terminal_result(
                         request=request,
+                        identity=identity,
                         step_number=step_number,
                         status=ExecutionStatus.ROLLED_BACK,
                         success=False,
@@ -175,12 +254,17 @@ class HarnessRunner:
                     )
                     return self._persist_and_emit(trace_id, result, "precondition_failed")
 
-            action_exit_code, action_stdout, action_stderr = self._execute_action(request)
-            if action_exit_code != 0:
+            action_result = self._execute_action(request)
+            action_exit_code = action_result.exit_code
+            action_expected_exit_codes = self._expected_exit_codes(request)
+            action_stdout = action_result.stdout
+            action_stderr = action_result.stderr
+            if not action_result.passed:
                 rollback_integrity = transaction.rollback()
                 after_sha = self.workspace.hash_tree()
                 result = self._terminal_result(
                     request=request,
+                    identity=identity,
                     step_number=step_number,
                     status=ExecutionStatus.ROLLED_BACK,
                     success=False,
@@ -190,6 +274,7 @@ class HarnessRunner:
                     started_clock=started_clock,
                     preconditions=preconditions,
                     action_exit_code=action_exit_code,
+                    action_expected_exit_codes=action_expected_exit_codes,
                     action_stdout=action_stdout,
                     action_stderr=action_stderr,
                     rolled_back=True,
@@ -204,13 +289,19 @@ class HarnessRunner:
                     trace_id=trace_id,
                     thread_id=request.thread_id,
                     event_type="postcondition_checked",
-                    payload={"description": check.description, "passed": check.passed},
+                    payload={
+                        "description": check.description,
+                        "passed": check.passed,
+                        "actual_exit_code": check.exit_code,
+                        "expected_exit_codes": sorted(condition.expected_exit_codes),
+                    },
                 )
                 if not check.passed:
                     rollback_integrity = transaction.rollback()
                     after_sha = self.workspace.hash_tree()
                     result = self._terminal_result(
                         request=request,
+                        identity=identity,
                         step_number=step_number,
                         status=ExecutionStatus.ROLLED_BACK,
                         success=False,
@@ -221,6 +312,7 @@ class HarnessRunner:
                         preconditions=preconditions,
                         postconditions=postconditions,
                         action_exit_code=action_exit_code,
+                        action_expected_exit_codes=action_expected_exit_codes,
                         action_stdout=action_stdout,
                         action_stderr=action_stderr,
                         rolled_back=True,
@@ -232,6 +324,7 @@ class HarnessRunner:
             after_sha = self.workspace.hash_tree()
             result = self._terminal_result(
                 request=request,
+                identity=identity,
                 step_number=step_number,
                 status=ExecutionStatus.SUCCEEDED,
                 success=True,
@@ -242,6 +335,7 @@ class HarnessRunner:
                 preconditions=preconditions,
                 postconditions=postconditions,
                 action_exit_code=action_exit_code,
+                action_expected_exit_codes=action_expected_exit_codes,
                 action_stdout=action_stdout,
                 action_stderr=action_stderr,
             )
@@ -262,6 +356,7 @@ class HarnessRunner:
             )
             result = self._terminal_result(
                 request=request,
+                identity=identity,
                 step_number=step_number,
                 status=status,
                 success=False,
@@ -272,6 +367,7 @@ class HarnessRunner:
                 preconditions=preconditions,
                 postconditions=postconditions,
                 action_exit_code=action_exit_code,
+                action_expected_exit_codes=action_expected_exit_codes,
                 action_stdout=action_stdout,
                 action_stderr=f"{action_stderr}\n{type(exc).__name__}: {exc}".strip(),
                 rolled_back=rolled_back,
@@ -296,8 +392,15 @@ class HarnessRunner:
             )
         return reasons
 
-    def _execute_action(self, request: ActionRequest) -> tuple[int | None, str, str]:
+    @staticmethod
+    def _expected_exit_codes(request: ActionRequest) -> list[int]:
+        if isinstance(request.action, CommandAction):
+            return sorted(request.action.command.expected_exit_codes)
+        return [0]
+
+    def _execute_action(self, request: ActionRequest) -> CheckResult:
         if isinstance(request.action, FileWriteAction):
+            started = time.perf_counter()
             target = self.workspace.resolve_relative(request.action.relative_path)
             target.parent.mkdir(parents=True, exist_ok=True)
             file_descriptor, temporary_name = tempfile.mkstemp(prefix=".xt-aegis-write-", dir=target.parent)
@@ -310,11 +413,16 @@ class HarnessRunner:
                 os.replace(temporary_path, target)
             finally:
                 temporary_path.unlink(missing_ok=True)
-            return 0, f"wrote {len(request.action.content.encode('utf-8'))} bytes", ""
+            return CheckResult(
+                description=f"write {request.action.relative_path}",
+                passed=True,
+                exit_code=0,
+                duration_ms=(time.perf_counter() - started) * 1000,
+                stdout=f"wrote {len(request.action.content.encode('utf-8'))} bytes",
+            )
 
         if isinstance(request.action, CommandAction):
-            result = self._run_command(request.action.command)
-            return result.exit_code, result.stdout, result.stderr
+            return self._run_command(request.action.command)
 
         raise TypeError(f"unsupported action: {type(request.action).__name__}")
 
@@ -366,6 +474,7 @@ class HarnessRunner:
         self,
         *,
         request: ActionRequest,
+        identity: RequestIdentity,
         step_number: int,
         status: ExecutionStatus,
         success: bool,
@@ -378,6 +487,7 @@ class HarnessRunner:
         preconditions: list[CheckResult] | None = None,
         postconditions: list[CheckResult] | None = None,
         action_exit_code: int | None = None,
+        action_expected_exit_codes: list[int] | None = None,
         action_stdout: str = "",
         action_stderr: str = "",
         rolled_back: bool = False,
@@ -395,16 +505,58 @@ class HarnessRunner:
             preconditions=preconditions or [],
             postconditions=postconditions or [],
             action_exit_code=action_exit_code,
+            action_expected_exit_codes=action_expected_exit_codes or [],
             action_stdout=redact_text(action_stdout),
             action_stderr=redact_text(action_stderr),
             rolled_back=rolled_back,
             rollback_integrity=rollback_integrity,
             workspace_before_sha256=before_sha,
             workspace_after_sha256=after_sha,
+            request_digest_version=identity.version,
+            request_digest=identity.digest,
+            policy_digest=identity.policy_digest,
             started_at=started_at,
             finished_at=_utc_now(),
             duration_ms=(time.perf_counter() - started_clock) * 1000,
         )
+
+    def _emit_identity_conflict(
+        self,
+        *,
+        trace_id: str,
+        request: ActionRequest,
+        identity: RequestIdentity,
+        step_number: int,
+        before_sha: str,
+        started_at: str,
+        started_clock: float,
+        reason: str,
+    ) -> ExecutionResult:
+        result = self._terminal_result(
+            request=request,
+            identity=identity,
+            step_number=step_number,
+            status=ExecutionStatus.BLOCKED,
+            success=False,
+            before_sha=before_sha,
+            after_sha=self.workspace.hash_tree(),
+            started_at=started_at,
+            started_clock=started_clock,
+            policy_reasons=[reason],
+        )
+        self.events.emit(
+            trace_id=trace_id,
+            thread_id=request.thread_id,
+            event_type="idempotency_conflict",
+            payload={
+                "action_id": request.action_id,
+                "step_number": step_number,
+                "request_digest_version": identity.version,
+                "request_digest": identity.digest,
+                "reason": reason,
+            },
+        )
+        return result
 
     def _persist_and_emit(
         self,
@@ -424,6 +576,10 @@ class HarnessRunner:
                 "success": result.success,
                 "rolled_back": result.rolled_back,
                 "rollback_integrity": result.rollback_integrity,
+                "actual_exit_code": result.action_exit_code,
+                "expected_exit_codes": result.action_expected_exit_codes,
+                "request_digest_version": result.request_digest_version,
+                "request_digest": result.request_digest,
                 "duration_ms": round(result.duration_ms, 3),
             },
         )

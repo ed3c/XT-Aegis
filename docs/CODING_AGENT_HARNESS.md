@@ -2,8 +2,10 @@
 
 ## Status
 
-Proposed architecture contract for issue #35. It documents intended boundaries and acceptance criteria.
-It does not claim that every component is implemented on `main`.
+Partially implemented architecture contract for issue #35. Canonical request identity and declared command
+outcomes are delivered by PR #31: they are under review when this file is read from that PR and current when
+this exact change is present on `main`. The provider adapter, strong mutation isolation, controller, and
+benchmark remain tracked work.
 
 ## Goal
 
@@ -52,6 +54,30 @@ non-ready output never reaches mutation.
 Combines validated proposal content with configured target scope, optimistic source identity, generated
 request identity, provenance, policy, assertions, backend requirement, and budgets. A changed proposal
 gets a changed request digest and cannot reuse prior approval or idempotent success.
+
+### Request identity
+
+Every executable request is bound to a versioned canonical identity. The digest includes the thread,
+action, idempotency key, optional actor label, provenance, action payload, command exit contract, and the
+complete structured `SkillContract`. The resume-only `approval_id` is excluded so the exact request can be
+resubmitted after approval.
+
+The identity has three enforcement uses:
+
+1. an idempotency key replays only the exact same request under the same policy;
+2. an approval authorizes only the exact request, policy, and actor label;
+3. persisted results and events identify the request and policy that produced them.
+
+Legacy rows without a digest fail closed. A digest is an integrity binding, not authenticated identity or
+proof that the request is safe.
+
+### Command outcome
+
+A command succeeds when its actual process exit code belongs to its declared `expected_exit_codes` set and
+all postconditions pass. Exit code zero has no special bypass. Timeouts, signal termination, undeclared
+codes, and failed assertions remain failures and trigger rollback when a transaction exists. Process
+supervisors may expose signal termination as a negative return code or translate it to a generic nonzero
+status, so portable evidence checks rejection against the declared set rather than one numeric encoding.
 
 ### Action execution boundary
 
@@ -157,8 +183,9 @@ flowchart LR
     O[#12 runtime conformance] --> B
 ```
 
-PR #31 addresses #25 and #28 under review. PR #23 advances source-bound OpenShell verification but does not
-close #30 or prove the mutation-plane isolation required by #27.
+PR #31 delivers #25 and #28; its state is under review until this change reaches `main`. PR #23 advances
+source-bound OpenShell verification but does not close #30 or prove the mutation-plane isolation required
+by #27.
 
 ## Implementation issue gate
 

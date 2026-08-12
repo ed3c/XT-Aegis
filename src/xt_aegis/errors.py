@@ -25,3 +25,15 @@ class WorkspaceSafetyError(XTAegisError):
 
 class ApprovalError(XTAegisError):
     """Raised when an approval transition is invalid."""
+
+
+class IdempotencyConflictError(XTAegisError):
+    """Raised when one idempotency key is reused for another canonical request."""
+
+    def __init__(self, message: str, *, step_number: int = 0) -> None:
+        self.step_number = step_number
+        super().__init__(message)
+
+
+class CheckpointSchemaError(XTAegisError):
+    """Raised when a persisted checkpoint schema is unsupported."""

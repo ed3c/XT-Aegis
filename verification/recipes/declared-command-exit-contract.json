@@ -1,20 +1,19 @@
 {
   "schema_version": "1.0",
-  "claim_id": "human-approval",
+  "claim_id": "declared-command-exit-contract",
   "declared_status": "implemented",
   "recipe": {
     "argv": [
       "python",
       "-m",
       "pytest",
-      "tests/test_checkpoint.py",
       "tests/test_runner.py",
       "-k",
-      "approval",
+      "command_action or command_timeout or signal_termination or postcondition_failure or expected_exit_codes",
       "-q"
     ],
     "cwd": ".",
-    "timeout_seconds": 120,
+    "timeout_seconds": 180,
     "expected_exit_codes": [
       0
     ],

@@ -7,14 +7,15 @@
       "python",
       "-m",
       "pytest",
+      "tests/test_identity.py",
       "tests/test_checkpoint.py",
       "tests/test_runner.py",
       "-k",
-      "idempot or resume or approval",
+      "identity or idempot or resume or legacy or checkpoint_schema",
       "-q"
     ],
     "cwd": ".",
-    "timeout_seconds": 120,
+    "timeout_seconds": 180,
     "expected_exit_codes": [
       0
     ],

@@ -31,6 +31,26 @@ The roadmap is ordered by risk reduction. Planned work is not a current capabili
 **Current limit:** adapter tests prove command and policy construction. A real runtime host is still required
 to reproduce isolation guarantees.
 
+## Coding-agent Harness track
+
+Target flow:
+
+```text
+provider proposal -> trusted envelope -> canonical identity -> strong isolation
+-> structured diagnosis -> bounded repair/selection -> terminal evidence
+```
+
+- [x] canonical request and policy digest binding for replay and approval (#25; delivered when PR #31 is on `main`);
+- [x] declared command exit-code semantics shared by actions and assertions (#28; delivered when PR #31 is on `main`);
+- [ ] provider-neutral proposal adapter and trusted envelope (#26);
+- [ ] strong-isolation mutation backend for Harness actions (#27);
+- [ ] bounded diagnose-repair and candidate-selection controller (#29);
+- [ ] OpenShell readiness and conformance gate (#30);
+- [ ] benchmark corpus and reproducible outcome evidence (#11).
+
+See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
+until the unchecked items above are implemented and verified.
+
 ## v0.3 - Runtime conformance and crash recovery
 
 - [ ] OpenShell and rootless OCI conformance jobs on supported hosts;
@@ -60,7 +80,7 @@ side effect during retry and failover tests.
 
 - [ ] authenticated subject and audience validation;
 - [ ] per-tool scopes and authorization policy;
-- [ ] approval binding to user identity, exact arguments, expiry, and reason;
+- [ ] approval binding to authenticated identity, exact arguments, expiry, and reason;
 - [ ] host/origin validation and deployment hardening;
 - [ ] request-level idempotency and bounded structured output;
 - [ ] security assessment and compatibility matrix.
@@ -73,7 +93,7 @@ egress, and audit requirement is satisfied.
 - [ ] documented supported deployment profile;
 - [ ] reproducible security and recovery suite;
 - [ ] signed releases, SBOM, and verified provenance;
-- [ ] stable skill and evidence schemas with migration policy;
+- [ ] stable skill, request, state, and evidence schemas with migration policy;
 - [ ] independent security assessment;
 - [ ] published benchmark corpus and raw results;
 - [ ] incident response, support, backup, and restore policy.
