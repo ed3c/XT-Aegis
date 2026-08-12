@@ -1,7 +1,9 @@
 version: 1
 
-# The current repository is included as the sandbox working directory. Verification
-# recipes remain argv-only and are additionally constrained by PROJECT_EVIDENCE.json.
+# The verifier uploads the selected source revision into /workspace. This is a
+# disposable sandbox copy; no host path is mounted by this policy. Recipes
+# remain argv-only and are additionally constrained by PROJECT_EVIDENCE.json
+# and xt_aegis.sandbox_exec.
 filesystem_policy:
   include_workdir: true
   read_only:
@@ -11,17 +13,24 @@ filesystem_policy:
     - /dev/urandom
     - /etc
     - /var/log
+    - /opt/xt-aegis
   read_write:
     - /sandbox
+    - /workspace
     - /tmp
     - /dev/null
 
+# A runtime that cannot enforce Landlock must reject this policy rather than
+# silently weakening the filesystem boundary.
 landlock:
   compatibility: hard_requirement
 
+# OpenShell v0.0.52 and the OpenShell Community base image use this
+# unprivileged workload identity.
 process:
   run_as_user: sandbox
   run_as_group: sandbox
 
-# Empty means default-deny egress. Verification recipes cannot add entries.
+# Empty means default-deny egress. Verification recipes cannot add endpoints,
+# credentials, providers, or policy revisions.
 network_policies: {}

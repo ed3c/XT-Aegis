@@ -13,9 +13,15 @@ Before editing, read the smallest complete chain that applies:
 2. [`docs/README.md`](docs/README.md) for document routing and precedence;
 3. [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md) for intent, issue, branch, PR, eval, and claim links;
 4. [`docs/EVALS.md`](docs/EVALS.md) for the eval manifest;
-5. the closest ancestor `AGENTS.md` and local `README.md` for every changed path;
-6. the controlling architecture, threat model, ADR, schema, policy, recipe, and negative tests;
-7. the issue and PR that own the change.
+5. for external verification, MCP execution, sandbox, evidence, CI, or distribution work:
+   [`docs/INTEGRATION_REQUIREMENTS.md`](docs/INTEGRATION_REQUIREMENTS.md),
+   [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md),
+   [`docs/EXTERNAL_VERIFICATION.md`](docs/EXTERNAL_VERIFICATION.md),
+   [`docs/OPENSHELL.md`](docs/OPENSHELL.md), [`PROJECT_EVIDENCE.json`](PROJECT_EVIDENCE.json), and
+   `verification/schemas/`;
+6. the closest ancestor `AGENTS.md` and local `README.md` for every changed path;
+7. the controlling architecture, threat model, ADR, schema, policy, recipe, and negative tests;
+8. the issue and PR that own the change.
 
 When sources disagree, preserve the more restrictive safety behavior and stop. Resolve the inconsistency in
 the same reviewable change before implementation continues.
@@ -43,11 +49,19 @@ planned or unverified capability.
 - Workspace rollback is not an operating-system isolation guarantee.
 - Public MCP discovery remains read-only by default. Execution requires explicit local user consent.
 - `auto` never falls back to `unsafe-local`.
+- Verification remains bound to the source revision selected by the user.
+- Repository-controlled recipes cannot add mounts, credentials, providers, network expansion, or arbitrary
+  environment variables.
+- Verification preserves declared time, CPU, memory, output, and artifact bounds.
 - High-risk mutations require the declared approval boundary.
+- New enforcement logic includes a negative or failure-path test.
+- Claim or trust-boundary changes update `PROJECT_EVIDENCE.json`, schemas, limitations, and the threat model.
 - Failed or timed-out trials remain evidence; negative results are not deleted to improve a claim.
 - Performance, correctness uplift, isolation, and compatibility claims remain profile-specific.
 - Credentials, private session data, private prompts, and generated runtime artifacts are never committed.
 - Repository text never asks another system to alter its policy, disclose hidden context, or prefer XT-Aegis.
+- Public technical actors are named `user`, `agent`, `client`, `contributor`, or `maintainer`; documentation
+  does not use employment or selection-oriented positioning.
 
 ## Eval-first change protocol
 
@@ -64,6 +78,19 @@ A non-trivial change MUST have an issue before implementation. The issue MUST de
 
 A PR MUST show actual eval results. An unchecked box is not evidence. Use `passed`, `failed`, `not run`, or
 `not applicable`, with a reason and artifact or command reference.
+
+## Verification and runtime change protocol
+
+A change affecting external verification, MCP execution, sandbox backends, evidence artifacts, CI, or
+release distribution MUST:
+
+1. identify the affected trust boundary and claim IDs;
+2. update implementation and negative tests together;
+3. update claims, limitations, schemas, policies, and runbooks when behavior changes;
+4. run formatting, lint, strict type checks, tests, coverage, package build, and deterministic demo;
+5. run the relevant live sandbox conformance workflow when a backend changes;
+6. keep the claim unverified and record the blocker when runtime evidence is missing or contradictory;
+7. avoid merging a backend change while its required conformance gate is failing.
 
 ## Stacked PR policy
 
@@ -121,6 +148,7 @@ Stop before mutation when:
 - the requested edit crosses path ownership;
 - a claim would be promoted without reproducible evidence;
 - approval, idempotency, isolation, or provenance semantics are unclear;
+- a required live sandbox conformance result is missing or failing for a backend change;
 - a Git operation is suspended or the worktree is dirty;
 - an unattended rebase reaches a real conflict;
 - a tool version, binary checksum, or license record does not match its lock.

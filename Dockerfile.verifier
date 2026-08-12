@@ -1,4 +1,5 @@
-FROM python:3.12-slim
+ARG OPENSHELL_BASE_IMAGE=ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e
+FROM ${OPENSHELL_BASE_IMAGE}
 
 LABEL org.opencontainers.image.source="https://github.com/ed3c/XT-Aegis"
 LABEL org.opencontainers.image.description="XT-Aegis local MCP verifier and bounded verification runtime"
@@ -10,13 +11,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1
 
+USER root
 WORKDIR /opt/xt-aegis
 COPY LICENSE README.md pyproject.toml ./
 COPY src ./src
-RUN python -m pip install --upgrade pip && python -m pip install ".[dev,mcp]"
+RUN /sandbox/.venv/bin/python -m pip install ".[dev,mcp]" \
+    && install -d -o sandbox -g sandbox /workspace
 
-RUN useradd --create-home --uid 10001 verifier
-USER verifier
-WORKDIR /workspace
+USER sandbox
+WORKDIR /sandbox
 
+# The OpenShell Community base is interactive and defaults to /bin/bash.
+# Clear that entrypoint so ordinary OCI commands and OpenShell's injected
+# supervisor command are executed directly rather than interpreted as shell text.
+ENTRYPOINT []
 CMD ["xt-aegis-mcp"]

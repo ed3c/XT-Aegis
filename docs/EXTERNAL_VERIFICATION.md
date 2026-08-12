@@ -1,5 +1,9 @@
 # External Verification
 
+> Contributor and agent implementation requirements are defined in
+> [`INTEGRATION_REQUIREMENTS.md`](INTEGRATION_REQUIREMENTS.md). This document describes the user-visible
+> verification model and operating contract.
+
 ## Purpose
 
 XT-Aegis separates project claims from the mechanism that checks them. A GitHub scanner, local agent,
