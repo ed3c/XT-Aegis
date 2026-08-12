@@ -152,8 +152,9 @@ Budget checks occur before the next provider or execution call. The Ollama adapt
 provider timeout and proposal-byte limit. The #53 implementation under review gives `HarnessRunner` one
 shared byte allowance across preconditions, the action, and postconditions; command pipes are read
 incrementally, and the child process group is terminated when the reader observes the first excess byte.
-Only bounded, redacted output is retained or persisted. A cached success is refused when replayed under a
-smaller allowance than its recorded output, rather than being relabeled as a valid bounded success.
+Only bounded, redacted output is retained or persisted. The persisted result records its execution output
+allowance; a cached success is refused when replayed under a smaller allowance that is below its observed
+output, while the same allowance preserves the original status.
 `output_original_bytes` is an exact count when the process exits normally and a lower bound when the process
 is terminated at the first observed excess byte. Exhaustion is a terminal, schema-valid result.
 

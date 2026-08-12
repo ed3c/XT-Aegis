@@ -208,6 +208,7 @@ class ExecutionResult(BaseModel):
     action_stderr: str = ""
     output_truncated: bool = False
     output_original_bytes: int = Field(default=0, ge=0)
+    output_budget_bytes: int | None = Field(default=None, ge=1)
     rolled_back: bool = False
     rollback_integrity: bool | None = None
     workspace_before_sha256: str

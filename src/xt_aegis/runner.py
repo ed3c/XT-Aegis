@@ -527,12 +527,20 @@ class HarnessRunner:
                 os.replace(temporary_path, target)
             finally:
                 temporary_path.unlink(missing_ok=True)
+            message = f"wrote {len(request.action.content.encode('utf-8'))} bytes"
+            stdout, _ = self._redact_and_bound_streams(
+                message.encode(),
+                b"",
+                max_output_bytes,
+            )
             return CheckResult(
                 description=f"write {request.action.relative_path}",
                 passed=True,
                 exit_code=0,
                 duration_ms=(time.perf_counter() - started) * 1000,
-                stdout=f"wrote {len(request.action.content.encode('utf-8'))} bytes",
+                stdout=stdout,
+                output_truncated=len(message.encode()) > max_output_bytes,
+                output_original_bytes=len(message.encode()),
             )
 
         if isinstance(request.action, CommandAction):
@@ -787,7 +795,15 @@ class HarnessRunner:
             "output_truncated": result.output_truncated or original_bytes > retained_bytes,
             "output_original_bytes": original_bytes,
         }
-        if result.cached_replay and result.success and original_bytes > limit:
+        recorded_budget = result.output_budget_bytes
+        is_stricter_replay = recorded_budget is not None and limit < recorded_budget
+        legacy_evidence_exceeds_limit = recorded_budget is None and current_bytes > limit
+        if (
+            result.cached_replay
+            and result.success
+            and original_bytes > limit
+            and (is_stricter_replay or legacy_evidence_exceeds_limit)
+        ):
             update.update(
                 {
                     "status": ExecutionStatus.BLOCKED,
@@ -858,6 +874,7 @@ class HarnessRunner:
         max_output_bytes: int,
     ) -> ExecutionResult:
         result = self._bound_execution_output(result, max_output_bytes)
+        result = result.model_copy(update={"output_budget_bytes": max_output_bytes})
         self.store.save_result(result)
         self.events.emit(
             trace_id=trace_id,

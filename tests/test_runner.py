@@ -351,6 +351,12 @@ def test_command_timeout_is_not_an_accepted_exit(runner) -> None:  # type: ignor
 
 
 def test_controller_deadline_clamps_a_longer_command_timeout(runner) -> None:  # type: ignore[no-untyped-def]
+    runner.skill = runner.skill.model_copy(
+        update={
+            "contract": runner.skill.contract.model_copy(update={"preconditions": [], "postconditions": []})
+        }
+    )
+    runner.policy.contract = runner.skill.contract
     script = _write_script(runner, "controller_sleep.py", "import time\ntime.sleep(5)\n")
     request = _command_request(
         action_id="command.controller.timeout",
@@ -608,7 +614,8 @@ def test_execution_output_budget_is_shared_across_conditions_and_action(runner) 
 
 
 def test_file_write_respects_output_remaining_after_precondition(runner) -> None:  # type: ignore[no-untyped-def]
-    script = _write_script(runner, "write_budget_precondition.py", "print('p' * 8)\n")
+    precondition = _write_script(runner, "write_budget_precondition.py", "print('p' * 8)\n")
+    postcondition = _write_script(runner, "silent_postcondition.py", "pass\n")
     runner.skill = runner.skill.model_copy(
         update={
             "contract": runner.skill.contract.model_copy(
@@ -616,10 +623,15 @@ def test_file_write_respects_output_remaining_after_precondition(runner) -> None
                     "preconditions": [
                         CommandSpec(
                             description="bounded baseline",
-                            argv=["python3", script],
+                            argv=["python3", precondition],
                         )
                     ],
-                    "postconditions": [],
+                    "postconditions": [
+                        CommandSpec(
+                            description="silent assertion",
+                            argv=["python3", postcondition],
+                        )
+                    ],
                 }
             )
         }
@@ -640,7 +652,13 @@ def test_file_write_respects_output_remaining_after_precondition(runner) -> None
     assert result.status == ExecutionStatus.SUCCEEDED
     assert result.success is True
     assert result.output_truncated is True
+    assert result.postconditions[0].passed is True
     assert (runner.workspace.root / "sample_project/app.py").read_text(encoding="utf-8") == GOOD_CODE
+
+    replay = runner.execute(request, max_output_bytes=12)
+    assert replay.cached_replay is True
+    assert replay.status == ExecutionStatus.SUCCEEDED
+    assert replay.output_budget_bytes == 12
 
 
 @pytest.mark.parametrize(
