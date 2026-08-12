@@ -56,7 +56,7 @@ level, or capability status changes.
 | `INTENT-018` | Keep repository prose, issues, retrieved memory, and model text outside execution authority. | root [`AGENTS.md`](../AGENTS.md), [`THREAT_MODEL.md`](THREAT_MODEL.md), [`PROMPT_INJECTION.md`](PROMPT_INJECTION.md) | established on `main`; reinforced by merged PRs #38–#42/#46 | `EVAL-FOUNDATION-08`, policy/negative tests | `current` | External integrations still own correct provenance and authority separation. |
 | `INTENT-019` | Accept one exact Git Town v24.0.0 Worker image before real XT-Aegis unattended use. | [`GIT_TOWN_LICENSE.md`](GIT_TOWN_LICENSE.md), [`STACKED_PRS.md`](STACKED_PRS.md), #44 | #44; future evidence PR limited to `docs/evidence/git-town-worker/v24.0.0/**` | `EVAL-GIT-LIVE-01..12` | `deployment-blocked` | No scheduled/background Worker may operate on a real XT-Aegis checkout until the exact profile is accepted. |
 | `INTENT-020` | Reconcile the completed documentation program without promoting runtime claims. | root [`AGENTS.md`](../AGENTS.md), root [`README.md`](../README.md), this index, [`docs/README.md`](README.md) | #45; merged PR #46; parent #32 closed | `EVAL-CLOSEOUT-01..08` | `current` | Documentation routing is complete; PRs #23/#31, issues #24–#30/#11/#12, and live Worker #44 remain separate work. |
-| `INTENT-021` | Package the Git Town adoption and unattended-worker rules as a repository-portable system prompt. | [`prompts/git-town-repository-bootstrap/README.md`](prompts/git-town-repository-bootstrap/README.md), ADR 0006 | #49; PR #50; `agent/git-town-bootstrap-prompt-pack` | `EVAL-PROMPT-01..12` | `under review` | The prompt defaults to assessment, contains no target-specific live identity, and cannot authorize adoption or deployment merely by being copied. |
+| `INTENT-021` | Package the Git Town adoption and unattended-worker rules as a repository-portable system prompt. | [`prompts/git-town-repository-bootstrap/README.md`](prompts/git-town-repository-bootstrap/README.md), ADR 0006 | #49; PR #50 | `EVAL-PROMPT-01..12` | `merged contract` | PR #50 packages a prompt contract only; copying it does not adopt Git Town or authorize a live Worker in another repository. |
 
 ## Documentation-first program
 
@@ -73,7 +73,7 @@ These PRs did not add or modify XT-Aegis Python product behavior.
 
 ## Reusable prompt package
 
-Issue #49 owns the portable package under
+Issue #49 and PR #50 establish the portable package under
 [`docs/prompts/git-town-repository-bootstrap/`](prompts/git-town-repository-bootstrap/).
 
 The package must remain:
