@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ed3c/XT-Aegis/trusted-proposal.schema.json",
+  "additionalProperties": false,
+  "description": "Bounded model-authored content without control-plane fields.",
+  "properties": {
+    "content": {
+      "maxLength": 262144,
+      "minLength": 1,
+      "title": "Content",
+      "type": "string"
+    },
+    "explanation": {
+      "anyOf": [
+        {
+          "maxLength": 4096,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Explanation"
+    }
+  },
+  "required": [
+    "content"
+  ],
+  "title": "Proposal",
+  "type": "object"
+}

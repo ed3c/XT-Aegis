@@ -3,9 +3,9 @@
 ## Status
 
 Partially implemented architecture contract for issue #35. Canonical request identity and declared command
-outcomes are delivered by PR #31: they are under review when this file is read from that PR and current when
-this exact change is present on `main`. The provider adapter, strong mutation isolation, controller, and
-benchmark remain tracked work.
+outcomes are current on `main`. The provider-neutral proposal boundary and experimental optional local Ollama adapter are
+under review in the #26 change when read from its branch and current only when that exact change is present on
+`main`. Strong mutation isolation, the controller, and benchmark remain tracked work.
 
 ## Goal
 
@@ -49,11 +49,27 @@ Returns a typed provider outcome: ready, refused, timed out, malformed, oversize
 error. Provider credentials, prompts, and wire formats stay outside the deterministic runner. Malformed or
 non-ready output never reaches mutation.
 
+The first experimental optional adapter uses Ollama's non-streaming local generate API for code-only `replace_file`
+proposals. Its default transport accepts only a loopback HTTP origin, disables environment proxies, rejects
+redirects, bounds response bytes and time, and checks the returned model against the configured model. The
+configured provider version is retained as operator-supplied profile metadata; it is not a server
+attestation. No live-model correctness or availability claim follows from adapter unit tests.
+
 ### Trusted envelope builder
 
-Combines validated proposal content with configured target scope, optimistic source identity, generated
-request identity, provenance, policy, assertions, backend requirement, and budgets. A changed proposal
-gets a changed request digest and cannot reuse prior approval or idempotent success.
+Combines validated proposal content with a trusted target path, optional optimistic source hash and actor
+label, generated thread/action/idempotency identifiers, `agent_proposal` provenance, and the active compiled
+skill identity. The current builder rejects non-normalized or non-allowlisted paths and enforces the active
+skill's UTF-8 byte limit before allocating identifiers. It returns an `ActionRequest` envelope but never
+invokes `HarnessRunner`; approval, backend selection, assertions, and controller budgets remain outside this
+proposal slice. A changed proposal with fresh identifiers gets a changed request digest and cannot be
+mistaken for an earlier request.
+
+The portable `trusted-proposal.schema.json` and the Pydantic `Proposal` model accept only bounded content
+and optional explanation. They reject unknown fields, including kind, provider profile, target, identity,
+approval, provenance, policy, backend, and budget fields. Trusted adapter code supplies the fixed proposal
+kind and retains redacted provider profile metadata separately in `ProposalOutcome`. The schema character
+bound is not a substitute for the builder's active-policy byte bound.
 
 ### Request identity
 
@@ -183,9 +199,9 @@ flowchart LR
     O[#12 runtime conformance] --> B
 ```
 
-PR #31 delivers #25 and #28; its state is under review until this change reaches `main`. PR #23 advances
-source-bound OpenShell verification but does not close #30 or prove the mutation-plane isolation required
-by #27.
+PR #31 delivered #25 and #28 to `main`. The #26 proposal slice remains under review until its exact change
+reaches `main`. PR #23 advances source-bound OpenShell verification but does not close #30 or prove the
+mutation-plane isolation required by #27.
 
 ## Implementation issue gate
 

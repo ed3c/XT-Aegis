@@ -98,7 +98,7 @@
     },
     {
       "id": "argv-no-shell",
-      "claim": "Command actions use argv arrays with shell=False and apply executable and argument policy checks.",
+      "claim": "Command actions use argv arrays with shell=False and apply executable, argument, working-directory, and network policy checks.",
       "status": "implemented",
       "evidence": [
         "src/xt_aegis/policy.py",
@@ -128,6 +128,44 @@
       },
       "limitations": [
         "An allowlisted interpreter or test suite can still perform behavior not visible from its executable name."
+      ]
+    },
+    {
+      "id": "declared-command-exit-contract",
+      "claim": "Command actions, preconditions, and postconditions use the declared expected exit-code set; undeclared codes, timeouts, signals, and failed assertions remain failures.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/models.py",
+        "src/xt_aegis/runner.py",
+        "tests/test_runner.py",
+        "docs/ARCHITECTURE.md"
+      ],
+      "verification": {
+        "argv": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_runner.py",
+          "-k",
+          "command_action or command_timeout or signal_termination or postcondition_failure or expected_exit_codes",
+          "-q"
+        ],
+        "cwd": ".",
+        "timeout_seconds": 180,
+        "expected_exit_codes": [
+          0
+        ],
+        "network": "deny",
+        "max_output_bytes": 1048576,
+        "artifacts": []
+      },
+      "expected": {
+        "status": "verified",
+        "assertions": {}
+      },
+      "limitations": [
+        "A declared exit code is an outcome contract, not proof of semantic correctness; postconditions and isolation remain required.",
+        "Portable declared process exits are restricted to integers from 0 through 255; signal return codes are never declarable."
       ]
     },
     {
@@ -203,10 +241,13 @@
     },
     {
       "id": "durable-checkpoint-idempotency",
-      "claim": "SQLite WAL persists runs, steps, approvals, events, resume position, and terminal idempotent results.",
+      "claim": "SQLite WAL persists runs, steps, approvals, events, and resume position while binding every idempotency key to one versioned canonical request and policy identity before replay.",
       "status": "implemented",
       "evidence": [
+        "src/xt_aegis/identity.py",
         "src/xt_aegis/checkpoint.py",
+        "src/xt_aegis/runner.py",
+        "tests/test_identity.py",
         "tests/test_checkpoint.py",
         "tests/test_runner.py"
       ],
@@ -215,14 +256,15 @@
           "python",
           "-m",
           "pytest",
+          "tests/test_identity.py",
           "tests/test_checkpoint.py",
           "tests/test_runner.py",
           "-k",
-          "idempot or resume or approval",
+          "identity or idempot or resume or legacy or checkpoint_schema",
           "-q"
         ],
         "cwd": ".",
-        "timeout_seconds": 120,
+        "timeout_seconds": 180,
         "expected_exit_codes": [
           0
         ],
@@ -235,16 +277,20 @@
         "assertions": {}
       },
       "limitations": [
-        "SQLite is a single-node backend; distributed leases and fencing tokens are not implemented."
+        "SQLite is a single-node backend; distributed leases and fencing tokens are not implemented.",
+        "Canonical digests provide integrity binding, not authenticated identity.",
+        "Legacy rows without digest fields fail closed and cannot replay a result."
       ]
     },
     {
       "id": "human-approval",
-      "claim": "High-risk actions suspend until a matching durable user approval is granted.",
+      "claim": "High-risk actions suspend until an unexpired, single-use approval bound to the exact canonical request, policy, and optional actor label is granted.",
       "status": "implemented",
       "evidence": [
+        "src/xt_aegis/identity.py",
         "src/xt_aegis/checkpoint.py",
         "src/xt_aegis/runner.py",
+        "tests/test_checkpoint.py",
         "tests/test_runner.py"
       ],
       "verification": {
@@ -252,6 +298,7 @@
           "python",
           "-m",
           "pytest",
+          "tests/test_checkpoint.py",
           "tests/test_runner.py",
           "-k",
           "approval",
@@ -271,7 +318,8 @@
         "assertions": {}
       },
       "limitations": [
-        "The MVP has no external identity provider or cryptographic approver authentication."
+        "The local runtime has no external identity provider or cryptographic approver authentication.",
+        "A crash after approval consumption fails closed and requires a fresh approval before retry."
       ]
     },
     {
@@ -527,6 +575,47 @@
       "limitations": [
         "Registry publication requires the PyPI package and OCI image to be publicly available.",
         "The official MCP Registry is an external service with its own preview status and availability."
+      ]
+    },
+    {
+      "id": "trusted-proposal-envelope",
+      "claim": "Provider output is constrained to a strict code proposal; trusted code supplies the target, provenance, fresh request identifiers, and active-policy binding before any execution.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/proposals.py",
+        "src/xt_aegis/providers/ollama.py",
+        "tests/test_proposals.py",
+        "tests/test_ollama_provider.py",
+        "verification/schemas/trusted-proposal.schema.json",
+        "docs/CODING_AGENT_HARNESS.md",
+        "docs/THREAT_MODEL.md"
+      ],
+      "verification": {
+        "argv": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_proposals.py",
+          "tests/test_ollama_provider.py",
+          "-q"
+        ],
+        "cwd": ".",
+        "timeout_seconds": 120,
+        "expected_exit_codes": [
+          0
+        ],
+        "network": "deny",
+        "max_output_bytes": 1048576,
+        "artifacts": []
+      },
+      "expected": {
+        "status": "verified",
+        "assertions": {}
+      },
+      "limitations": [
+        "The recipe uses deterministic fake or injected transports and does not contact a live Ollama service or establish model correctness, availability, privacy, or performance.",
+        "Provider version metadata is trusted configuration, not an attested response from the Ollama server.",
+        "A ready proposal remains untrusted data; this claim does not execute it or prove approval, mutation isolation, assertions, or end-to-end Harness behavior."
       ]
     },
     {

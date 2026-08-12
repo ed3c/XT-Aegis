@@ -578,6 +578,47 @@
       ]
     },
     {
+      "id": "trusted-proposal-envelope",
+      "claim": "Provider output is constrained to a strict code proposal; trusted code supplies the target, provenance, fresh request identifiers, and active-policy binding before any execution.",
+      "status": "implemented",
+      "evidence": [
+        "src/xt_aegis/proposals.py",
+        "src/xt_aegis/providers/ollama.py",
+        "tests/test_proposals.py",
+        "tests/test_ollama_provider.py",
+        "verification/schemas/trusted-proposal.schema.json",
+        "docs/CODING_AGENT_HARNESS.md",
+        "docs/THREAT_MODEL.md"
+      ],
+      "verification": {
+        "argv": [
+          "python",
+          "-m",
+          "pytest",
+          "tests/test_proposals.py",
+          "tests/test_ollama_provider.py",
+          "-q"
+        ],
+        "cwd": ".",
+        "timeout_seconds": 120,
+        "expected_exit_codes": [
+          0
+        ],
+        "network": "deny",
+        "max_output_bytes": 1048576,
+        "artifacts": []
+      },
+      "expected": {
+        "status": "verified",
+        "assertions": {}
+      },
+      "limitations": [
+        "The recipe uses deterministic fake or injected transports and does not contact a live Ollama service or establish model correctness, availability, privacy, or performance.",
+        "Provider version metadata is trusted configuration, not an attested response from the Ollama server.",
+        "A ready proposal remains untrusted data; this claim does not execute it or prove approval, mutation isolation, assertions, or end-to-end Harness behavior."
+      ]
+    },
+    {
       "id": "production-sandbox-profile",
       "claim": "A published profile proves isolation against host-secret reads, workspace escapes, resource exhaustion, and denied egress on supported hosts.",
       "status": "planned",

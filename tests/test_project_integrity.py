@@ -8,6 +8,12 @@ from xt_aegis.verification import load_registry
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_packaged_registry_matches_root_source_of_truth() -> None:
+    assert (ROOT / "src/xt_aegis/verification_assets/PROJECT_EVIDENCE.json").read_bytes() == (
+        ROOT / "PROJECT_EVIDENCE.json"
+    ).read_bytes()
+
+
 def test_distribution_metadata_and_ownership_markers_match() -> None:
     manifest = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
     server_name = manifest["name"]

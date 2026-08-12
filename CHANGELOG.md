@@ -10,7 +10,11 @@ project uses Semantic Versioning for published interfaces.
 - versioned canonical request and policy identities for replay, approval, results, and events;
 - SQLite checkpoint schema v2 migration with fail-closed legacy trust records and future-version rejection;
 - expiring, exact-request, optional-actor-bound, single-use approvals;
-- Harness coding-agent architecture and ordered implementation track.
+- Harness coding-agent architecture and ordered implementation track;
+- provider-neutral strict proposal contracts, trusted action-envelope construction, and a synchronized
+  portable proposal JSON Schema;
+- an optional loopback-only Ollama adapter with bounded no-proxy/no-redirect stdlib HTTP transport and
+  typed refusal, timeout, malformed, oversized, truncated, and provider-error outcomes;
 - an argv-only sandbox launcher that confines recipe working directories beneath the uploaded source root;
 - a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs.
 
@@ -26,7 +30,11 @@ project uses Semantic Versioning for published interfaces.
 
 - idempotency keys can no longer replay results across changed payloads, paths, arguments, provenance,
   assertions, actors, threads, actions, or policies;
-- legacy checkpoint and approval rows without canonical identity fields cannot authorize or replay work.
+- legacy checkpoint and approval rows without canonical identity fields cannot authorize or replay work;
+- model/provider output cannot supply target, identity, provenance, approval, policy, backend, or budget
+  authority through the trusted proposal schema and envelope builder;
+- Ollama proposal requests reject remote, credential-bearing, redirected, proxied, model-substituted, and
+  over-limit response paths before a proposal can become ready.
 
 ## [0.2.0] - 2026-08-09
 
