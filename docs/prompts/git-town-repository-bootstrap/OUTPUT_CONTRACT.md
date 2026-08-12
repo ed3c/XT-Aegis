@@ -109,5 +109,15 @@ git_town_bootstrap_result:
   next_safe_action: "{{ACTION_OR_NONE}}"
 ```
 
+## Output-value slots
+
+Double-brace values in the machine-readable example are output slots, not user inputs. They are resolved
+from discovered facts or set to `UNRESOLVED`:
+
+- `{{OWNER/NAME_OR_URL}}`, `{{FORGE_OR_UNRESOLVED}}`, `{{BRANCH_OR_UNRESOLVED}}`;
+- `{{MODE}}`, `{{LEVEL}}`, adoption and unattended-sync verdict enums;
+- `{{VERSION_OR_UNRESOLVED}}`, `{{SHA_OR_UNRESOLVED}}`, `{{SPDX_OR_UNRESOLVED}}`;
+- `{{OWNER_OR_UNRESOLVED}}`, evidence-status enums, and `{{ACTION_OR_NONE}}`.
+
 Do not include credentials, hidden chain-of-thought, private prompts, authorization headers, or unrestricted
 raw logs in this block.
