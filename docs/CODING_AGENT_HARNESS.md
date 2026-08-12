@@ -2,10 +2,11 @@
 
 ## Status
 
-Partially implemented architecture contract for issue #35. Canonical request identity and declared command
-outcomes are current on `main`. The provider-neutral proposal boundary and experimental optional local Ollama adapter are
-under review in the #26 change when read from its branch and current only when that exact change is present on
-`main`. Strong mutation isolation, the controller, and benchmark remain tracked work.
+Partially implemented architecture contract for issue #35. Canonical request identity, declared command
+outcomes, and the provider-neutral proposal boundary are current on `main`. The finite controller core is
+under review in the #29 change when read from its branch and current only when that exact change is present on
+`main`. Strong mutation isolation, process-restart resume, candidate selection, and model-backed benchmark
+evidence remain tracked work.
 
 ## Goal
 
@@ -111,7 +112,11 @@ no conformant backend is ready.
 ### Diagnose-repair controller
 
 Lives outside `HarnessRunner`. It converts bounded, redacted failure evidence into a provider-neutral
-repair request and records every attempt.
+repair request and records every attempt. The #29 implementation under review covers deterministic
+classification, fresh request identity, repeated-cycle detection, strict run context, and finite
+attempt/token/time/proposal/diagnostic/retained-output budgets. Executor results are accepted only when
+their thread, action, idempotency, request-digest version/value, and policy identities match the trusted
+envelope. It does not promote a live-model uplift claim.
 
 ## Failure taxonomy
 
@@ -143,8 +148,16 @@ The controller must enforce finite maximums for:
 - repeated-equivalent failures;
 - candidate branches when branch-and-evaluate is enabled later.
 
-Budget checks occur before the next provider or execution call. Exhaustion is a terminal, schema-valid
-result.
+Budget checks occur before the next provider or execution call. The Ollama adapter receives the remaining
+provider timeout and proposal-byte limit; `HarnessRunner` clamps command timeouts and returned action output
+to the controller's remaining allowance. Exhaustion is a terminal, schema-valid result.
+
+The wall budget is a cooperative provider/executor deadline plus a terminal gate. A non-conforming provider
+or an in-process file write cannot be preempted by this Python controller; an overrun is recorded and no
+later side effect is started. Prompt/completion counters are likewise provider-reported cooperative limits:
+an over-reporting call is rejected before execution, but cannot be retroactively shortened. Returned action
+output is bounded as retained evidence after the child exits; hard streaming process-output termination and
+strong process cancellation remain planned work.
 
 ## Attempt evidence
 

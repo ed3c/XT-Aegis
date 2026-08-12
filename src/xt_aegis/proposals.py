@@ -72,6 +72,11 @@ class ProposalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     task: str = Field(min_length=1, max_length=32_768)
+    max_prompt_tokens: int | None = Field(default=None, ge=1)
+    max_completion_tokens: int | None = Field(default=None, ge=1)
+    timeout_seconds: float | None = Field(default=None, ge=0.001, le=86_400.0)
+    max_proposal_bytes: int | None = Field(default=None, ge=1, le=10_485_760)
+    max_response_bytes: int | None = Field(default=None, ge=1, le=10_485_760)
 
 
 class ProposalOutcome(BaseModel):

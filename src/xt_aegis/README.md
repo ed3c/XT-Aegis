@@ -6,6 +6,7 @@
 |---|---|
 | `models.py`, `verification_models.py` | strict typed contracts |
 | `proposals.py` | provider-neutral proposals and trusted action-envelope construction |
+| `controller.py` | finite diagnose-repair transitions, budgets, and terminal evidence |
 | `providers/ollama.py` | optional loopback-only Ollama response adapter and bounded HTTP transport |
 | `skill.py` | SKILL YAML-front-matter compilation |
 | `policy.py` | provenance, path, command, and network-intent policy |

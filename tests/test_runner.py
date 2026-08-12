@@ -348,6 +348,40 @@ def test_command_timeout_is_not_an_accepted_exit(runner) -> None:  # type: ignor
     assert "timed out" in result.action_stderr
 
 
+def test_controller_deadline_clamps_a_longer_command_timeout(runner) -> None:  # type: ignore[no-untyped-def]
+    script = _write_script(runner, "controller_sleep.py", "import time\ntime.sleep(5)\n")
+    request = _command_request(
+        action_id="command.controller.timeout",
+        key="controller-timeout-0001",
+        script=script,
+        expected_exit_codes={0},
+        timeout_seconds=5.0,
+    )
+
+    result = runner.execute(request, timeout_seconds=0.1)
+
+    assert result.status == ExecutionStatus.ROLLED_BACK
+    assert result.duration_ms < 1000
+    assert "timed out" in result.action_stderr
+
+
+def test_controller_output_limit_bounds_returned_execution_evidence(runner) -> None:  # type: ignore[no-untyped-def]
+    script = _write_script(runner, "large_output.py", "print('x' * 100)\n")
+    request = _command_request(
+        action_id="command.output.limit",
+        key="controller-output-limit-0001",
+        script=script,
+        expected_exit_codes={0},
+    )
+
+    result = runner.execute(request, max_output_bytes=16)
+
+    assert result.status == ExecutionStatus.SUCCEEDED
+    assert len((result.action_stdout + result.action_stderr).encode()) <= 16
+    assert result.output_truncated is True
+    assert result.output_original_bytes > 16
+
+
 def test_signal_termination_is_not_an_accepted_exit(runner) -> None:  # type: ignore[no-untyped-def]
     script = _write_script(
         runner,

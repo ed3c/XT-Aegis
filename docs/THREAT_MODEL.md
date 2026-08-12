@@ -65,6 +65,27 @@ is not remotely attested; local host compromise, HTTP implementation flaws, mode
 handling inside Ollama remain outside this adapter's guarantee. A ready proposal is untrusted data until the
 existing policy, approval, isolation, execution, and assertion boundaries accept it.
 
+### T1B. Repair-loop amplification or stale authority reuse
+
+**Scenario:** A controller retries policy, approval, infrastructure, or recovery failures; reuses a prior
+request identity for changed content; leaks an unbounded or secret-bearing diagnostic into the next prompt;
+or continues after its attempt, token, wall-time, proposal, diagnostic, output, or repeated-cycle budget.
+
+**Controls:** orchestration remains outside `HarnessRunner`; only execution and assertion failures are
+retryable; every ready proposal passes through a fresh trusted envelope; attempt evidence binds provider,
+source commit/dirty state, backend profile, target, proposal/request/policy digests, and configured budgets;
+executor results must match the trusted thread/action/idempotency/request-version/request/policy identity;
+typed executor reason codes drive stop classification instead of diagnostic text; diagnostics are redacted
+and UTF-8 byte bounded before reuse; returned action output is truncated to the remaining evidence allowance;
+equivalent failures use a stable fingerprint; and missing token usage stops before another provider call.
+
+**Residual risk:** deterministic fake-provider tests do not establish live model correctness, privacy,
+availability, cost, or uplift. Controller state is not yet resumed across process restart, branch-and-select
+is not implemented, and command mutation still requires #27 strong isolation before autonomous use. The
+wall deadline cannot preempt a non-conforming provider or in-process file write; it prevents later calls and
+clamps the provided Ollama transport and command executor paths. Provider token counters are reported after
+the call, and command output is bounded when retained rather than terminated at the first excess byte.
+
 ### T2. Shell, interpreter, or outcome-contract injection
 
 **Scenario:** A recipe or action supplies command chaining, a path-qualified executable, inline code, or an

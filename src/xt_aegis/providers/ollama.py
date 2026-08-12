@@ -213,6 +213,22 @@ class OllamaProposalProvider:
             version=redact_text(self.config.version, limit=80),
             sampling=self.config.sampling,
         )
+        completion_limit = min(
+            self.config.sampling.max_output_tokens,
+            request.max_completion_tokens or self.config.sampling.max_output_tokens,
+        )
+        context_limit = min(
+            self.config.sampling.context_tokens,
+            (request.max_prompt_tokens or self.config.sampling.context_tokens) + completion_limit,
+        )
+        response_limit = min(
+            self.config.max_response_bytes,
+            request.max_response_bytes or self.config.max_response_bytes,
+        )
+        timeout_seconds = min(
+            self.config.timeout_seconds,
+            request.timeout_seconds or self.config.timeout_seconds,
+        )
         payload = json.dumps(
             {
                 "model": self.config.model,
@@ -222,8 +238,8 @@ class OllamaProposalProvider:
                 "options": {
                     "temperature": self.config.sampling.temperature,
                     "seed": self.config.sampling.seed,
-                    "num_ctx": self.config.sampling.context_tokens,
-                    "num_predict": self.config.sampling.max_output_tokens,
+                    "num_ctx": context_limit,
+                    "num_predict": completion_limit,
                 },
             },
             separators=(",", ":"),
@@ -232,8 +248,8 @@ class OllamaProposalProvider:
             response = self.transport.post_json(
                 f"{self.config.endpoint}/api/generate",
                 payload,
-                self.config.timeout_seconds,
-                self.config.max_response_bytes,
+                timeout_seconds,
+                response_limit,
             )
         except OllamaResponseTooLarge as exc:
             return self._failure(ProposalStatus.OVERSIZED, profile, str(exc))
@@ -282,6 +298,12 @@ class OllamaProposalProvider:
                 ProposalStatus.MALFORMED,
                 profile,
                 "Ollama response omitted required completion fields",
+            )
+        if request.max_proposal_bytes is not None and len(content.encode()) > request.max_proposal_bytes:
+            return self._failure(
+                ProposalStatus.OVERSIZED,
+                profile,
+                f"Ollama proposal exceeded {request.max_proposal_bytes} bytes",
             )
 
         try:
