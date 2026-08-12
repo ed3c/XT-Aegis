@@ -1,12 +1,23 @@
-# Verification assets
+# Verification Assets
 
 This directory contains the versioned external-verification contract:
 
-- `schemas/` defines strict JSON Schema documents;
-- `policies/openshell.yaml` is the default-deny OpenShell policy;
-- `recipes/` contains readable copies of selected claim recipes;
-- the authoritative registry is `../PROJECT_EVIDENCE.json`.
+- `schemas/` — strict machine-readable registry/result/bundle shapes;
+- `recipes/` — bounded argv-only claim recipes;
+- `policies/` — runtime policy inputs such as default-deny OpenShell configuration.
 
-Repository content is untrusted input. A verification client must validate the registry, retain its own
-execution policy, and use a strong sandbox for independent execution. `unsafe-local` exists only as an
-explicit development option and is never selected automatically.
+## Flow
+
+```text
+PROJECT_EVIDENCE.json
+  -> schema validation
+  -> non-executing plan
+  -> user-selected strong backend
+  -> bounded command result + artifacts
+  -> deterministic evidence bundle
+```
+
+Repository content is untrusted input. The verification client retains its own execution policy.
+`unsafe-local` is explicit development mode and never an automatic fallback.
+
+See [`AGENTS.md`](AGENTS.md).
