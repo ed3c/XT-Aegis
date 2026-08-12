@@ -18,14 +18,18 @@
         },
         "action_expected_exit_codes": {
           "items": {
+            "maximum": 255,
+            "minimum": 0,
             "type": "integer"
           },
+          "maxItems": 256,
           "title": "Action Expected Exit Codes",
           "type": "array"
         },
         "action_id": {
           "anyOf": [
             {
+              "maxLength": 128,
               "type": "string"
             },
             {
@@ -34,13 +38,6 @@
           ],
           "default": null,
           "title": "Action Id"
-        },
-        "artifact_identities": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Artifact Identities",
-          "type": "object"
         },
         "assertions_passed": {
           "anyOf": [
@@ -60,6 +57,7 @@
           "type": "integer"
         },
         "backend_profile": {
+          "maxLength": 160,
           "title": "Backend Profile",
           "type": "string"
         },
@@ -93,6 +91,7 @@
           "title": "Cycle Fingerprint"
         },
         "diagnostic": {
+          "maxLength": 1048576,
           "title": "Diagnostic",
           "type": "string"
         },
@@ -149,6 +148,7 @@
         "execution_request_digest_version": {
           "anyOf": [
             {
+              "maxLength": 32,
               "type": "string"
             },
             {
@@ -184,6 +184,7 @@
         "idempotency_key": {
           "anyOf": [
             {
+              "maxLength": 160,
               "type": "string"
             },
             {
@@ -207,6 +208,7 @@
         },
         "limitations": {
           "items": {
+            "maxLength": 1024,
             "type": "string"
           },
           "maxItems": 32,
@@ -249,6 +251,7 @@
           "items": {
             "$ref": "#/$defs/ControllerCheckEvidence"
           },
+          "maxItems": 16,
           "title": "Postconditions",
           "type": "array"
         },
@@ -256,6 +259,7 @@
           "items": {
             "$ref": "#/$defs/ControllerCheckEvidence"
           },
+          "maxItems": 16,
           "title": "Preconditions",
           "type": "array"
         },
@@ -311,6 +315,7 @@
         "request_digest_version": {
           "anyOf": [
             {
+              "maxLength": 32,
               "type": "string"
             },
             {
@@ -333,6 +338,7 @@
           "title": "Rollback Integrity"
         },
         "target_path": {
+          "maxLength": 512,
           "title": "Target Path",
           "type": "string"
         },
@@ -456,6 +462,7 @@
           "title": "Actual Exit Code"
         },
         "description": {
+          "maxLength": 240,
           "title": "Description",
           "type": "string"
         },
@@ -466,8 +473,11 @@
         },
         "expected_exit_codes": {
           "items": {
+            "maximum": 255,
+            "minimum": 0,
             "type": "integer"
           },
+          "maxItems": 256,
           "title": "Expected Exit Codes",
           "type": "array"
         },
@@ -508,6 +518,7 @@
         },
         "limitations": {
           "items": {
+            "maxLength": 1024,
             "type": "string"
           },
           "maxItems": 32,
@@ -679,6 +690,7 @@
       "items": {
         "$ref": "#/$defs/ControllerAttempt"
       },
+      "maxItems": 100,
       "title": "Attempts",
       "type": "array"
     },
@@ -689,6 +701,7 @@
       "$ref": "#/$defs/ControllerRunContext"
     },
     "diagnostic": {
+      "maxLength": 1048576,
       "title": "Diagnostic",
       "type": "string"
     },

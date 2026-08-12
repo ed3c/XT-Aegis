@@ -154,7 +154,10 @@ to the controller's remaining allowance. Exhaustion is a terminal, schema-valid 
 
 The wall budget is a cooperative provider/executor deadline plus a terminal gate. A non-conforming provider
 or an in-process file write cannot be preempted by this Python controller; an overrun is recorded and no
-later side effect is started. Strong process cancellation remains planned work.
+later side effect is started. Prompt/completion counters are likewise provider-reported cooperative limits:
+an over-reporting call is rejected before execution, but cannot be retroactively shortened. Returned action
+output is bounded as retained evidence after the child exits; hard streaming process-output termination and
+strong process cancellation remain planned work.
 
 ## Attempt evidence
 

@@ -662,6 +662,8 @@
       "limitations": [
         "Tests use deterministic fake providers or injected transports; no live model correctness, privacy, availability, performance, cost, or uplift claim is established.",
         "The wall-time gate passes remaining deadlines to the Ollama and command-execution paths and stops later calls after an overrun; it cannot preempt a non-conforming provider or an in-process file write.",
+        "Prompt and completion tokens are provider-reported after a call; an over-reporting provider is rejected before execution or retry, but the controller cannot retroactively cap that call.",
+        "Action output is byte-bounded when retained and returned; streaming termination at the first excess byte is not implemented.",
         "Controller state is not resumed across process restart and branch-and-select candidate evaluation is not implemented.",
         "The controller does not add command mutation isolation; autonomous command retries remain gated by issue #27 and live runtime conformance."
       ]

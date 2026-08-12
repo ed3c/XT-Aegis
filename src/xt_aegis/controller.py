@@ -6,7 +6,7 @@ import hashlib
 import time
 from collections.abc import Callable
 from enum import StrEnum
-from typing import Any, Literal, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -31,6 +31,9 @@ from xt_aegis.proposals import (
     build_action_request,
 )
 from xt_aegis.redaction import redact_text
+
+BoundedEvidenceText = Annotated[str, Field(max_length=1_024)]
+BoundedExitCode = Annotated[int, Field(ge=0, le=255)]
 
 
 class ControllerStopReason(StrEnum):
@@ -74,7 +77,7 @@ class ControllerRunContext(BaseModel):
     backend_profile: str = Field(min_length=1, max_length=160)
     readiness_verdict: bool
     isolation_verdict: bool | None = None
-    limitations: list[str] = Field(default_factory=list, max_length=32)
+    limitations: list[BoundedEvidenceText] = Field(default_factory=list, max_length=32)
 
 
 class ControllerCheckEvidence(BaseModel):
@@ -82,10 +85,10 @@ class ControllerCheckEvidence(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    description: str
+    description: str = Field(max_length=240)
     passed: bool
     actual_exit_code: int | None = None
-    expected_exit_codes: list[int] = Field(default_factory=list)
+    expected_exit_codes: list[BoundedExitCode] = Field(default_factory=list, max_length=256)
     duration_ms: float = Field(ge=0.0)
 
 
@@ -97,8 +100,8 @@ class ControllerAttempt(BaseModel):
     attempt_number: int = Field(ge=1)
     proposal_status: ProposalStatus
     provider_profile: ProviderProfile
-    target_path: str
-    backend_profile: str
+    target_path: str = Field(max_length=512)
+    backend_profile: str = Field(max_length=160)
     readiness_verdict: bool
     isolation_verdict: bool | None = None
     execution_status: ExecutionStatus | None = None
@@ -106,32 +109,31 @@ class ControllerAttempt(BaseModel):
     execution_success: bool | None = None
     classification: ControllerStopReason
     next_transition: Literal["repair", "stop"]
-    diagnostic: str
+    diagnostic: str = Field(max_length=1_048_576)
     proposal_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
-    request_digest_version: str | None = None
+    request_digest_version: str | None = Field(default=None, max_length=32)
     request_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     policy_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
-    execution_request_digest_version: str | None = None
+    execution_request_digest_version: str | None = Field(default=None, max_length=32)
     execution_request_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     execution_policy_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     cycle_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
-    action_id: str | None = None
-    idempotency_key: str | None = None
+    action_id: str | None = Field(default=None, max_length=128)
+    idempotency_key: str | None = Field(default=None, max_length=160)
     prompt_tokens: int | None = Field(default=None, ge=0)
     completion_tokens: int | None = Field(default=None, ge=0)
     output_bytes: int = Field(default=0, ge=0)
     output_truncated: bool = False
-    preconditions: list[ControllerCheckEvidence] = Field(default_factory=list)
-    postconditions: list[ControllerCheckEvidence] = Field(default_factory=list)
+    preconditions: list[ControllerCheckEvidence] = Field(default_factory=list, max_length=16)
+    postconditions: list[ControllerCheckEvidence] = Field(default_factory=list, max_length=16)
     assertions_passed: bool | None = None
     rollback_integrity: bool | None = None
     action_exit_code: int | None = None
-    action_expected_exit_codes: list[int] = Field(default_factory=list)
+    action_expected_exit_codes: list[BoundedExitCode] = Field(default_factory=list, max_length=256)
     execution_duration_ms: float | None = Field(default=None, ge=0.0)
     workspace_before_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     workspace_after_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
-    artifact_identities: dict[str, str] = Field(default_factory=dict)
-    limitations: list[str] = Field(default_factory=list, max_length=32)
+    limitations: list[BoundedEvidenceText] = Field(default_factory=list, max_length=32)
 
 
 class ControllerResult(BaseModel):
@@ -141,10 +143,10 @@ class ControllerResult(BaseModel):
 
     success: bool
     stop_reason: ControllerStopReason
-    diagnostic: str
+    diagnostic: str = Field(max_length=1_048_576)
     context: ControllerRunContext
     budgets: ControllerBudgets
-    attempts: list[ControllerAttempt]
+    attempts: list[ControllerAttempt] = Field(max_length=100)
     total_attempts: int = Field(ge=0)
     total_prompt_tokens: int = Field(ge=0)
     total_completion_tokens: int = Field(ge=0)
@@ -361,21 +363,33 @@ class DiagnoseRepairController:
                 request_digest=envelope.request_identity.digest,
                 policy_digest=envelope.request_identity.policy_digest,
             )
+            elapsed = self.clock() - started
+            wall_reason = (
+                f"wall-clock budget exceeded: {elapsed:.3f}s > {self.budgets.max_wall_seconds:.3f}s"
+                if elapsed > self.budgets.max_wall_seconds
+                else None
+            )
             classification = (
                 ControllerStopReason.RECOVERY_FAILED
                 if identity_reason is not None
-                else self._classify_execution(execution)
+                else (
+                    ControllerStopReason.BUDGET_EXHAUSTED
+                    if wall_reason is not None
+                    else self._classify_execution(execution)
+                )
             )
             diagnostic = self._execution_diagnostic(execution, classification)
             if identity_reason is not None:
                 diagnostic = self._bounded_diagnostic(identity_reason)
+            elif wall_reason is not None:
+                diagnostic = wall_reason
             retained_output_bytes = len(execution.action_stdout.encode()) + len(
                 execution.action_stderr.encode()
             )
             reported_output_bytes = max(execution.output_original_bytes, retained_output_bytes)
             output_bytes = min(reported_output_bytes, remaining_output_bytes)
             output_truncated = execution.output_truncated or reported_output_bytes > remaining_output_bytes
-            if output_truncated and identity_reason is None:
+            if output_truncated and identity_reason is None and wall_reason is None:
                 classification = ControllerStopReason.BUDGET_EXHAUSTED
                 diagnostic = (
                     "execution output budget exceeded: "
@@ -436,10 +450,6 @@ class DiagnoseRepairController:
                     execution_duration_ms=execution.duration_ms,
                     workspace_before_sha256=execution.workspace_before_sha256,
                     workspace_after_sha256=execution.workspace_after_sha256,
-                    artifact_identities={
-                        "workspace_before_sha256": execution.workspace_before_sha256,
-                        "workspace_after_sha256": execution.workspace_after_sha256,
-                    },
                 )
             )
             if classification == ControllerStopReason.PASSED:
@@ -597,10 +607,10 @@ class DiagnoseRepairController:
 
     @staticmethod
     def _classify_execution(execution: ExecutionResult) -> ControllerStopReason:
-        if execution.success and execution.status == ExecutionStatus.SUCCEEDED:
-            return ControllerStopReason.PASSED
         if execution.rollback_integrity is False:
             return ControllerStopReason.RECOVERY_FAILED
+        if execution.success and execution.status == ExecutionStatus.SUCCEEDED:
+            return ControllerStopReason.PASSED
         if execution.status == ExecutionStatus.SUSPENDED:
             return ControllerStopReason.APPROVAL_REQUIRED
         if any(not check.passed for check in execution.preconditions):

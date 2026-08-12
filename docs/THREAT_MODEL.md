@@ -83,7 +83,8 @@ equivalent failures use a stable fingerprint; and missing token usage stops befo
 availability, cost, or uplift. Controller state is not yet resumed across process restart, branch-and-select
 is not implemented, and command mutation still requires #27 strong isolation before autonomous use. The
 wall deadline cannot preempt a non-conforming provider or in-process file write; it prevents later calls and
-clamps the provided Ollama transport and command executor paths.
+clamps the provided Ollama transport and command executor paths. Provider token counters are reported after
+the call, and command output is bounded when retained rather than terminated at the first excess byte.
 
 ### T2. Shell, interpreter, or outcome-contract injection
 

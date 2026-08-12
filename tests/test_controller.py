@@ -291,7 +291,7 @@ def test_ready_proposal_executes_once_and_records_passed_evidence(
     assert attempt.rollback_integrity is None
     assert attempt.next_transition == "stop"
     assert attempt.workspace_before_sha256 is not None
-    assert attempt.artifact_identities["workspace_after_sha256"]
+    assert attempt.workspace_after_sha256 is not None
     assert attempt.limitations == _context().limitations
     assert result.context == _context()
     assert result.budgets.max_attempts == 2
@@ -490,6 +490,41 @@ def test_policy_reason_text_cannot_impersonate_typed_budget_code(
     result = controller.run(task="Propose one bounded change.")
 
     assert result.stop_reason == ControllerStopReason.POLICY_DENIED
+
+
+def test_contradictory_success_with_failed_rollback_is_recovery_failure(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    controller = DiagnoseRepairController(
+        provider=RecordingProvider(
+            outcomes=[
+                ProposalOutcome(
+                    status=ProposalStatus.READY,
+                    profile=_profile(),
+                    proposal=Proposal(content="safe\n"),
+                )
+            ]
+        ),
+        executor=SequenceExecutor(
+            [
+                _execution_result(
+                    status=ExecutionStatus.SUCCEEDED,
+                    rollback_integrity=False,
+                )
+            ],
+            skill=compiled_skill,
+        ),
+        skill=compiled_skill,
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
+        budgets=ControllerBudgets(),
+        identity_source=FixedIdentitySource(),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert result.stop_reason == ControllerStopReason.RECOVERY_FAILED
+    assert result.success is False
 
 
 @pytest.mark.parametrize(
@@ -880,6 +915,43 @@ def test_wall_budget_stops_before_requesting_another_repair(
     assert result.duration_ms == 1100.0
     assert "wall-clock budget exceeded" in result.diagnostic
     assert len(provider.requests) == 1
+
+
+def test_executor_wall_overrun_cannot_be_recorded_as_passed(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    clock = MutableClock()
+    executor = ClockAdvancingExecutor(
+        _execution_result(status=ExecutionStatus.SUCCEEDED),
+        skill=compiled_skill,
+        clock=clock,
+        advance_to=1.1,
+    )
+    controller = DiagnoseRepairController(
+        provider=RecordingProvider(
+            outcomes=[
+                ProposalOutcome(
+                    status=ProposalStatus.READY,
+                    profile=_profile(),
+                    proposal=Proposal(content="safe\n"),
+                    usage=ProviderUsage(prompt_tokens=1, completion_tokens=1),
+                )
+            ]
+        ),
+        executor=executor,
+        skill=compiled_skill,
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
+        budgets=ControllerBudgets(max_wall_seconds=1.0),
+        identity_source=FixedIdentitySource(),
+        clock=clock,
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert result.stop_reason == ControllerStopReason.BUDGET_EXHAUSTED
+    assert result.attempts[0].classification == ControllerStopReason.BUDGET_EXHAUSTED
+    assert "wall-clock budget exceeded" in result.diagnostic
 
 
 def test_execution_output_budget_stops_before_repair(
