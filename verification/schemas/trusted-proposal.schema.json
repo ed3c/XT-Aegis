@@ -1,87 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/ed3c/XT-Aegis/trusted-proposal.schema.json",
-  "$defs": {
-    "ProviderProfile": {
-      "additionalProperties": false,
-      "description": "Provider identity metadata; it carries no execution authority.",
-      "properties": {
-        "provider": {
-          "maxLength": 64,
-          "minLength": 1,
-          "title": "Provider",
-          "type": "string"
-        },
-        "model": {
-          "maxLength": 160,
-          "minLength": 1,
-          "title": "Model",
-          "type": "string"
-        },
-        "version": {
-          "maxLength": 80,
-          "minLength": 1,
-          "title": "Version",
-          "type": "string"
-        },
-        "sampling": {
-          "$ref": "#/$defs/SamplingProfile"
-        }
-      },
-      "required": [
-        "provider",
-        "model",
-        "version",
-        "sampling"
-      ],
-      "title": "ProviderProfile",
-      "type": "object"
-    },
-    "SamplingProfile": {
-      "additionalProperties": false,
-      "description": "Bounded sampling metadata retained for exact-profile reproduction.",
-      "properties": {
-        "temperature": {
-          "maximum": 2.0,
-          "minimum": 0.0,
-          "title": "Temperature",
-          "type": "number"
-        },
-        "seed": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Seed"
-        },
-        "max_output_tokens": {
-          "maximum": 32768,
-          "minimum": 1,
-          "title": "Max Output Tokens",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "temperature",
-        "max_output_tokens"
-      ],
-      "title": "SamplingProfile",
-      "type": "object"
-    }
-  },
   "additionalProperties": false,
   "description": "Bounded model-authored content without control-plane fields.",
   "properties": {
-    "kind": {
-      "const": "replace_file",
-      "title": "Kind",
-      "type": "string"
-    },
     "content": {
       "maxLength": 262144,
       "minLength": 1,
@@ -100,15 +22,10 @@
       ],
       "default": null,
       "title": "Explanation"
-    },
-    "profile": {
-      "$ref": "#/$defs/ProviderProfile"
     }
   },
   "required": [
-    "kind",
-    "content",
-    "profile"
+    "content"
   ],
   "title": "Proposal",
   "type": "object"

@@ -65,8 +65,10 @@ invokes `HarnessRunner`; approval, backend selection, assertions, and controller
 proposal slice. A changed proposal with fresh identifiers gets a changed request digest and cannot be
 mistaken for an earlier request.
 
-The portable `trusted-proposal.schema.json` and the Pydantic `Proposal` model reject unknown fields,
-including target, identity, approval, provenance, policy, backend, and budget fields. The schema character
+The portable `trusted-proposal.schema.json` and the Pydantic `Proposal` model accept only bounded content
+and optional explanation. They reject unknown fields, including kind, provider profile, target, identity,
+approval, provenance, policy, backend, and budget fields. Trusted adapter code supplies the fixed proposal
+kind and retains redacted provider profile metadata separately in `ProposalOutcome`. The schema character
 bound is not a substitute for the builder's active-policy byte bound.
 
 ### Request identity

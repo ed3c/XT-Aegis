@@ -7,7 +7,7 @@ import secrets
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import PurePosixPath
-from typing import Literal, Protocol
+from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -41,10 +41,8 @@ class Proposal(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    kind: Literal["replace_file"]
     content: str = Field(min_length=1, max_length=262_144)
     explanation: str | None = Field(default=None, max_length=4_096)
-    profile: ProviderProfile
 
 
 class ProposalStatus(StrEnum):
@@ -168,13 +166,17 @@ class TrustedActionEnvelope:
 
 
 def build_action_request(
-    proposal: Proposal,
+    outcome: ProposalOutcome,
     *,
     trusted: TrustedEnvelopeConfig,
     skill: CompiledSkill,
     identity_source: RequestIdentitySource | None = None,
 ) -> TrustedActionEnvelope:
     """Build one policy-bound request without accepting provider authority fields."""
+
+    if outcome.status != ProposalStatus.READY or outcome.proposal is None:
+        raise ValueError("ready proposal outcome is required to build an action request")
+    proposal = outcome.proposal
 
     target = PurePosixPath(trusted.target_path)
     normalized_target = (
@@ -209,5 +211,5 @@ def build_action_request(
     return TrustedActionEnvelope(
         request=request,
         request_identity=RequestIdentity.from_request(request, skill=skill),
-        provider_profile=proposal.profile,
+        provider_profile=outcome.profile,
     )

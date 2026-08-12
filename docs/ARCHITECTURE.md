@@ -61,11 +61,12 @@ intent. This is process-level policy, not OS isolation.
 ### `ProposalProvider` and trusted envelope builder
 
 `ProposalProvider` is a provider-neutral boundary that returns one typed outcome. A ready `Proposal`
-contains replacement content, optional bounded explanation, and provider profile metadata; strict models
-and `trusted-proposal.schema.json` reject control-plane extras. `build_action_request` combines that data
-with a trusted target, actor label, optional expected source hash, fresh identifiers, fixed provenance, and
-the active compiled skill. It rejects path or byte-limit violations before identity allocation and does not
-execute the request.
+contains only replacement content and optional bounded explanation; strict models and
+`trusted-proposal.schema.json` reject kind, profile, and control-plane extras. The enclosing outcome retains
+redacted profile metadata supplied by trusted adapter code. `build_action_request` accepts only a ready
+outcome and combines its proposal with a trusted target, actor label, optional expected source hash, fresh
+identifiers, fixed provenance/kind, and the active compiled skill. It rejects path or byte-limit violations
+before identity allocation and does not execute the request.
 
 The optional Ollama adapter is local-only: plain HTTP loopback origins, no URL credentials/path/query,
 environment proxies disabled, redirects refused, bounded response reads, typed failure outcomes, and exact

@@ -73,6 +73,27 @@ class OllamaConfig(BaseModel):
         return value.rstrip("/")
 
 
+class OllamaGenerateResponse(BaseModel):
+    """Strict subset of the non-streaming generate response used by the adapter."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    model: str | None = None
+    created_at: str | None = None
+    response: str | None = None
+    thinking: str | None = None
+    done: bool | None = None
+    done_reason: str | None = None
+    error: str | None = None
+    context: list[int] | None = None
+    total_duration: int | float | None = Field(default=None, ge=0)
+    load_duration: int | float | None = Field(default=None, ge=0)
+    prompt_eval_count: int | None = Field(default=None, ge=0)
+    prompt_eval_duration: int | float | None = Field(default=None, ge=0)
+    eval_count: int | None = Field(default=None, ge=0)
+    eval_duration: int | float | None = Field(default=None, ge=0)
+
+
 @dataclass(frozen=True, slots=True)
 class OllamaHttpResponse:
     status_code: int
@@ -188,8 +209,8 @@ class OllamaProposalProvider:
     def propose(self, request: ProposalRequest) -> ProposalOutcome:
         profile = ProviderProfile(
             provider="ollama",
-            model=self.config.model,
-            version=self.config.version,
+            model=redact_text(self.config.model, limit=160),
+            version=redact_text(self.config.version, limit=80),
             sampling=self.config.sampling,
         )
         payload = json.dumps(
@@ -245,22 +266,17 @@ class OllamaProposalProvider:
                 self._response_error(decoded, response.status_code),
             )
 
-        error = decoded.get("error")
-        if isinstance(error, str) and error:
+        error = decoded.error
+        if error:
             return self._failure(ProposalStatus.REFUSED, profile, error)
-        if decoded.get("done") is False or decoded.get("done_reason") == "length":
+        if decoded.done is False or decoded.done_reason == "length":
             return self._failure(
                 ProposalStatus.TRUNCATED,
                 profile,
                 "Ollama response did not reach a completed state",
             )
-        content = decoded.get("response")
-        if (
-            decoded.get("done") is not True
-            or decoded.get("model") != self.config.model
-            or not isinstance(content, str)
-            or not content
-        ):
+        content = decoded.response
+        if decoded.done is not True or decoded.model != self.config.model or not content:
             return self._failure(
                 ProposalStatus.MALFORMED,
                 profile,
@@ -269,9 +285,7 @@ class OllamaProposalProvider:
 
         try:
             proposal = Proposal(
-                kind="replace_file",
                 content=content,
-                profile=profile,
             )
             usage = self._usage(decoded)
         except (TypeError, ValueError, ValidationError):
@@ -288,36 +302,26 @@ class OllamaProposalProvider:
         )
 
     @staticmethod
-    def _decode_response(body: bytes) -> dict[str, object] | None:
+    def _decode_response(body: bytes) -> OllamaGenerateResponse | None:
         try:
             decoded = json.loads(body.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+            return OllamaGenerateResponse.model_validate(decoded)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, ValidationError):
             return None
-        return decoded if isinstance(decoded, dict) else None
 
     @staticmethod
-    def _response_error(decoded: dict[str, object], status_code: int) -> str:
-        error = decoded.get("error")
-        if isinstance(error, str) and error:
+    def _response_error(decoded: OllamaGenerateResponse, status_code: int) -> str:
+        error = decoded.error
+        if error:
             return f"Ollama HTTP {status_code}: {error}"
         return f"Ollama HTTP {status_code}"
 
     @staticmethod
-    def _usage(decoded: dict[str, object]) -> ProviderUsage:
-        def optional_count(field: str) -> int | None:
-            value = decoded.get(field)
-            if value is None:
-                return None
-            if isinstance(value, bool) or not isinstance(value, int):
-                raise ValueError(f"invalid Ollama counter: {field}")
-            return value
-
-        duration = decoded.get("total_duration")
-        if isinstance(duration, bool) or (duration is not None and not isinstance(duration, (int, float))):
-            raise ValueError("invalid Ollama duration")
+    def _usage(decoded: OllamaGenerateResponse) -> ProviderUsage:
+        duration = decoded.total_duration
         return ProviderUsage(
-            prompt_tokens=optional_count("prompt_eval_count"),
-            completion_tokens=optional_count("eval_count"),
+            prompt_tokens=decoded.prompt_eval_count,
+            completion_tokens=decoded.eval_count,
             total_duration_ms=duration / 1_000_000 if duration is not None else None,
         )
 

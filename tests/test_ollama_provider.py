@@ -64,12 +64,17 @@ def test_ollama_code_only_response_becomes_ready_proposal() -> None:
             body=json.dumps(
                 {
                     "model": "qwen3:4b",
+                    "created_at": "2026-08-12T00:00:00Z",
                     "response": "def calculate_tax(amount: float) -> float:\n    return amount * 0.07\n",
                     "done": True,
                     "done_reason": "stop",
+                    "context": [1, 2, 3],
                     "total_duration": 2_500_000,
+                    "load_duration": 100_000,
                     "prompt_eval_count": 12,
+                    "prompt_eval_duration": 900_000,
                     "eval_count": 18,
+                    "eval_duration": 1_500_000,
                 }
             ).encode(),
         )
@@ -130,6 +135,7 @@ def test_ollama_config_rejects_non_local_or_credential_bearing_endpoint(
     [
         (OllamaHttpResponse(200, b"\xff"), ProposalStatus.MALFORMED),
         (OllamaHttpResponse(200, b"not json"), ProposalStatus.MALFORMED),
+        (OllamaHttpResponse(200, b"1" + b"0" * 5000), ProposalStatus.MALFORMED),
         (OllamaHttpResponse(200, b'{"done":true}'), ProposalStatus.MALFORMED),
         (
             OllamaHttpResponse(200, b'{"response":"partial","done":false}'),
@@ -146,6 +152,13 @@ def test_ollama_config_rejects_non_local_or_credential_bearing_endpoint(
             OllamaHttpResponse(
                 200,
                 b'{"model":"other:latest","response":"code","done":true}',
+            ),
+            ProposalStatus.MALFORMED,
+        ),
+        (
+            OllamaHttpResponse(
+                200,
+                b'{"model":"qwen3:4b","response":"code","done":true,"target_path":"outside.py"}',
             ),
             ProposalStatus.MALFORMED,
         ),
@@ -191,6 +204,22 @@ def test_ollama_transport_failures_are_typed_and_redacted(
     assert outcome.status == expected_status
     assert outcome.proposal is None
     assert "supersecret" not in outcome.diagnostic
+
+
+def test_ollama_profile_metadata_is_redacted() -> None:
+    config = ollama_config().model_copy(update={"model": "password=supersecret", "version": "secret=hidden"})
+    response = OllamaHttpResponse(
+        200,
+        b'{"model":"password=supersecret","response":"code","done":true}',
+    )
+
+    outcome = OllamaProposalProvider(config, transport=FakeOllamaTransport(response)).propose(
+        ProposalRequest(task="Propose code.")
+    )
+
+    assert outcome.status == ProposalStatus.READY
+    assert "supersecret" not in outcome.profile.model
+    assert "hidden" not in outcome.profile.version
 
 
 class FakeHttpStream:

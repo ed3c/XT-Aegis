@@ -54,10 +54,11 @@ propose a harmful schema-valid action; the policy and sandbox must contain it.
 fields; a remote/redirected/proxied endpoint receives a private task; a different model is reported as the
 configured profile; or malformed, partial, or oversized output is treated as executable.
 
-**Controls:** strict `extra=forbid` proposal models and checked-in schema, trusted construction of all
-control-plane fields, active-skill path and UTF-8 byte checks, fresh trusted identifiers, a loopback-only
-Ollama origin, no URL credentials/path/query, disabled environment proxies, refused redirects, bounded time
-and response bytes, returned-model matching, and typed non-ready outcomes.
+**Controls:** strict `extra=forbid` proposal and provider-wire models, a checked-in content-only proposal
+schema, trusted construction of kind/profile and all control-plane fields, redacted retained profile
+metadata, active-skill path and UTF-8 byte checks, fresh trusted identifiers, a loopback-only Ollama origin,
+no URL credentials/path/query, disabled environment proxies, refused redirects, bounded time and response
+bytes, returned-model matching, and typed non-ready outcomes.
 
 **Residual risk:** Ollama and the selected model are external local processes. Configured version metadata
 is not remotely attested; local host compromise, HTTP implementation flaws, model quality, and private prompt
