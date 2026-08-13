@@ -47,7 +47,7 @@ selects the relevant rows and provides exact fixtures, commands, expected result
 | `EVAL-HARNESS-CTRL-02` | retryable failure then repaired proposal | new identity and recorded attempt |
 | `EVAL-HARNESS-CTRL-03` | policy/approval/baseline/infrastructure/recovery failure | immediate terminal stop |
 | `EVAL-HARNESS-CTRL-04` | repeated equivalent proposal/failure | cycle detected and stopped |
-| `EVAL-HARNESS-CTRL-05` | attempt/token/time/output budget boundary | no call beyond budget |
+| `EVAL-HARNESS-CTRL-05` | attempt/token/time/output budget boundary | no call beyond budget; #53 hard-stops observed command-output excess while provider tokens remain cooperative |
 | `EVAL-HARNESS-CTRL-06` | process restart between attempts | schema-valid resume or fail-closed terminal state |
 | `EVAL-HARNESS-CTRL-07` | diagnostics contain secrets or excessive output | redacted and truncated before provider/persistence |
 

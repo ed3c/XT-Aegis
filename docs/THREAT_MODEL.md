@@ -76,15 +76,20 @@ retryable; every ready proposal passes through a fresh trusted envelope; attempt
 source commit/dirty state, backend profile, target, proposal/request/policy digests, and configured budgets;
 executor results must match the trusted thread/action/idempotency/request-version/request/policy identity;
 typed executor reason codes drive stop classification instead of diagnostic text; diagnostics are redacted
-and UTF-8 byte bounded before reuse; returned action output is truncated to the remaining evidence allowance;
-equivalent failures use a stable fingerprint; and missing token usage stops before another provider call.
+and UTF-8 byte bounded before reuse; #53's runner reads stdout/stderr incrementally against one shared
+execution allowance, terminates the child process group at observed excess, rolls back mutation, and
+persists only bounded redacted output; equivalent failures use a stable fingerprint; and missing token usage
+stops before another provider call.
 
 **Residual risk:** deterministic fake-provider tests do not establish live model correctness, privacy,
 availability, cost, or uplift. Controller state is not yet resumed across process restart, branch-and-select
 is not implemented, and command mutation still requires #27 strong isolation before autonomous use. The
 wall deadline cannot preempt a non-conforming provider or in-process file write; it prevents later calls and
 clamps the provided Ollama transport and command executor paths. Provider token counters are reported after
-the call, and command output is bounded when retained rather than terminated at the first excess byte.
+the call. A child may write into the kernel's bounded pipe before the reader observes excess; #53 limits
+userspace retention and terminates at observation, but only #27 supplies a strong resource-isolation boundary.
+Consequently, `output_original_bytes` is a lower bound after truncation, not a claim that every byte written
+by the terminated process was observed.
 
 ### T2. Shell, interpreter, or outcome-contract injection
 

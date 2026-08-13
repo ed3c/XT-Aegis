@@ -567,6 +567,14 @@ def test_contradictory_success_with_failed_rollback_is_recovery_failure(
         ),
         (
             _execution_result(
+                status=ExecutionStatus.ROLLED_BACK,
+                reason_code=ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED,
+                rollback_integrity=False,
+            ),
+            ControllerStopReason.RECOVERY_FAILED,
+        ),
+        (
+            _execution_result(
                 status=ExecutionStatus.BLOCKED,
                 reason_code=ExecutionReasonCode.BUDGET_EXHAUSTED,
                 policy_reasons=["step budget exceeded: 3 > 2"],
@@ -993,6 +1001,43 @@ def test_execution_output_budget_stops_before_repair(
     assert result.attempts[0].output_truncated is True
     assert result.total_output_bytes == 32
     assert len(provider.requests) == 1
+
+
+def test_real_runner_output_budget_exhaustion_is_terminal_and_rolled_back(
+    compiled_skill,
+    runner,  # type: ignore[no-untyped-def]
+) -> None:
+    original = (runner.workspace.root / "sample_project/app.py").read_text(encoding="utf-8")
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.READY,
+                profile=_profile(),
+                proposal=Proposal(content="safe content\n"),
+                usage=ProviderUsage(prompt_tokens=1, completion_tokens=1),
+            )
+        ]
+    )
+    controller = DiagnoseRepairController(
+        provider=provider,
+        executor=runner,
+        skill=compiled_skill,
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
+        budgets=ControllerBudgets(max_attempts=2, max_output_bytes=8),
+        identity_source=FixedIdentitySource(),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert result.stop_reason == ControllerStopReason.BUDGET_EXHAUSTED
+    assert result.total_attempts == 1
+    assert result.attempts[0].execution_reason_code == ExecutionReasonCode.OUTPUT_BUDGET_EXHAUSTED
+    assert result.attempts[0].output_truncated is True
+    assert result.attempts[0].rollback_integrity is True
+    assert result.attempts[0].preconditions[0].output_truncated is True
+    assert len(provider.requests) == 1
+    assert (runner.workspace.root / "sample_project/app.py").read_text(encoding="utf-8") == original
 
 
 def test_missing_token_usage_fails_closed_before_retry(
