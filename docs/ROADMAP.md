@@ -86,6 +86,9 @@ inventory, schema migration policy, and independent third-party assessment remai
 The v0.4 lease and fencing-token layer (#74, a slice of #14) is implemented and tested against SQLite and a
 real PostgreSQL. The checkpoint port, migrations, and optimistic concurrency in #14 remain open, and no
 multi-worker production claim is made.
+A deterministic SBOM, its release attestation and attachment, and the supported deployment profile
+(#86 and #92, both part of #17) are current. Independent signing, vulnerability assessment of the
+inventory, schema migration policy, and independent third-party assessment remain open.
 
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
