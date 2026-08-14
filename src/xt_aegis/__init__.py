@@ -10,6 +10,7 @@ from xt_aegis.controller import (
     DiagnoseRepairController,
     InfrastructureUnavailableError,
 )
+from xt_aegis.candidates import CandidateOutcome, CandidateSelection, select_candidate
 from xt_aegis.models import (
     ActionRequest,
     CommandAction,
@@ -47,6 +48,8 @@ from xt_aegis.verification_models import BackendName, VerificationResult, Verifi
 __all__ = [
     "ActionRequest",
     "BackendName",
+    "CandidateOutcome",
+    "CandidateSelection",
     "CommandAction",
     "CommandSpec",
     "CompiledSkill",
@@ -84,6 +87,7 @@ __all__ = [
     "VerificationResult",
     "VerificationStatus",
     "build_action_request",
+    "select_candidate",
 ]
 
 __version__ = "0.2.0"

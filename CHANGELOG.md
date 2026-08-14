@@ -16,7 +16,10 @@ project uses Semantic Versioning for published interfaces.
 - an optional loopback-only Ollama adapter with bounded no-proxy/no-redirect stdlib HTTP transport and
   typed refusal, timeout, malformed, oversized, truncated, and provider-error outcomes;
 - an argv-only sandbox launcher that confines recipe working directories beneath the uploaded source root;
-- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs.
+- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs;
+- a deterministic candidate-selection rule that disqualifies a candidate which started from a drifted
+  baseline, failed its assertions, did not succeed, or could not establish rollback integrity, breaks ties
+  by proposal digest so the same candidates always select the same one, and names every rejection.
 
 ### Changed
 
