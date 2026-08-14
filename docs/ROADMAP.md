@@ -46,6 +46,8 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] strong-isolation mutation backend for Harness actions (#27);
 - [ ] bounded diagnose-repair and candidate-selection controller (#29; deterministic finite controller core merged in #52 and streaming command-output enforcement tracked by #53, while hard provider-token admission, restart, selection, and model-backed outcome evidence remain open);
 - [x] schema-versioned events, span vocabulary, and offline trajectory replay (#9);
+- [x] process-kill fault injection at every persisted transition, plus cancellation and deadline
+  propagation (#10);
 - [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
 

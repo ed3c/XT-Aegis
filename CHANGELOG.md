@@ -26,6 +26,9 @@ project uses Semantic Versioning for published interfaces.
 
 ### Changed
 
+- cancellation and deadlines are enforced at named execution transitions, and a cancelled or expired
+  request is persisted as a terminal `cancelled` or `deadline_exceeded` result that a restart replays
+  instead of executing;
 - command actions now honor `CommandSpec.expected_exit_codes` instead of requiring exit code zero;
 - action, precondition, postcondition, and terminal evidence record actual and expected exit codes;
 - OpenShell verification now uploads the selected checkout into `/workspace`, disables automatic providers,

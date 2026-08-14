@@ -40,6 +40,8 @@ class ExecutionReasonCode(StrEnum):
     BUDGET_EXHAUSTED = "budget_exhausted"
     IDENTITY_CONFLICT = "identity_conflict"
     OUTPUT_BUDGET_EXHAUSTED = "output_budget_exhausted"
+    CANCELLED = "cancelled"
+    DEADLINE_EXCEEDED = "deadline_exceeded"
 
 
 class NetworkPolicy(StrEnum):
