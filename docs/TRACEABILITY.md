@@ -126,7 +126,7 @@ active rows. Therefore:
 | #29 remaining controller acceptance | open/current partial parent | molecular child issues for token admission, restart state, candidate selection, and model evidence |
 | #27 strong mutation isolation | planned | architecture/adapter issue-owned PR with adversarial tests and separate isolation verdict |
 | #30 OpenShell readiness | planned | version-aware probe and doctor/launch consistency tests |
-| #11 reproducible benchmarks | open/unverified | raw schema-valid trials, environment manifest, exact commands, summaries |
+| #11 reproducible benchmarks | deterministic harness current; model-backed evidence open/unverified | committed local raw artifacts for two workspace sizes; model-backed comparison still pending |
 | #12 live runtime conformance | open | pinned OpenShell/rootless OCI adversarial evidence |
 | #9 observability | open | schema-versioned event/trace contract and secret-safe exporter tests |
 | #10 crash/deadline recovery | open | kill/restart/cancellation State Machine and fault-injection evidence |

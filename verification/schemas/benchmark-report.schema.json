@@ -1,0 +1,365 @@
+{
+  "$defs": {
+    "BenchmarkCaseSummary": {
+      "additionalProperties": false,
+      "description": "Distribution of one case; a summary never replaces the raw trials it came from.",
+      "properties": {
+        "case": {
+          "maxLength": 64,
+          "title": "Case",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 240,
+          "title": "Description",
+          "type": "string"
+        },
+        "failed": {
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "max_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Ms"
+        },
+        "median_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Median Ms"
+        },
+        "min_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Ms"
+        },
+        "p90_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P90 Ms"
+        },
+        "p95_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P95 Ms"
+        },
+        "p99_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P99 Ms"
+        },
+        "passed": {
+          "minimum": 0,
+          "title": "Passed",
+          "type": "integer"
+        },
+        "stdev_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stdev Ms"
+        },
+        "timed_out": {
+          "minimum": 0,
+          "title": "Timed Out",
+          "type": "integer"
+        },
+        "trials": {
+          "minimum": 0,
+          "title": "Trials",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "case",
+        "description",
+        "trials",
+        "passed",
+        "failed",
+        "timed_out"
+      ],
+      "title": "BenchmarkCaseSummary",
+      "type": "object"
+    },
+    "BenchmarkEnvironment": {
+      "additionalProperties": false,
+      "description": "Machine and source identity required to reproduce or reject a comparison.",
+      "properties": {
+        "architecture": {
+          "maxLength": 32,
+          "title": "Architecture",
+          "type": "string"
+        },
+        "commit": {
+          "maxLength": 40,
+          "title": "Commit",
+          "type": "string"
+        },
+        "cpu_count": {
+          "minimum": 1,
+          "title": "Cpu Count",
+          "type": "integer"
+        },
+        "dependency_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Dependency Digest",
+          "type": "string"
+        },
+        "operating_system": {
+          "maxLength": 64,
+          "title": "Operating System",
+          "type": "string"
+        },
+        "python_implementation": {
+          "maxLength": 32,
+          "title": "Python Implementation",
+          "type": "string"
+        },
+        "python_version": {
+          "maxLength": 32,
+          "title": "Python Version",
+          "type": "string"
+        },
+        "release": {
+          "maxLength": 128,
+          "title": "Release",
+          "type": "string"
+        },
+        "source_dirty": {
+          "title": "Source Dirty",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "commit",
+        "source_dirty",
+        "operating_system",
+        "release",
+        "architecture",
+        "cpu_count",
+        "python_version",
+        "python_implementation",
+        "dependency_digest"
+      ],
+      "title": "BenchmarkEnvironment",
+      "type": "object"
+    },
+    "BenchmarkTrial": {
+      "additionalProperties": false,
+      "description": "One raw repetition; failures and deadline overruns are retained, never filtered.",
+      "properties": {
+        "case": {
+          "maxLength": 64,
+          "title": "Case",
+          "type": "string"
+        },
+        "duration_ms": {
+          "minimum": 0.0,
+          "title": "Duration Ms",
+          "type": "number"
+        },
+        "error": {
+          "default": "",
+          "maxLength": 1024,
+          "title": "Error",
+          "type": "string"
+        },
+        "index": {
+          "minimum": 1,
+          "title": "Index",
+          "type": "integer"
+        },
+        "outcome": {
+          "$ref": "#/$defs/TrialOutcome"
+        }
+      },
+      "required": [
+        "case",
+        "index",
+        "outcome",
+        "duration_ms"
+      ],
+      "title": "BenchmarkTrial",
+      "type": "object"
+    },
+    "BenchmarkWorkload": {
+      "additionalProperties": false,
+      "description": "Exact parameters the trials were generated from.",
+      "properties": {
+        "file_bytes": {
+          "maximum": 10485760,
+          "minimum": 1,
+          "title": "File Bytes",
+          "type": "integer"
+        },
+        "files": {
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Files",
+          "type": "integer"
+        },
+        "seed": {
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "timeout_seconds": {
+          "exclusiveMinimum": 0.0,
+          "maximum": 3600.0,
+          "title": "Timeout Seconds",
+          "type": "number"
+        },
+        "trials": {
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Trials",
+          "type": "integer"
+        },
+        "warmup": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Warmup",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "files",
+        "file_bytes",
+        "warmup",
+        "trials",
+        "seed",
+        "timeout_seconds"
+      ],
+      "title": "BenchmarkWorkload",
+      "type": "object"
+    },
+    "TrialOutcome": {
+      "description": "Terminal state of one measured repetition.",
+      "enum": [
+        "passed",
+        "failed",
+        "timed_out"
+      ],
+      "title": "TrialOutcome",
+      "type": "string"
+    }
+  },
+  "$id": "https://github.com/ed3c/XT-Aegis/benchmark-report.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Schema-valid artifact binding raw trials to one exact profile.",
+  "properties": {
+    "environment": {
+      "$ref": "#/$defs/BenchmarkEnvironment"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 1024,
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "project": {
+      "maxLength": 64,
+      "title": "Project",
+      "type": "string"
+    },
+    "project_version": {
+      "maxLength": 32,
+      "title": "Project Version",
+      "type": "string"
+    },
+    "reproduction_command": {
+      "maxLength": 1024,
+      "title": "Reproduction Command",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "summaries": {
+      "items": {
+        "$ref": "#/$defs/BenchmarkCaseSummary"
+      },
+      "maxItems": 64,
+      "title": "Summaries",
+      "type": "array"
+    },
+    "trials": {
+      "items": {
+        "$ref": "#/$defs/BenchmarkTrial"
+      },
+      "maxItems": 100000,
+      "title": "Trials",
+      "type": "array"
+    },
+    "workload": {
+      "$ref": "#/$defs/BenchmarkWorkload"
+    }
+  },
+  "required": [
+    "project",
+    "project_version",
+    "environment",
+    "workload",
+    "reproduction_command",
+    "trials",
+    "summaries"
+  ],
+  "title": "BenchmarkReport",
+  "type": "object"
+}

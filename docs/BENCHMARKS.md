@@ -6,6 +6,33 @@ XT-Aegis does **not** publish a numeric rollback-latency, reliability, accuracy,
 version 0.2.0. Target-style numbers from the source brief are not project facts without reproducible raw
 evidence.
 
+## Deterministic runtime harness
+
+`xt-aegis benchmark` (issue #11) measures the deterministic runtime cases only. It does not run a model.
+
+```bash
+xt-aegis benchmark --files 32 --file-bytes 4096 --warmup 1 --trials 5 \
+  --output-dir benchmarks/<profile> --format text
+```
+
+| Case | Measured operation |
+|---|---|
+| `tree-hash` | full workspace tree hash |
+| `snapshot` | snapshot creation and commit |
+| `rollback` | snapshot rollback with before/after hash equality |
+| `checkpoint-write` | SQLite WAL event append plus JSONL persistence |
+| `policy-evaluate` | policy validation of one file-write request |
+
+Every repetition is written to `trials[]` with `passed`, `failed`, or `timed_out`. Failed and timed-out
+trials are excluded from the latency distribution and never from the counts, so a case cannot be improved
+by discarding its worst runs. `summaries[]` is a derived view; the raw trials remain the evidence.
+
+The declared deadline is observed after each repetition and does not interrupt an in-process call.
+Subprocess-level cancellation and deadline enforcement belong to issue #10.
+
+CI runs a small smoke benchmark that asserts only that the harness produces a schema-valid artifact with no
+failed case. It enforces no wall-clock threshold, because a shared runner cannot support one.
+
 ## Required metadata
 
 Every published result must include:

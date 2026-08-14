@@ -46,7 +46,8 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] strong-isolation mutation backend for Harness actions (#27);
 - [ ] bounded diagnose-repair and candidate-selection controller (#29; deterministic finite controller core merged in #52 and streaming command-output enforcement tracked by #53, while hard provider-token admission, restart, selection, and model-backed outcome evidence remain open);
 - [ ] OpenShell readiness and conformance gate (#30);
-- [ ] benchmark corpus and reproducible outcome evidence (#11).
+- [ ] benchmark corpus and reproducible outcome evidence (#11; the deterministic runtime harness and raw
+  artifact contract are current, while model-backed comparison evidence remains open).
 
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
