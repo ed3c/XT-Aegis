@@ -50,7 +50,7 @@ The complete contribution contract is [`AGENTS.md`](AGENTS.md).
 | Backend-map static typing compatibility | current | PR #56; mypy 2 compatibility without backend-selection behavior change |
 | Source-bound OpenShell verification | current | PR #23; strong action isolation/readiness remain #27/#30 |
 | Strong mutation isolation | planned | #27; live profile evidence also belongs to #12 |
-| Execution-equivalent OpenShell readiness | planned | #30; doctor and launch path must agree |
+| Execution-equivalent OpenShell readiness | current adapter probe | #30; per-component executable/policy/version/gateway probe shares the execution environment; live agreement evidence belongs to #12 |
 | Model-backed correctness/performance evidence | unverified | #11, #24, #29 |
 | Git Town repository-side workflow | merged contract | exact unattended Worker remains deployment-blocked by #44 |
 
@@ -166,7 +166,7 @@ flowchart TD
 |---|---|---|
 | #29 | split provider-token admission, restart-safe state, candidate selection, and model-backed comparison | open/current partial parent capability |
 | #27 | add a conformant isolated mutation backend and separate isolation/rollback verdicts | planned |
-| #30 | make automatic OpenShell selection depend on execution-equivalent readiness | planned |
+| #30 | make automatic OpenShell selection depend on execution-equivalent readiness | adapter probe current; live smoke evidence open under #12 |
 | #11 | publish raw deterministic/model-backed trials with exact profile metadata | open/unverified |
 | #12 | publish version-pinned adversarial OpenShell/rootless OCI evidence | open live gate |
 | #44 | qualify one exact Git Town Worker without changing product-runtime claims | deployment-blocked |
@@ -245,8 +245,10 @@ Automatic backend selection is fail closed:
 OpenShell -> confirmed-rootless Podman -> reachable Docker -> unsupported
 ```
 
-`unsafe-local` requires explicit selection and is not independently sandboxed. Issue #30 remains the gate
-for execution-equivalent OpenShell readiness, and #12 owns live adversarial conformance.
+`unsafe-local` requires explicit selection and is not independently sandboxed. `auto` selects OpenShell only
+after its executable, policy, reviewed version, and gateway components are all ready under the same
+environment resolution the launch path uses; a stale or unreachable gateway produces a typed `unsupported`
+infrastructure verdict instead of a failed claim. Live adversarial conformance remains #12.
 
 ## Agent documentation index
 

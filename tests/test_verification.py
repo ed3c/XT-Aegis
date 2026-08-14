@@ -191,11 +191,75 @@ def test_verification_plan_never_executes(tmp_path: Path) -> None:
     assert plan["host_argv"] == ["python", "--version"]
 
 
-def test_openshell_backend_builds_documented_argv(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    policy = tmp_path / "verification/policies/openshell.yaml"
-    policy.parent.mkdir(parents=True)
+def _install_openshell_policy(root: Path) -> Path:
+    policy = root / "verification/policies/openshell.yaml"
+    policy.parent.mkdir(parents=True, exist_ok=True)
     policy.write_text("version: 1\nnetwork_policies: {}\n", encoding="utf-8")
+    return policy
+
+
+def _stub_openshell_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    version_stdout: str = "openshell version 0.0.52",
+    version_exit: int | None = 0,
+    status_exit: int | None = 0,
+    status_stderr: str = "",
+    status_timed_out: bool = False,
+) -> list[dict[str, object]]:
+    """Answer readiness probes and sandbox launches without a real OpenShell installation."""
+
+    calls: list[dict[str, object]] = []
+
+    def fake_run_process(
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: int,
+        max_output_bytes: int,
+        environment_overrides: Mapping[str, str] | None = None,
+    ) -> verification.CommandEvidence:
+        calls.append({"argv": argv, "cwd": cwd, "environment_overrides": environment_overrides})
+        if argv[1:] == ["--version"]:
+            return verification.CommandEvidence(
+                argv=argv,
+                cwd=str(cwd),
+                exit_code=version_exit,
+                duration_ms=1.0,
+                stdout=version_stdout,
+                stderr="",
+            )
+        if argv[1:] == ["status"]:
+            return verification.CommandEvidence(
+                argv=argv,
+                cwd=str(cwd),
+                exit_code=None if status_timed_out else status_exit,
+                duration_ms=1.0,
+                stdout="",
+                stderr=status_stderr,
+                timed_out=status_timed_out,
+            )
+        return verification.CommandEvidence(
+            argv=argv,
+            cwd=str(cwd),
+            exit_code=0,
+            duration_ms=1.0,
+            stdout="",
+            stderr="",
+        )
+
+    monkeypatch.setattr(verification, "_run_process", fake_run_process)
+    return calls
+
+
+def _readiness_by_component(availability: object) -> dict[str, tuple[bool, str]]:
+    components = availability.components  # type: ignore[attr-defined]
+    return {item.component.value: (item.ready, item.reason) for item in components}
+
+
+def test_openshell_backend_builds_documented_argv(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    policy = _install_openshell_policy(tmp_path)
     monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
+    _stub_openshell_runtime(monkeypatch)
     backend = OpenShellBackend()
     availability = backend.availability(tmp_path)
     assert availability.available is True
@@ -243,41 +307,16 @@ def test_openshell_backend_builds_documented_argv(monkeypatch: pytest.MonkeyPatc
 def test_openshell_backend_runs_host_command_from_source_root(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    policy = tmp_path / "verification/policies/openshell.yaml"
-    policy.parent.mkdir(parents=True)
-    policy.write_text("version: 1\nnetwork_policies: {}\n", encoding="utf-8")
+    _install_openshell_policy(tmp_path)
     nested = tmp_path / "tests"
     nested.mkdir()
     monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
-    observed: dict[str, object] = {}
+    calls = _stub_openshell_runtime(monkeypatch)
 
-    def fake_run_process(
-        argv: list[str],
-        cwd: Path,
-        timeout_seconds: int,
-        max_output_bytes: int,
-        environment_overrides: Mapping[str, str] | None = None,
-    ) -> object:
-        observed.update(
-            argv=argv,
-            cwd=cwd,
-            timeout_seconds=timeout_seconds,
-            max_output_bytes=max_output_bytes,
-            environment_overrides=environment_overrides,
-        )
-        return verification.CommandEvidence(
-            argv=argv,
-            cwd=str(cwd),
-            exit_code=0,
-            duration_ms=1.0,
-            stdout="",
-            stderr="",
-        )
-
-    monkeypatch.setattr(verification, "_run_process", fake_run_process)
     recipe = VerificationRecipe(argv=["python", "--version"], cwd="tests")
     OpenShellBackend().run(recipe, tmp_path)
 
+    observed = calls[-1]
     assert observed["cwd"] == tmp_path.resolve()
     assert observed["environment_overrides"] == verification._openshell_host_environment()
     assert ".:/workspace" in observed["argv"]
@@ -321,6 +360,157 @@ def test_openshell_backend_requires_policy(monkeypatch: pytest.MonkeyPatch, tmp_
     availability = OpenShellBackend().availability(tmp_path)
     assert availability.available is False
     assert "policy" in availability.reason
+    readiness = _readiness_by_component(availability)
+    assert readiness["executable"][0] is True
+    assert readiness["policy"][0] is False
+    assert readiness["version"] == (False, "not probed because the policy component is not ready")
+    assert readiness["gateway"][0] is False
+
+
+def test_openshell_readiness_reports_missing_executable_without_probing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(shutil, "which", lambda value: None)
+    probes = _stub_openshell_runtime(monkeypatch)
+    availability = OpenShellBackend().availability(tmp_path)
+    assert availability.available is False
+    assert probes == []
+    readiness = _readiness_by_component(availability)
+    assert readiness["executable"] == (False, "openshell executable was not found")
+    assert all(not ready for ready, _ in readiness.values())
+
+
+def test_openshell_readiness_rejects_unreviewed_version(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_openshell_policy(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
+    _stub_openshell_runtime(monkeypatch, version_stdout="openshell version 9.9.9")
+    availability = OpenShellBackend().availability(tmp_path)
+    assert availability.available is False
+    readiness = _readiness_by_component(availability)
+    assert readiness["version"][0] is False
+    assert "9.9.9" in readiness["version"][1]
+    assert readiness["gateway"] == (False, "not probed because the version component is not ready")
+
+
+def test_openshell_readiness_accepts_reviewed_version_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_openshell_policy(tmp_path)
+    monkeypatch.setenv("XT_AEGIS_OPENSHELL_SUPPORTED_VERSION", "9.9.9")
+    monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
+    _stub_openshell_runtime(monkeypatch, version_stdout="openshell version 9.9.9")
+    availability = OpenShellBackend().availability(tmp_path)
+    assert availability.available is True
+
+
+def test_openshell_readiness_rejects_unparsable_version(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_openshell_policy(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
+    _stub_openshell_runtime(monkeypatch, version_stdout="openshell (development build)")
+    availability = OpenShellBackend().availability(tmp_path)
+    assert availability.available is False
+    assert "no parsable version" in _readiness_by_component(availability)["version"][1]
+
+
+def test_openshell_readiness_rejects_missing_gateway(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _install_openshell_policy(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
+    _stub_openshell_runtime(monkeypatch, status_exit=1, status_stderr="Error: No active gateway")
+    availability = OpenShellBackend().availability(tmp_path)
+    assert availability.available is False
+    ready, reason = _readiness_by_component(availability)["gateway"]
+    assert ready is False
+    assert "No active gateway" in reason
+
+
+def test_openshell_readiness_rejects_unreachable_gateway(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_openshell_policy(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
+    _stub_openshell_runtime(monkeypatch, status_timed_out=True)
+    availability = OpenShellBackend().availability(tmp_path)
+    assert availability.available is False
+    assert "timed out" in _readiness_by_component(availability)["gateway"][1]
+
+
+def test_openshell_readiness_probe_launch_failure_stays_bounded(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_openshell_policy(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
+
+    def exploding_run_process(*args: object, **kwargs: object) -> object:
+        raise OSError("x" * 4096)
+
+    monkeypatch.setattr(verification, "_run_process", exploding_run_process)
+    availability = OpenShellBackend().availability(tmp_path)
+    assert availability.available is False
+    reason = _readiness_by_component(availability)["version"][1]
+    assert "OSError" in reason
+    assert len(reason) < 1024
+
+
+def test_openshell_readiness_probe_uses_the_execution_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_openshell_policy(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda value: "/usr/bin/openshell" if value == "openshell" else None)
+    calls = _stub_openshell_runtime(monkeypatch)
+    OpenShellBackend().availability(tmp_path)
+    assert [call["argv"][1:] for call in calls] == [["--version"], ["status"]]
+    assert all(call["environment_overrides"] == verification._openshell_host_environment() for call in calls)
+
+
+def test_auto_does_not_select_openshell_without_a_ready_gateway(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_openshell_policy(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda value: f"/usr/bin/{value}" if value == "openshell" else None)
+    _stub_openshell_runtime(monkeypatch, status_exit=1, status_stderr="Error: No active gateway")
+    with pytest.raises(FileNotFoundError):
+        select_backend(BackendName.AUTO, tmp_path)
+
+
+def test_unready_openshell_gateway_is_unsupported_not_a_failed_claim(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    registry = _write_registry(tmp_path)
+    _install_openshell_policy(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda value: f"/usr/bin/{value}" if value == "openshell" else None)
+    _stub_openshell_runtime(monkeypatch, status_exit=1, status_stderr="Error: No active gateway")
+    result = verify_claim(
+        claim_id="test-claim",
+        backend_name=BackendName.OPENSHELL,
+        registry_path=registry,
+        root=tmp_path,
+    )
+    assert result.status == VerificationStatus.UNSUPPORTED
+    assert "No active gateway" in result.reason
+
+
+def test_doctor_reports_openshell_readiness_components(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    registry = _write_registry(tmp_path)
+    _install_openshell_policy(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda value: f"/usr/bin/{value}" if value == "openshell" else None)
+    _stub_openshell_runtime(monkeypatch, status_exit=1, status_stderr="Error: No active gateway")
+    report = doctor(registry_path=registry, root=tmp_path, requested_backend=BackendName.AUTO)
+    payload = report.model_dump(mode="json")
+    openshell = next(entry for entry in payload["backends"] if entry["name"] == "openshell")
+    assert [item["component"] for item in openshell["components"]] == [
+        "executable",
+        "policy",
+        "version",
+        "gateway",
+    ]
+    assert openshell["available"] is False
+    assert report.selected_backend != BackendName.OPENSHELL
 
 
 def test_oci_backend_has_default_deny_and_read_only_source(

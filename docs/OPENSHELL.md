@@ -19,6 +19,30 @@ kernel.
 3. Keep `verification/policies/openshell.yaml` unchanged for the first run.
 4. Run `xt-aegis doctor --backend openshell` before executing a recipe.
 
+## Readiness model
+
+`doctor` and `auto` do not treat executable presence as proof that a recipe can run. The adapter probes four
+components in order and stops at the first failure, reporting the remaining components as `not probed`:
+
+| Component | Probe | Not-ready meaning |
+|---|---|---|
+| `executable` | `shutil.which("openshell")` | OpenShell is not installed on `PATH` |
+| `policy` | default-deny policy file is present | the reviewed policy is missing or `XT_AEGIS_OPENSHELL_POLICY` points elsewhere |
+| `version` | `openshell --version` | the release does not match the reviewed adapter version, or reports no parsable version |
+| `gateway` | `openshell status` | no active, reachable gateway resolves for the account and session that will launch the sandbox |
+
+The version and gateway probes run through the same working directory and the same forwarded session
+environment (`_openshell_host_environment`) that `sandbox create` uses, so a gateway that the launch path
+cannot resolve also fails the probe. The adapter is reviewed against OpenShell `0.0.52`; another reviewed
+release is accepted by setting `XT_AEGIS_OPENSHELL_SUPPORTED_VERSION`.
+
+Consequences:
+
+- `xt-aegis doctor --format json` reports `components[]` with `component`, `ready`, and the exact reason;
+- `auto` never selects OpenShell while any component is not ready, and never falls back to `unsafe-local`;
+- a probe failure, a launch failure, or a backend that becomes unready between probe and launch produces a
+  typed `unsupported` infrastructure verdict with a bounded single-line diagnostic, not a failed claim.
+
 ## Source-binding model
 
 The adapter does not ask the sandbox to verify only the source baked into the verifier image. It starts
@@ -151,6 +175,11 @@ rerun the same commands on infrastructure they control before labeling evidence
 Repository tests prove that the adapter:
 
 - detects a missing executable or policy;
+- reports each readiness component separately and marks unprobed components explicitly;
+- refuses an unreviewed or unparsable OpenShell version and accepts an explicitly reviewed override;
+- treats a failing, timing-out, or unlaunchable `openshell status` as an unready gateway;
+- keeps `auto` from selecting OpenShell when any component is not ready;
+- turns an unready gateway into an `unsupported` verification result rather than a failed claim;
 - uploads the checkout root directly into `/workspace` instead of silently testing only image-baked code;
 - starts the host process at the selected verification root rather than at a recipe subdirectory;
 - uses only flags supported by the pinned OpenShell v0.0.52 interface;

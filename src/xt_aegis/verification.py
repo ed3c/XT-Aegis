@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -25,11 +26,13 @@ from pydantic import ValidationError
 from xt_aegis.verification_models import (
     BackendAvailability,
     BackendName,
+    BackendReadiness,
     CommandEvidence,
     DoctorReport,
     EvidenceBundleFile,
     EvidenceBundleManifest,
     EvidenceRegistry,
+    ReadinessComponent,
     RegistryClaimStatus,
     SourceIdentity,
     VerificationClaim,
@@ -42,6 +45,10 @@ from xt_aegis.verification_models import (
 _RESULT_FILENAME = "verification-result.json"
 _SUMMARY_FILENAME = "verification-summary.json"
 _DEFAULT_IMAGE = "ghcr.io/ed3c/xt-aegis-verifier:0.2.0"
+_OPENSHELL_PINNED_VERSION = "0.0.52"
+_READINESS_TIMEOUT_SECONDS = 20
+_READINESS_OUTPUT_BYTES = 4_096
+_READINESS_DETAIL_CHARS = 240
 
 EXIT_CODES: dict[VerificationStatus, int] = {
     VerificationStatus.VERIFIED: 0,
@@ -227,6 +234,22 @@ def _safe_environment(
     return environment
 
 
+def _supported_openshell_version() -> str:
+    """Return the OpenShell version this adapter's argv contract was reviewed against."""
+
+    return os.getenv("XT_AEGIS_OPENSHELL_SUPPORTED_VERSION", _OPENSHELL_PINNED_VERSION).strip()
+
+
+def _probe_detail(evidence: CommandEvidence) -> str:
+    """Reduce probe output to one bounded diagnostic line without forwarding secrets verbatim."""
+
+    for stream in (evidence.stderr, evidence.stdout):
+        for line in stream.splitlines():
+            if line.strip():
+                return line.strip()[:_READINESS_DETAIL_CHARS]
+    return f"no diagnostic output; exit code {evidence.exit_code}"
+
+
 def _openshell_host_environment() -> dict[str, str]:
     """Forward only user-session values required to locate the selected gateway."""
 
@@ -346,30 +369,138 @@ class OpenShellBackend:
             else root / "verification/policies/openshell.yaml"
         )
 
-    def availability(self, root: Path) -> BackendAvailability:
+    def _probe(self, arguments: list[str], root: Path) -> CommandEvidence:
+        """Run a read-only probe through the same resolution the execution path uses."""
+
+        executable = shutil.which("openshell") or "openshell"
+        argv = [executable, *arguments]
+        try:
+            return _run_process(
+                argv,
+                root.resolve(),
+                _READINESS_TIMEOUT_SECONDS,
+                _READINESS_OUTPUT_BYTES,
+                environment_overrides=_openshell_host_environment(),
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            return CommandEvidence(
+                argv=argv,
+                cwd=str(root),
+                exit_code=127,
+                duration_ms=0.0,
+                stdout="",
+                stderr=f"{type(exc).__name__}: {exc}"[:_READINESS_DETAIL_CHARS],
+            )
+
+    def _check_executable(self, root: Path) -> BackendReadiness:
+        del root
         executable = shutil.which("openshell")
+        return BackendReadiness(
+            component=ReadinessComponent.EXECUTABLE,
+            ready=executable is not None,
+            reason=(
+                f"openshell executable was found at {executable}"
+                if executable is not None
+                else "openshell executable was not found"
+            ),
+        )
+
+    def _check_policy(self, root: Path) -> BackendReadiness:
         policy = self._policy_path(root)
-        if executable is None:
-            return BackendAvailability(
-                name=self.name,
-                available=False,
-                strong_isolation=True,
-                reason="openshell executable was not found",
+        ready = policy.is_file()
+        return BackendReadiness(
+            component=ReadinessComponent.POLICY,
+            ready=ready,
+            reason=(
+                f"default-deny policy was found: {policy}"
+                if ready
+                else f"OpenShell policy was not found: {policy}"
+            ),
+        )
+
+    def _check_version(self, root: Path) -> BackendReadiness:
+        supported = _supported_openshell_version()
+        evidence = self._probe(["--version"], root)
+        if evidence.timed_out:
+            reason = f"openshell --version timed out after {_READINESS_TIMEOUT_SECONDS}s"
+        elif evidence.exit_code != 0:
+            reason = f"openshell --version failed: {_probe_detail(evidence)}"
+        else:
+            match = re.search(r"\d+\.\d+\.\d+", f"{evidence.stdout}\n{evidence.stderr}")
+            if match is None:
+                reason = f"openshell --version reported no parsable version: {_probe_detail(evidence)}"
+            elif match.group() != supported:
+                reason = (
+                    f"openshell {match.group()} does not match the reviewed adapter version {supported}; "
+                    "set XT_AEGIS_OPENSHELL_SUPPORTED_VERSION after reviewing another release"
+                )
+            else:
+                return BackendReadiness(
+                    component=ReadinessComponent.VERSION,
+                    ready=True,
+                    reason=f"openshell {match.group()} matches the reviewed adapter version",
+                )
+        return BackendReadiness(component=ReadinessComponent.VERSION, ready=False, reason=reason)
+
+    def _check_gateway(self, root: Path) -> BackendReadiness:
+        evidence = self._probe(["status"], root)
+        if evidence.timed_out:
+            return BackendReadiness(
+                component=ReadinessComponent.GATEWAY,
+                ready=False,
+                reason=f"openshell status timed out after {_READINESS_TIMEOUT_SECONDS}s",
             )
-        if not policy.is_file():
-            return BackendAvailability(
-                name=self.name,
-                available=False,
-                executable=executable,
-                strong_isolation=True,
-                reason=f"OpenShell policy was not found: {policy}",
+        if evidence.exit_code != 0:
+            return BackendReadiness(
+                component=ReadinessComponent.GATEWAY,
+                ready=False,
+                reason=f"openshell status reported no usable gateway: {_probe_detail(evidence)}",
             )
+        return BackendReadiness(
+            component=ReadinessComponent.GATEWAY,
+            ready=True,
+            reason="openshell status resolved a gateway with the execution environment",
+        )
+
+    def readiness(self, root: Path) -> list[BackendReadiness]:
+        """Report every readiness component; later components are not probed after a failure."""
+
+        probes = (
+            (ReadinessComponent.EXECUTABLE, self._check_executable),
+            (ReadinessComponent.POLICY, self._check_policy),
+            (ReadinessComponent.VERSION, self._check_version),
+            (ReadinessComponent.GATEWAY, self._check_gateway),
+        )
+        components: list[BackendReadiness] = []
+        for index, (component, check) in enumerate(probes):
+            outcome = check(root)
+            components.append(outcome)
+            if not outcome.ready:
+                components.extend(
+                    BackendReadiness(
+                        component=pending,
+                        ready=False,
+                        reason=f"not probed because the {component.value} component is not ready",
+                    )
+                    for pending, _ in probes[index + 1 :]
+                )
+                break
+        return components
+
+    def availability(self, root: Path) -> BackendAvailability:
+        components = self.readiness(root)
+        blocked = next((component for component in components if not component.ready), None)
         return BackendAvailability(
             name=self.name,
-            available=True,
-            executable=executable,
+            available=blocked is None,
+            executable=shutil.which("openshell"),
             strong_isolation=True,
-            reason="OpenShell executable and default-deny policy are available",
+            reason=(
+                blocked.reason
+                if blocked is not None
+                else "OpenShell executable, policy, version, and gateway are ready"
+            ),
+            components=components,
         )
 
     def preview(self, recipe: VerificationRecipe, root: Path) -> list[str]:

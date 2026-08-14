@@ -16,10 +16,15 @@ project uses Semantic Versioning for published interfaces.
 - an optional loopback-only Ollama adapter with bounded no-proxy/no-redirect stdlib HTTP transport and
   typed refusal, timeout, malformed, oversized, truncated, and provider-error outcomes;
 - an argv-only sandbox launcher that confines recipe working directories beneath the uploaded source root;
-- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs.
+- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs;
+- per-component OpenShell readiness (`executable`, `policy`, `version`, `gateway`) reported by
+  `xt-aegis doctor` with the exact reason each component is unavailable.
 
 ### Changed
 
+- `auto` selects OpenShell only after an execution-equivalent readiness probe resolves the reviewed version
+  and an active gateway through the same environment the sandbox launch uses; an unready gateway now
+  produces a typed `unsupported` infrastructure verdict instead of failed repository claims;
 - command actions now honor `CommandSpec.expected_exit_codes` instead of requiring exit code zero;
 - action, precondition, postcondition, and terminal evidence record actual and expected exit codes;
 - OpenShell verification now uploads the selected checkout into `/workspace`, disables automatic providers,
