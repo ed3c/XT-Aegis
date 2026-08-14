@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from tests.crash_child import CRASH_EXIT_CODE, GOOD_CODE, build_runner
 
+from crash_child import CRASH_EXIT_CODE, GOOD_CODE, build_runner
 from xt_aegis.lifecycle import (
     CancellationToken,
     DeadlineExceeded,
