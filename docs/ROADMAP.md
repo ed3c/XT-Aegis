@@ -60,6 +60,8 @@ mutating tool is registered or callable, and the MCP surface remains read-only b
 Backup and restore of checkpoints, approvals, events, and terminal idempotency records (#80, one acceptance
 criterion of #17) is implemented. Signed releases, SBOM and provenance, the supported deployment profile,
 incident response, and independent assessment remain open.
+The v0.4 human-in-the-loop notification and decision binding (#82) completes the second half of #15's scope
+alongside #76. Neither is wired into the runner yet, and no exactly-once delivery claim is made.
 
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.

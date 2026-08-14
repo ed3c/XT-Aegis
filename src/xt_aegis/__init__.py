@@ -26,6 +26,12 @@ from xt_aegis.models import (
     RiskLevel,
     SkillContract,
 )
+from xt_aegis.notifications import (
+    ApprovalNotifier,
+    DecisionVerdict,
+    PendingApproval,
+    SignedDecision,
+)
 from xt_aegis.proposals import (
     FakeProposalProvider,
     Proposal,
@@ -55,6 +61,7 @@ from xt_aegis.verification_models import BackendName, VerificationResult, Verifi
 
 __all__ = [
     "ActionRequest",
+    "ApprovalNotifier",
     "BackendName",
     "BackupManifest",
     "CommandAction",
@@ -68,6 +75,7 @@ __all__ = [
     "ControllerStateRecord",
     "ControllerStateStore",
     "ControllerStopReason",
+    "DecisionVerdict",
     "DiagnoseRepairController",
     "EffectIdentity",
     "EffectRecord",
@@ -79,6 +87,7 @@ __all__ = [
     "FileWriteAction",
     "HarnessRunner",
     "InfrastructureUnavailableError",
+    "PendingApproval",
     "Proposal",
     "ProposalOutcome",
     "ProposalProvider",
@@ -93,6 +102,7 @@ __all__ = [
     "RiskLevel",
     "SamplingProfile",
     "SecureRequestIdentitySource",
+    "SignedDecision",
     "SkillCompiler",
     "SkillContract",
     "TrustedActionEnvelope",

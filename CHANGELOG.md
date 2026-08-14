@@ -28,6 +28,8 @@ project uses Semantic Versioning for published interfaces.
   approval that does not cover the exact call. No mutating tool is enabled by it.
 - verifiable backup and restore of the durable state: a consistent online copy, a manifest with digest,
   schema version, and per-table row counts, and a restore that verifies everything before it writes.
+- resumable approval notification that carries no payload, bounds re-notification per approval, and accepts
+  a decision only when subject, action digest, policy version, nonce, and deadline all hold.
 
 ### Changed
 
