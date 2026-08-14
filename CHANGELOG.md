@@ -18,7 +18,9 @@ project uses Semantic Versioning for published interfaces.
 - an argv-only sandbox launcher that confines recipe working directories beneath the uploaded source root;
 - a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs;
 - per-component OpenShell readiness (`executable`, `policy`, `version`, `gateway`) reported by
-  `xt-aegis doctor` with the exact reason each component is unavailable.
+  `xt-aegis doctor` with the exact reason each component is unavailable;
+- a per-run sandbox entry token that proves an OpenShell recipe actually started inside the sandbox, so a
+  runtime that never launched is reported as `unsupported` instead of as failed repository claims.
 
 ### Changed
 

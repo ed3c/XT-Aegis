@@ -8,6 +8,7 @@ import json
 import os
 import platform
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -23,6 +24,7 @@ from typing import Any, Protocol
 
 from pydantic import ValidationError
 
+from xt_aegis.sandbox_exec import ENTRY_MARKER_PREFIX
 from xt_aegis.verification_models import (
     BackendAvailability,
     BackendName,
@@ -83,6 +85,8 @@ class BackendExecution:
 
     command: CommandEvidence
     policy_sha256: str | None
+    launched: bool = True
+    launch_diagnostic: str = ""
 
 
 class SandboxBackend(Protocol):
@@ -232,6 +236,15 @@ def _safe_environment(
     if environment_overrides:
         environment.update(environment_overrides)
     return environment
+
+
+def _without_entry_marker(command: CommandEvidence, marker: str) -> CommandEvidence:
+    """Keep the launcher's entry proof out of retained recipe evidence."""
+
+    if marker not in command.stderr:
+        return command
+    kept = [line for line in command.stderr.splitlines() if line.strip() != marker]
+    return command.model_copy(update={"stderr": "\n".join(kept)})
 
 
 def _supported_openshell_version() -> str:
@@ -503,7 +516,7 @@ class OpenShellBackend:
             components=components,
         )
 
-    def preview(self, recipe: VerificationRecipe, root: Path) -> list[str]:
+    def preview(self, recipe: VerificationRecipe, root: Path, entry_token: str = "") -> list[str]:
         executable = shutil.which("openshell") or "openshell"
         image = os.getenv("XT_AEGIS_OPENSHELL_IMAGE", _DEFAULT_IMAGE)
         return [
@@ -540,6 +553,8 @@ class OpenShellBackend:
             "/workspace",
             "--cwd",
             recipe.cwd,
+            "--entry-token",
+            entry_token,
             "--",
             *recipe.argv,
         ]
@@ -549,14 +564,22 @@ class OpenShellBackend:
         if not availability.available:
             raise FileNotFoundError(availability.reason)
         policy = self._policy_path(root)
+        entry_token = secrets.token_hex(16)
         command = _run_process(
-            self.preview(recipe, root),
+            self.preview(recipe, root, entry_token),
             root.resolve(),
             recipe.timeout_seconds,
             recipe.max_output_bytes,
             environment_overrides=_openshell_host_environment(),
         )
-        return BackendExecution(command=command, policy_sha256=_sha256_file(policy))
+        marker = f"{ENTRY_MARKER_PREFIX}{entry_token}"
+        launched = marker in command.stderr
+        return BackendExecution(
+            command=_without_entry_marker(command, marker),
+            policy_sha256=_sha256_file(policy),
+            launched=launched,
+            launch_diagnostic="" if launched else _probe_detail(command),
+        )
 
 
 class OciBackend:
@@ -909,6 +932,11 @@ def verify_claim(
         if not availability.available:
             raise FileNotFoundError(availability.reason)
         execution = backend.run(claim.verification, verification_root)
+        if not execution.launched:
+            raise FileNotFoundError(
+                f"{backend.name.value} did not start the recipe inside the sandbox: "
+                f"{execution.launch_diagnostic}"
+            )
     except FileNotFoundError as exc:
         result = VerificationResult(
             project=loaded.registry.project,

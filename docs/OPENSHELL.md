@@ -43,6 +43,21 @@ Consequences:
 - a probe failure, a launch failure, or a backend that becomes unready between probe and launch produces a
   typed `unsupported` infrastructure verdict with a bounded single-line diagnostic, not a failed claim.
 
+### Proof that the recipe actually started
+
+A ready gateway is still not proof that a sandbox can be created: an OpenShell gateway can answer `status`
+and then reject `sandbox create` with `FailedPrecondition: sandbox is not ready`. Because a runtime that
+never launched exits non-zero exactly like a failing test, the exit code cannot separate the two.
+
+The adapter therefore issues a fresh 128-bit entry token per run and passes it to the in-sandbox launcher.
+`xt_aegis.sandbox_exec` writes `xt-aegis-sandbox-entered:<token>` to stderr immediately before `execvp`, so
+the marker exists only if the recipe really started inside the sandbox. The host removes that line from
+retained evidence. A missing or non-matching marker is reported as `unsupported` with the bounded runtime
+diagnostic instead of a failed repository claim.
+
+The probe still does not create a throwaway sandbox during `doctor`; sandbox-creation readiness is proven
+at launch time by the marker, and adversarial live coverage remains issue #12.
+
 ## Source-binding model
 
 The adapter does not ask the sandbox to verify only the source baked into the verifier image. It starts
@@ -180,6 +195,8 @@ Repository tests prove that the adapter:
 - treats a failing, timing-out, or unlaunchable `openshell status` as an unready gateway;
 - keeps `auto` from selecting OpenShell when any component is not ready;
 - turns an unready gateway into an `unsupported` verification result rather than a failed claim;
+- treats a recipe that never entered the sandbox, or a forged entry marker, as `unsupported`;
+- emits the entry marker from the launcher before `execvp` and keeps it out of retained evidence;
 - uploads the checkout root directly into `/workspace` instead of silently testing only image-baked code;
 - starts the host process at the selected verification root rather than at a recipe subdirectory;
 - uses only flags supported by the pinned OpenShell v0.0.52 interface;
