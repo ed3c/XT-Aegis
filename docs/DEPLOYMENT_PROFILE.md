@@ -60,8 +60,13 @@ library, sorted, and free of timestamps — two runs in the same environment pro
 builds can be compared. An inventory is not an assessment: it lists what is present, not whether any of it
 is vulnerable.
 
-The release workflow already attaches build provenance through `actions/attest-build-provenance`.
-Attaching and signing the SBOM itself is still open in #17.
+The release workflow generates this document from a clean install of the built wheel — not from the
+build environment, which carries the dev extras. The difference is not cosmetic: the same generator
+reports 52 components in a development checkout and 7 in a fresh install of the wheel. The result is
+attested with `actions/attest-sbom` alongside the existing build provenance and attached to the release.
+
+Two things it is still not: signed independently of GitHub's attestation, and assessed against an advisory
+database. Both remain open in #17.
 
 ## Reproducing this profile
 

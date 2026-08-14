@@ -18,7 +18,10 @@ project uses Semantic Versioning for published interfaces.
 - an argv-only sandbox launcher that confines recipe working directories beneath the uploaded source root;
 - a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs;
 - `xt-aegis sbom`, a deterministic CycloneDX inventory generated from installed distribution metadata using
-  only the standard library, and a deployment-profile document naming tested and unsupported configurations.
+  only the standard library, and a deployment-profile document naming tested and unsupported configurations;
+- a release step that generates that inventory from a clean install of the built wheel, refuses to publish
+  when it does not describe the release being cut, attests it with `actions/attest-sbom`, and attaches it
+  to the GitHub release.
 
 ### Changed
 
