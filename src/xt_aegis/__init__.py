@@ -1,5 +1,6 @@
 """XT-Aegis: evidence-first deterministic controls around agent actions."""
 
+from xt_aegis.backup import BackupManifest, create_backup, restore_backup, verify_backup
 from xt_aegis.controller import (
     ControllerAttempt,
     ControllerBudgets,
@@ -47,6 +48,7 @@ from xt_aegis.verification_models import BackendName, VerificationResult, Verifi
 __all__ = [
     "ActionRequest",
     "BackendName",
+    "BackupManifest",
     "CommandAction",
     "CommandSpec",
     "CompiledSkill",
@@ -84,6 +86,9 @@ __all__ = [
     "VerificationResult",
     "VerificationStatus",
     "build_action_request",
+    "create_backup",
+    "restore_backup",
+    "verify_backup",
 ]
 
 __version__ = "0.2.0"

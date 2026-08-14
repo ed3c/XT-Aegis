@@ -48,6 +48,10 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
 
+Backup and restore of checkpoints, approvals, events, and terminal idempotency records (#80, one acceptance
+criterion of #17) is implemented. Signed releases, SBOM and provenance, the supported deployment profile,
+incident response, and independent assessment remain open.
+
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
 
