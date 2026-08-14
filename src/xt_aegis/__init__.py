@@ -1,5 +1,8 @@
 """XT-Aegis: evidence-first deterministic controls around agent actions."""
 
+from xt_aegis.backup import BackupManifest, create_backup, restore_backup, verify_backup
+from xt_aegis.candidates import CandidateOutcome, CandidateSelection, select_candidate
+from xt_aegis.checkpoint_backend import CheckpointBackend, RunState, StepState
 from xt_aegis.controller import (
     ControllerAttempt,
     ControllerBudgets,
@@ -9,7 +12,11 @@ from xt_aegis.controller import (
     ControllerStopReason,
     DiagnoseRepairController,
     InfrastructureUnavailableError,
+    ProviderAdmission,
 )
+from xt_aegis.controller_state import ControllerStateRecord, ControllerStateStore
+from xt_aegis.leases import Lease, LeaseStore, SqliteLeaseStore, StaleFencingToken
+from xt_aegis.mcp_transport import TransportGuard, build_transport_guard
 from xt_aegis.models import (
     ActionRequest,
     CommandAction,
@@ -22,6 +29,12 @@ from xt_aegis.models import (
     Provenance,
     RiskLevel,
     SkillContract,
+)
+from xt_aegis.notifications import (
+    ApprovalNotifier,
+    DecisionVerdict,
+    PendingApproval,
+    SignedDecision,
 )
 from xt_aegis.proposals import (
     FakeProposalProvider,
@@ -41,12 +54,24 @@ from xt_aegis.proposals import (
     build_action_request,
 )
 from xt_aegis.runner import HarnessRunner
+from xt_aegis.sbom import build_sbom, write_sbom
+from xt_aegis.side_effects import (
+    EffectIdentity,
+    EffectRecord,
+    EffectState,
+    ProtectedEffectRunner,
+)
 from xt_aegis.skill import SkillCompiler
 from xt_aegis.verification_models import BackendName, VerificationResult, VerificationStatus
 
 __all__ = [
     "ActionRequest",
+    "ApprovalNotifier",
     "BackendName",
+    "BackupManifest",
+    "CandidateOutcome",
+    "CandidateSelection",
+    "CheckpointBackend",
     "CommandAction",
     "CommandSpec",
     "CompiledSkill",
@@ -55,8 +80,14 @@ __all__ = [
     "ControllerCheckEvidence",
     "ControllerResult",
     "ControllerRunContext",
+    "ControllerStateRecord",
+    "ControllerStateStore",
     "ControllerStopReason",
+    "DecisionVerdict",
     "DiagnoseRepairController",
+    "EffectIdentity",
+    "EffectRecord",
+    "EffectState",
     "ExecutionReasonCode",
     "ExecutionResult",
     "ExecutionStatus",
@@ -64,26 +95,44 @@ __all__ = [
     "FileWriteAction",
     "HarnessRunner",
     "InfrastructureUnavailableError",
+    "Lease",
+    "LeaseStore",
+    "PendingApproval",
     "Proposal",
     "ProposalOutcome",
     "ProposalProvider",
     "ProposalRequest",
     "ProposalStatus",
+    "ProtectedEffectRunner",
     "Provenance",
+    "ProviderAdmission",
     "ProviderProfile",
     "ProviderUsage",
     "RequestIdentitySource",
     "RiskLevel",
+    "RunState",
     "SamplingProfile",
     "SecureRequestIdentitySource",
+    "SignedDecision",
     "SkillCompiler",
     "SkillContract",
+    "SqliteLeaseStore",
+    "StaleFencingToken",
+    "StepState",
+    "TransportGuard",
     "TrustedActionEnvelope",
     "TrustedEnvelopeConfig",
     "TrustedRequestIds",
     "VerificationResult",
     "VerificationStatus",
     "build_action_request",
+    "build_sbom",
+    "build_transport_guard",
+    "create_backup",
+    "restore_backup",
+    "select_candidate",
+    "verify_backup",
+    "write_sbom",
 ]
 
 __version__ = "0.2.0"

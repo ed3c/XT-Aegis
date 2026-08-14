@@ -1,0 +1,66 @@
+--- git town config ---
+
+Branches:
+  contribution branches: (none)
+  contribution regex: (not set)
+  feature regex: ^(agent|docs|fix|feat|chore)/
+  main branch: main
+  observed branches: (none)
+  observed regex: (not set)
+  parked branches: (none)
+  perennial branches: main
+  perennial regex: ^main$
+  prototype branches: (none)
+  unknown branch type: feature
+  order: asc
+  display types: all branch types except "feature" and "main"
+
+Configuration:
+  offline: no
+  git user name: (not set)
+  git user email: (not set)
+
+Create:
+  branch prefix: (not set)
+  new branch type: feature
+  share new branches: no
+  stash uncommitted changes: yes
+
+Hosting:
+  browser: (not set), disabled
+  development remote: origin
+  forge type: github
+  origin hostname: (not set)
+  Bitbucket username: (not set)
+  Bitbucket API token: (not set)
+  Forgejo token: (not set)
+  Gitea token: (not set)
+  GitHub connector: (not set)
+  GitHub token: (not set)
+  GitLab connector: (not set)
+  GitLab token: (not set)
+
+Propose:
+  breadcrumb: none
+  breadcrumb direction: down
+
+Ship:
+  delete tracking branch: yes
+  enter message: no
+  ignore uncommitted changes: no
+  ship strategy: api
+
+Sync:
+  auto-resolve phantom conflicts: no
+  auto-sync: no
+  run detached: no
+  run pre-push hook: no
+  feature sync strategy: rebase
+  perennial sync strategy: ff-only
+  prototype sync strategy: rebase
+  push branches: yes
+  sync tags: no
+  sync with upstream: no
+
+--- .git-town.toml sha256 ---
+dac32bfc8557e9f9f86537a4e081f32eff90f2965233b48a7676bace687356db  .git-town.toml

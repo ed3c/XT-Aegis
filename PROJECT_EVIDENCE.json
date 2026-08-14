@@ -428,7 +428,7 @@
     },
     {
       "id": "openshell-backend-adapter",
-      "claim": "The OpenShell adapter uses a documented default-deny policy, argv-only invocation, automatic cleanup, and fails unsupported when the runtime is absent.",
+      "claim": "The OpenShell adapter uses a documented default-deny policy, argv-only invocation, automatic cleanup, and fails unsupported when the runtime is absent or not execution-ready.",
       "status": "implemented",
       "evidence": [
         "src/xt_aegis/verification.py",
@@ -461,6 +461,8 @@
       },
       "limitations": [
         "CI validates adapter behavior and policy shape; a host with OpenShell is required to reproduce runtime isolation.",
+        "The readiness probe proves the reviewed version and an active gateway resolve for the launching session; it does not prove the sandbox enforces isolation, which remains issue #12.",
+        "A gateway that answers status can still reject sandbox creation; that case is detected at launch time by a per-run entry marker and reported as unsupported, not as a failed claim.",
         "OpenShell is an external runtime with its own documented maturity and threat model."
       ]
     },

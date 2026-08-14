@@ -290,10 +290,26 @@
           "title": "Proposal Sha256"
         },
         "proposal_status": {
-          "$ref": "#/$defs/ProposalStatus"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProposalStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "provider_profile": {
-          "$ref": "#/$defs/ProviderProfile"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderProfile"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "readiness_verdict": {
           "title": "Readiness Verdict",
@@ -371,8 +387,6 @@
       },
       "required": [
         "attempt_number",
-        "proposal_status",
-        "provider_profile",
         "target_path",
         "backend_profile",
         "readiness_verdict",
@@ -585,7 +599,10 @@
         "approval_required",
         "budget_exhausted",
         "identity_conflict",
-        "output_budget_exhausted"
+        "output_budget_exhausted",
+        "cancelled",
+        "deadline_exceeded",
+        "isolation_unavailable"
       ],
       "title": "ExecutionReasonCode",
       "type": "string"
@@ -613,6 +630,49 @@
       ],
       "title": "ProposalStatus",
       "type": "string"
+    },
+    "ProviderAdmission": {
+      "additionalProperties": false,
+      "description": "Declared provider identity and the per-call token reservation trusted code will spend.",
+      "properties": {
+        "model": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "reserve_completion_tokens": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Reserve Completion Tokens",
+          "type": "integer"
+        },
+        "reserve_prompt_tokens": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Reserve Prompt Tokens",
+          "type": "integer"
+        },
+        "version": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "version"
+      ],
+      "title": "ProviderAdmission",
+      "type": "object"
     },
     "ProviderProfile": {
       "additionalProperties": false,
@@ -698,6 +758,17 @@
   "additionalProperties": false,
   "description": "Schema-valid terminal evidence for a finite controller run.",
   "properties": {
+    "admission": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProviderAdmission"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "attempts": {
       "items": {
         "$ref": "#/$defs/ControllerAttempt"

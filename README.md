@@ -45,12 +45,16 @@ The complete contribution contract is [`AGENTS.md`](AGENTS.md).
 | Canonical request identity, approval binding, exact replay | current | PR #31; `identity.py`, `checkpoint.py`, `runner.py` |
 | Declared command exit-code semantics | current | PR #31; `models.py`, `runner.py` |
 | Provider-neutral proposal and trusted envelope | current | PR #51; `proposals.py`, `providers/ollama.py` |
-| Finite diagnose-repair controller core | current partial | PR #52; issue #29 retains token admission, restart, candidate, and model-evidence leaves |
+| Finite diagnose-repair controller core | current partial | PRs #52, #60, and #68; token admission and restart-safe state are current, issue #29 retains candidate selection and model evidence |
 | Streaming subprocess output enforcement | current | PR #54; shared stdout/stderr budget, process-group termination, bounded evidence, rollback on failed mutation |
 | Backend-map static typing compatibility | current | PR #56; mypy 2 compatibility without backend-selection behavior change |
 | Source-bound OpenShell verification | current | PR #23; strong action isolation/readiness remain #27/#30 |
-| Strong mutation isolation | planned | #27; live profile evidence also belongs to #12 |
-| Execution-equivalent OpenShell readiness | planned | #30; doctor and launch path must agree |
+| Execution-equivalent OpenShell readiness | current adapter probe | #30; per-component executable/policy/version/gateway probe shares the execution environment; live agreement evidence belongs to #12 |
+| Deterministic runtime benchmark harness | current | #11; raw profile-bound trials, no threshold enforced in CI |
+| Strong mutation isolation | current for the Docker profile | #27; adversarial live evidence for the pinned OpenShell and rootless Podman profiles still belongs to #12 |
+| Span vocabulary, attribute allowlist, and offline replay | current | #9; telemetry is off by default and XT-Aegis owns no exporter |
+| Crash-safe transitions, cancellation, and deadlines | current | #10; every transition is kill-tested with a real child process |
+| Default-deny egress decisions and credential broker | current | #13; a decision plane, not socket-level enforcement, which remains #12 |
 | Model-backed correctness/performance evidence | unverified | #11, #24, #29 |
 | Git Town repository-side workflow | merged contract | exact unattended Worker remains deployment-blocked by #44 |
 
@@ -164,9 +168,9 @@ flowchart TD
 
 | Leaf | Required split or dependency | State |
 |---|---|---|
-| #29 | split provider-token admission, restart-safe state, candidate selection, and model-backed comparison | open/current partial parent capability |
+| #29 | token admission delivered by #60; restart-safe state, candidate selection, and model-backed comparison remain split | open/current partial parent capability |
 | #27 | add a conformant isolated mutation backend and separate isolation/rollback verdicts | planned |
-| #30 | make automatic OpenShell selection depend on execution-equivalent readiness | planned |
+| #30 | make automatic OpenShell selection depend on execution-equivalent readiness | adapter probe current; live smoke evidence open under #12 |
 | #11 | publish raw deterministic/model-backed trials with exact profile metadata | open/unverified |
 | #12 | publish version-pinned adversarial OpenShell/rootless OCI evidence | open live gate |
 | #44 | qualify one exact Git Town Worker without changing product-runtime claims | deployment-blocked |
@@ -245,8 +249,10 @@ Automatic backend selection is fail closed:
 OpenShell -> confirmed-rootless Podman -> reachable Docker -> unsupported
 ```
 
-`unsafe-local` requires explicit selection and is not independently sandboxed. Issue #30 remains the gate
-for execution-equivalent OpenShell readiness, and #12 owns live adversarial conformance.
+`unsafe-local` requires explicit selection and is not independently sandboxed. `auto` selects OpenShell only
+after its executable, policy, reviewed version, and gateway components are all ready under the same
+environment resolution the launch path uses; a stale or unreachable gateway produces a typed `unsupported`
+infrastructure verdict instead of a failed claim. Live adversarial conformance remains #12.
 
 ## Agent documentation index
 

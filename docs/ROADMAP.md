@@ -43,10 +43,52 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [x] canonical request and policy digest binding for replay and approval (#25; delivered when PR #31 is on `main`);
 - [x] declared command exit-code semantics shared by actions and assertions (#28; delivered when PR #31 is on `main`);
 - [x] provider-neutral proposal adapter and trusted envelope (#26; current on `main`);
-- [ ] strong-isolation mutation backend for Harness actions (#27);
+- [x] strong-isolation mutation backend for Harness actions (#27; live Docker evidence, with the pinned
+  OpenShell and rootless Podman matrix still owned by #12);
 - [ ] bounded diagnose-repair and candidate-selection controller (#29; deterministic finite controller core merged in #52 and streaming command-output enforcement tracked by #53, while hard provider-token admission, restart, selection, and model-backed outcome evidence remain open);
+- [ ] OpenShell readiness and conformance gate (#30; the execution-equivalent component probe is current on
+  `main`, while live version-pinned doctor/execution agreement evidence remains #12);
+- [x] schema-versioned events, span vocabulary, and offline trajectory replay (#9);
+- [x] process-kill fault injection at every persisted transition, plus cancellation and deadline
+  propagation (#10);
 - [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
+- [ ] OpenShell readiness and conformance gate (#30);
+- [ ] benchmark corpus and reproducible outcome evidence (#11; the deterministic runtime harness and raw
+  artifact contract are current, while model-backed comparison evidence remains open).
+
+Research tracks (#18) are decided in `docs/design/`: branch-and-evaluate and provider adapters are
+promoted, AST scopes and model-authored memory are rejected, and signed skills and knowledge caches are
+deferred behind named preconditions. No research track promotes a capability claim.
+The v0.4 protected side-effect runner (#76, a slice of #15) is implemented against synthetic adapters. The
+resumable notification channel and authenticated decision callback in #15 remain open, and no exactly-once
+delivery claim is made.
+The v0.5 admission decision for mutating MCP calls (#78, a slice of #16) exists as a pure component. No
+mutating tool is registered or callable, and the MCP surface remains read-only by default.
+Backup and restore of checkpoints, approvals, events, and terminal idempotency records (#80, one acceptance
+criterion of #17) is implemented. Signed releases, SBOM and provenance, the supported deployment profile,
+incident response, and independent assessment remain open.
+The v0.4 human-in-the-loop notification and decision binding (#82) completes the second half of #15's scope
+alongside #76. Neither is wired into the runner yet, and no exactly-once delivery claim is made.
+- [ ] benchmark corpus and reproducible outcome evidence (#11);
+- [ ] default-deny egress and out-of-band credential injection (#13; the decision plane and credential
+  broker are current, while runtime enforcement in the sandbox profile remains #12).
+
+The v0.4 checkpoint-backend contract and PostgreSQL implementation (#84, a slice of #14) pass one shared
+conformance suite on both backends. A recorded migration ledger and compare-and-set on every mutating
+transition (#88) are current on both. Runner wiring remains open — nothing passes an expected version yet —
+and no multi-worker production claim is made.
+
+A deterministic SBOM, its release attestation and attachment, and the supported deployment profile
+(#86 and #92, both part of #17) are current. Independent signing, vulnerability assessment of the
+inventory, schema migration policy, and independent third-party assessment remain open.
+
+The v0.4 lease and fencing-token layer (#74, a slice of #14) is implemented and tested against SQLite and a
+real PostgreSQL. The checkpoint port, migrations, and optimistic concurrency in #14 remain open, and no
+multi-worker production claim is made.
+A deterministic SBOM, its release attestation and attachment, and the supported deployment profile
+(#86 and #92, both part of #17) are current. Independent signing, vulnerability assessment of the
+inventory, schema migration policy, and independent third-party assessment remain open.
 
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
@@ -67,7 +109,8 @@ fails safely from every persisted transition.
 ## v0.4 - Distributed state and coordination
 
 - [ ] PostgreSQL checkpoint backend;
-- [ ] optimistic versions and resource preconditions;
+- [x] optimistic versions on runs and steps, with compare-and-set on every mutating transition (#88);
+- [ ] resource preconditions;
 - [ ] per-resource leases with expiry and fencing tokens;
 - [ ] external side-effect idempotency adapter;
 - [ ] conflict and network-partition fault tests;
@@ -81,9 +124,9 @@ side effect during retry and failover tests.
 - [ ] authenticated subject and audience validation;
 - [ ] per-tool scopes and authorization policy;
 - [ ] approval binding to authenticated identity, exact arguments, expiry, and reason;
-- [ ] host/origin validation and deployment hardening;
+- [x] host/origin validation and deployment hardening for the HTTP transport (#90);
 - [ ] request-level idempotency and bounded structured output;
-- [ ] security assessment and compatibility matrix.
+- [ ] security assessment; the SDK compatibility matrix is in [MCP_TRANSPORT.md](MCP_TRANSPORT.md) (#90).
 
 **Exit criteria:** mutating tools remain absent unless every identity, authorization, approval, sandbox,
 egress, and audit requirement is satisfied.

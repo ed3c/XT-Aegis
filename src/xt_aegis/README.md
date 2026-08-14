@@ -100,7 +100,8 @@ Exact machine-readable `ExecutionReasonCode` values currently include:
 
 ```text
 policy_denied | approval_denied | approval_required | budget_exhausted
-identity_conflict | output_budget_exhausted
+identity_conflict | output_budget_exhausted | cancelled | deadline_exceeded
+isolation_unavailable
 ```
 
 ```mermaid
@@ -127,7 +128,8 @@ excess. `output_original_bytes` is a lower bound after excess is observed; OS pi
 These controls are not strong process isolation.
 
 Workspace rollback covers only the owned workspace. Issue #27 owns strong isolation for mutating commands;
-issue #30 owns execution-equivalent OpenShell readiness; issue #12 owns live runtime conformance.
+issue #12 owns live runtime conformance. Execution-equivalent OpenShell readiness (#30) is implemented as a
+per-component probe in `verification.py`; its live agreement evidence still belongs to #12.
 
 ## Checkpoint, approval, and replay State Machine
 
@@ -195,7 +197,7 @@ PR #56 backend typing compatibility
 Open independent leaves:
 
 ```text
-#29 provider-token admission / restart state / candidate selection / model-backed acceptance
+#29 restart state / candidate selection / model-backed acceptance (provider-token admission delivered by #60)
 #27 strong mutation isolation
 #30 execution-equivalent readiness
 #11 benchmark evidence

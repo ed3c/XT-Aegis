@@ -41,9 +41,9 @@ parent, PR base, eval, evidence level, or capability status changes.
 | `INTENT-001` | Bind approvals and idempotency to versioned canonical request and policy identity. | runner/checkpoint State Machine; [`CODING_AGENT_HARNESS.md`](CODING_AGENT_HARNESS.md) | #25; merged PR #31 | identity substitution, restart, replay, legacy/future schema, approval cases | `current` | Digest integrity is not actor authentication; external exactly-once remains #15. |
 | `INTENT-002` | Honor declared `expected_exit_codes` while preserving assertion and rollback semantics. | runner State Machine; `models.py`, `runner.py` | #28; merged PR #31 | zero/non-zero/multiple, timeout, signal, postcondition cases | `current` | Exit membership is not semantic correctness without assertions. |
 | `INTENT-003` | Limit provider output to bounded proposal content; trusted code constructs the execution envelope. | proposal/envelope State Machine; `proposals.py`, provider README, ADR 0005 | #26; merged PR #51 | `EVAL-HARNESS-PROP-*` | `current` | No live provider correctness, availability, privacy, or version-attestation claim. |
-| `INTENT-004` | Add finite diagnose-repair transitions with explicit stop conditions and bounded command output. | controller/runner State Machines; `controller.py`, `runner.py`, [`HARNESS_EVALS.md`](HARNESS_EVALS.md) | #29; merged PRs #52 and #54; closed #53 | controller transition/budget/cycle/redaction/identity/output cases | `current partial` | Finite controller core and streaming output enforcement are current. Provider-token admission, restart-safe state, candidate selection, strong isolation, and model-backed acceptance remain open. |
-| `INTENT-005` | Route mutating command actions through a conformant strong-isolation backend. | runner/isolation State Machine; [`THREAT_MODEL.md`](THREAT_MODEL.md) | #27; live evidence #12 | isolation adversarial matrix | `planned` | Workspace rollback and process-group termination are not host/process containment. |
-| `INTENT-006` | Make OpenShell auto-selection depend on execution-equivalent readiness and typed infrastructure verdicts. | verification/backend State Machine; [`OPENSHELL.md`](OPENSHELL.md) | #30; related #12; PR #23 supplies source binding only | readiness component and version-pinned doctor/execution cases | `planned` | Binary/gateway presence alone is insufficient; no unsafe-local fallback. |
+| `INTENT-004` | Add finite diagnose-repair transitions with explicit stop conditions and bounded command output. | controller/runner State Machines; `controller.py`, `runner.py`, [`HARNESS_EVALS.md`](HARNESS_EVALS.md) | #29; merged PRs #52 and #54; closed #53; #60 | controller transition/budget/cycle/redaction/identity/output/admission cases | `current partial` | Finite controller core, streaming output enforcement, and pre-call provider-token admission are current. Restart-safe state, candidate selection, strong isolation, and model-backed acceptance remain open. |
+| `INTENT-006` | Make OpenShell auto-selection depend on execution-equivalent readiness and typed infrastructure verdicts. | verification/backend State Machine; [`OPENSHELL.md`](OPENSHELL.md) | #30; related #12; PR #23 supplies source binding only | readiness component and version-pinned doctor/execution cases | `current adapter probe` | Executable, policy, reviewed version, and gateway are probed separately with the execution environment; live doctor/execution agreement evidence remains #12. Binary presence alone is insufficient; no unsafe-local fallback. |
+| `INTENT-005` | Route mutating command actions through a conformant strong-isolation backend. | runner/isolation State Machine; [`ACTION_ISOLATION.md`](ACTION_ISOLATION.md), [`THREAT_MODEL.md`](THREAT_MODEL.md) | #27; live evidence #12 | isolation adversarial matrix | `current for the Docker profile` | Live evidence covers one Docker version on one host. Workspace rollback and process-group termination are still not host containment, and the pinned OpenShell/rootless Podman matrix remains #12. |
 | `INTENT-007` | Measure first-pass/post-repair success, Harness uplift, mutation persistence, latency, cost, tokens, retries, and stops separately. | benchmark/claim State Machine; [`BENCHMARKS.md`](BENCHMARKS.md) | #11, #24, #29 | `EVAL-BENCH-*` | `unverified` | Preserve failed/timed-out raw trials; one model/machine profile does not generalize. |
 | `INTENT-008` | Separate model correctness, orchestration effect, and safety/failure containment. | controller and benchmark State Machines; ADR 0005 | #35 / merged PR #40; evidence #11/#24/#29 | Harness measurement and benchmark comparisons | `merged contract` | Measurement rules are accepted; model-backed uplift remains unverified. |
 | `INTENT-009` | Preserve failed, timed-out, unsupported, policy-denied, and negative-result evidence. | verification/benchmark/evidence State Machines; [`EVALS.md`](EVALS.md), [`EVIDENCE.md`](EVIDENCE.md) | merged PRs #38/#40 and ongoing evidence issues | common evidence/claim evals | `current` | Raw model/runtime artifacts remain with their owning issues. |
@@ -82,12 +82,12 @@ flowchart LR
 | Lane | Issue / PR | State | Primary owned area | Next required action |
 |---|---|---|---|---|
 | merged foundation | PRs #23/#31/#51/#52/#54/#56 | `current` to stated evidence | source binding, identity/exits, proposal, controller core, output enforcement, typing | preserve contracts and limitations in future leaves |
-| controller A | #29 child to create | planned | provider-token admission | define exact tokenizer/profile and pre-call rejection evals |
-| controller B | #29 child to create | planned | restart-safe controller state | define persistence/migration/kill-restart matrix |
-| controller C | #29 child to create | planned | bounded candidate selection | define child workspace, conflict, and selection contract |
+| controller A | #60 | current | provider-token admission | declared reservation enforced before each call; no tokenizer is bundled |
+| controller B | #68 | current | restart-safe controller state | resume or fail closed; single node only, distributed coordination remains #14 |
+| controller C | #70 | selection rule current | bounded candidate selection | orchestration deferred until a caller exists; see the track D research note |
 | controller evidence | #11/#29 child to create | unverified | direct/equal-feedback/controller raw comparison | pin corpus/model/sampling/environment and preserve failures |
 | isolation | #27 | planned | strong-isolation action backend | design adapter, negative tests, and live #12 gate |
-| readiness | #30 | planned | execution-equivalent OpenShell readiness | typed probe and doctor/launch agreement |
+| readiness | #30 | current adapter probe | execution-equivalent OpenShell readiness | live version-pinned doctor/launch agreement under #12 |
 | runtime evidence | #12 | open | pinned adversarial OpenShell/rootless OCI artifacts | publish exact environment and failed trials |
 | repository ops | #44 | deployment-blocked | exact Git Town Worker acceptance | package/binary/ShellCheck/conflict/race/secret matrix |
 | documentation delivery | #57 / PR #58 | current on `main` after merge | README and central indexes | future status changes update these files in owning PRs |
@@ -123,12 +123,15 @@ active rows. Therefore:
 
 | Work | State | Required next artifact |
 |---|---|---|
-| #29 remaining controller acceptance | open/current partial parent | molecular child issues for token admission, restart state, candidate selection, and model evidence |
+| #29 remaining controller acceptance | open/current partial parent | token admission closed by #60; restart state, candidate selection, and model evidence remain |
 | #27 strong mutation isolation | planned | architecture/adapter issue-owned PR with adversarial tests and separate isolation verdict |
-| #30 OpenShell readiness | planned | version-aware probe and doctor/launch consistency tests |
-| #11 reproducible benchmarks | open/unverified | raw schema-valid trials, environment manifest, exact commands, summaries |
+| #30 OpenShell readiness | current adapter probe | live version-pinned smoke proving doctor selection and verification execution agree |
+| #11 reproducible benchmarks | deterministic harness current; model-backed evidence open/unverified | committed local raw artifacts for two workspace sizes; model-backed comparison still pending |
 | #12 live runtime conformance | open | pinned OpenShell/rootless OCI adversarial evidence |
-| #9 observability | open | schema-versioned event/trace contract and secret-safe exporter tests |
+| #18 research tracks | decided | six notes in `docs/design/` with promote/defer/split/reject decisions; no claim promoted |
+| #9 observability | current | delivered: span vocabulary, allowlisted attributes, versioned JSONL envelope, offline replay |
+| #10 crash recovery | current | delivered: named transitions, process-kill matrix, cancellation and deadline reason codes, recovery table |
+| #13 egress and credentials | decision plane current | socket-level enforcement in the sandbox profile remains #12 |
 | #10 crash/deadline recovery | open | kill/restart/cancellation State Machine and fault-injection evidence |
 | #14/#15 | planned | distributed coordination and protected external-side-effect contracts |
 | #16 | planned | authenticated fail-closed mutating MCP adapter after prerequisites |

@@ -1,0 +1,249 @@
+{
+  "schema_version": "1.0",
+  "issue": 44,
+  "related_issues": [
+    43,
+    32,
+    36
+  ],
+  "recorded_at": "2026-08-14",
+  "deployment_gate": "not satisfied",
+  "results": [
+    {
+      "eval": "EVAL-GIT-LIVE-01",
+      "title": "release package identity",
+      "status": "passed",
+      "argv": [
+        "bash",
+        "scripts/git-town/verify-release-artifact.sh",
+        "/tmp/git-town_linux_intel_64.deb"
+      ],
+      "exit_code": 0,
+      "evidence": [
+        "logs/eval-01-verify-release-artifact.log",
+        "logs/package-sha256.txt",
+        "logs/package-fields.txt",
+        "artifact-manifest.json"
+      ],
+      "notes": "checksums.txt, the entry inside it, and the downloaded package all match the pinned lock; DEB reports 24.0.0 / amd64"
+    },
+    {
+      "eval": "EVAL-GIT-LIVE-02",
+      "title": "installed binary identity and copied license",
+      "status": "passed",
+      "argv": [
+        "bash",
+        "scripts/git-town/verify-license.sh"
+      ],
+      "exit_code": 0,
+      "evidence": [
+        "logs/eval-02-verify-license.log",
+        "logs/binary-sha256.txt",
+        "logs/git-town-version.txt"
+      ],
+      "notes": "the installed binary reports 24.0.0 and the copied MIT text matches the pinned digest; the binary SHA-256 was supplied for this run because the lock does not pin one"
+    },
+    {
+      "eval": "EVAL-GIT-LIVE-03",
+      "title": "shell analysis with complete findings preserved",
+      "status": "passed",
+      "argv": [
+        "shellcheck",
+        "--format=gcc",
+        "scripts/git-town/*.sh"
+      ],
+      "exit_code": 1,
+      "evidence": [
+        "logs/eval-03-shellcheck.log",
+        "logs/eval-03-bash-n.log",
+        "logs/eval-03-status.txt"
+      ],
+      "notes": "this eval requires findings to be preserved, and all 15 are recorded. ShellCheck 0.9.0 exits 1 because findings exist: 11 notes (8 SC1091 unfollowed source, 3 SC2015 A && B || C, 1 SC2153) and 4 warnings (SC2034 unused variable). No error-severity finding. See EVAL-WORKER-04 for the stricter reading."
+    },
+    {
+      "eval": "EVAL-WORKER-04",
+      "title": "bash -n and shellcheck pass on every Bash file",
+      "status": "failed",
+      "argv": [
+        "bash",
+        "-n",
+        "scripts/git-town/*.sh",
+        "&&",
+        "shellcheck",
+        "scripts/git-town/*.sh"
+      ],
+      "exit_code": 1,
+      "evidence": [
+        "logs/eval-03-status.txt",
+        "logs/eval-03-shellcheck.log"
+      ],
+      "notes": "bash -n passes on every file. ShellCheck exits non-zero, so under #43's wording this eval fails. Most findings are SC1091 for sourced files that were not passed as input; re-running with `shellcheck -x` would resolve those, but changing the invocation is outside this evidence PR's path ownership."
+    },
+    {
+      "eval": "EVAL-GIT-LIVE-04",
+      "title": "pinned config parse with the exact binary",
+      "status": "passed",
+      "argv": [
+        "git",
+        "town",
+        "config"
+      ],
+      "exit_code": 0,
+      "evidence": [
+        "logs/eval-04-config.log"
+      ],
+      "notes": "the real 24.0.0 binary parsed .git-town.toml (digest matches the lock) and reported feature sync strategy rebase, perennial ff-only, push branches yes, auto-sync no, run pre-push hook no, auto-resolve phantom conflicts no, propose breadcrumb none. Non-interactive mode is a per-invocation flag rather than config state and is therefore not observable here."
+    },
+    {
+      "eval": "EVAL-WORKER-05",
+      "title": "committed fixture passes unchanged inside the image",
+      "status": "passed",
+      "argv": [
+        "bash",
+        "scripts/git-town/test-fixture.sh"
+      ],
+      "exit_code": 0,
+      "evidence": [
+        "logs/eval-05-test-fixture.log"
+      ],
+      "notes": "run unmodified with a 600s deadline; ends with 'Git Town worker fixture passed'"
+    },
+    {
+      "eval": "EVAL-WORKER-01",
+      "title": "immutable environment manifest",
+      "status": "failed",
+      "argv": [],
+      "exit_code": null,
+      "evidence": [
+        "environment.json"
+      ],
+      "notes": "the environment is fully recorded, but the image is a general debian:bookworm-slim with tools installed at run time. #43 requires an immutable purpose-built Worker image without package-channel installation, so this does not satisfy the eval."
+    },
+    {
+      "eval": "EVAL-GIT-LIVE-05",
+      "title": "real no-push dry run",
+      "status": "not_run",
+      "argv": [],
+      "exit_code": null,
+      "evidence": [],
+      "notes": "requires a source-matched checkout with real PR metadata and a GitHub CLI session"
+    },
+    {
+      "eval": "EVAL-GIT-LIVE-06",
+      "title": "conflict-free synchronization",
+      "status": "not_run",
+      "argv": [],
+      "exit_code": null,
+      "evidence": [],
+      "notes": "requires a disposable remote"
+    },
+    {
+      "eval": "EVAL-GIT-LIVE-07",
+      "title": "semantic conflict handling",
+      "status": "not_run",
+      "argv": [],
+      "exit_code": null,
+      "evidence": [],
+      "notes": "requires a disposable remote and a real conflicting stack"
+    },
+    {
+      "eval": "EVAL-GIT-LIVE-08",
+      "title": "partial mutation detection",
+      "status": "not_run",
+      "argv": [],
+      "exit_code": null,
+      "evidence": [],
+      "notes": "requires a disposable remote"
+    },
+    {
+      "eval": "EVAL-GIT-LIVE-09",
+      "title": "remote race and safe force",
+      "status": "not_run",
+      "argv": [],
+      "exit_code": null,
+      "evidence": [],
+      "notes": "requires a competing remote update between fetch and push"
+    },
+    {
+      "eval": "EVAL-GIT-LIVE-10",
+      "title": "timeout and output bounds",
+      "status": "failed",
+      "argv": "bash docs/evidence/git-town-worker/v24.0.0/run-preflight-evals.sh",
+      "exit_code": 0,
+      "evidence": [
+        "preflight-results.jsonl",
+        "preflight-environment.json",
+        "logs/preflight/"
+      ],
+      "notes": [
+        "3 case(s) run on a local bare-repository origin; no GitHub credentials are needed for any guard in this eval. Method: GNU timeout with --kill-after and bound_file from common.sh, exercised directly.",
+        "timeout-attached-grandchild: passed (exit 124) - deadline fired (exit 124); grandchild absent",
+        "timeout-detached-grandchild: failed (exit 124) - deadline fired (exit 124); a setsid grandchild survived, which timeout cannot reach",
+        "output-bound: passed (exit 0) - bounded from 4000000 to 65495 bytes against a 65536 limit"
+      ]
+    },
+    {
+      "eval": "EVAL-GIT-LIVE-11",
+      "title": "preflight isolation matrix",
+      "status": "passed",
+      "argv": "bash docs/evidence/git-town-worker/v24.0.0/run-preflight-evals.sh",
+      "exit_code": 0,
+      "evidence": [
+        "preflight-results.jsonl",
+        "preflight-environment.json",
+        "logs/preflight/"
+      ],
+      "notes": [
+        "8 case(s) run on a local bare-repository origin; no GitHub credentials are needed for any guard in this eval. Method: seven refusal cases plus one clean control, each asserting the guard's own message.",
+        "control-clean-bootstrap: passed (exit 0) - the clean fixture is accepted, so a refusal below is the named guard and not a broken fixture",
+        "wrong-origin: passed (exit 1) - refused with the expected reason",
+        "dirty-worktree: passed (exit 1) - refused with the expected reason",
+        "suspended-operation: passed (exit 1) - refused with the expected reason",
+        "missing-local-branch: passed (exit 1) - refused with the expected reason",
+        "malformed-manifest-row: passed (exit 1) - refused with the expected reason",
+        "lock-contention: passed (exit 1) - refused with the expected reason",
+        "checksum-mismatch: passed (exit 1) - refused with the expected reason"
+      ]
+    },
+    {
+      "eval": "EVAL-GIT-LIVE-12",
+      "title": "secret canaries",
+      "status": "passed",
+      "argv": "bash docs/evidence/git-town-worker/v24.0.0/run-preflight-evals.sh",
+      "exit_code": 0,
+      "evidence": [
+        "preflight-results.jsonl",
+        "preflight-environment.json",
+        "logs/preflight/"
+      ],
+      "notes": [
+        "1 case(s) run on a local bare-repository origin; no GitHub credentials are needed for any guard in this eval. Method: a synthetic credential injected through GH_TOKEN and GITHUB_TOKEN, then searched for.",
+        "credential-canary: passed (exit 0) - run exited 0; no canary in repository files, logs, process arguments, or git-town argv"
+      ]
+    },
+    {
+      "eval": "EVAL-WORKER-06",
+      "title": "real dry run with PR metadata",
+      "status": "not_run",
+      "argv": [],
+      "exit_code": null,
+      "evidence": [],
+      "notes": "same dependency as EVAL-GIT-LIVE-05"
+    },
+    {
+      "eval": "EVAL-WORKER-07",
+      "title": "conflict-free sync of a synthetic stack",
+      "status": "not_run",
+      "argv": [],
+      "exit_code": null,
+      "evidence": [],
+      "notes": "same dependency as EVAL-GIT-LIVE-06"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 2,
+    "not_run": 10,
+    "not_applicable": 0
+  }
+}

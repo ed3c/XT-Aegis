@@ -1,0 +1,7 @@
+os=Debian GNU/Linux 12 (bookworm)
+arch=x86_64
+kernel=7.0.14-orbstack-00380-ga7e0a2dc9535
+bash=GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)
+git=git version 2.39.5
+shellcheck=version: 0.9.0
+timeout=timeout (GNU coreutils) 9.1

@@ -77,7 +77,9 @@ auto | openshell | podman | docker | unsafe-local
   another typed non-success outcome rather than weakening the request.
 - Source-bound OpenShell adapter behavior is current through PR #23.
 - Mypy 2 backend-map compatibility is current through PR #56 and does not change backend selection.
-- Execution-equivalent OpenShell readiness remains issue #30.
+- OpenShell readiness is probed per component (executable, policy, version, gateway) with the same
+  environment resolution the execution path uses; `auto` selects OpenShell only when every component is
+  ready. The live version-pinned agreement evidence remains issue #12.
 - Strong isolation for mutating command actions remains issue #27.
 - Live OpenShell/rootless OCI adversarial conformance remains issue #12.
 
@@ -89,7 +91,7 @@ Unit adapter tests and a source-matched image build do not by themselves satisfy
 |---|---|---|
 | project evidence registry | claim/status/evidence/recipe/limitations | schema validator and planner |
 | schema validator | accepted typed contract or error | CLI/MCP/CI caller |
-| backend doctor/planner | availability, reason, selected backend | verifier and operator |
+| backend doctor/planner | availability, per-component readiness, reason, selected backend | verifier and operator |
 | recipe execution | exit/output/duration/timeout/artifact evidence | typed verification result |
 | result aggregation | counts and overall status | evidence pack and reviewer |
 | evidence pack | deterministic archive and hash manifest | independent verifier / release review |

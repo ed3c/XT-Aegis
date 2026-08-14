@@ -47,7 +47,8 @@ longer active leaves and must not be added to the Git Town manifest.
 
 ```mermaid
 flowchart TD
-    MAIN[Current main] --> CTRL[#29 remaining controller acceptance]
+    MAIN[Current main] --> ADMIT[#60 provider-token admission]
+    MAIN --> CTRL[#29 remaining controller acceptance]
     MAIN --> ISO[#27 strong-isolation action backend]
     MAIN --> READY[#30 execution-equivalent OpenShell readiness]
     MAIN --> BENCH[#11 reproducible benchmark harness]
@@ -66,19 +67,20 @@ parents, bases, paths, and evals exist.
 Issue #29 remains open after the finite controller core and streaming-output enforcement. Its remaining
 acceptance work must be split rather than delivered as one large PR.
 
-### Leaf 29-A — provider-token admission
+### Leaf 29-A — provider-token admission (owned by #60)
 
 | Field | Required content |
 |---|---|
 | Outcome | Refuse a next provider call before it can exceed an enforceable prompt/completion budget for one declared provider/tokenizer profile |
-| Suggested branch | `agent/controller-provider-token-admission` |
+| Owning issue | #60 |
+| Branch | `agent/controller-provider-token-admission` |
 | Primary paths | provider/controller request contracts, focused provider/controller tests, matching schema/docs |
 | Excluded paths | strong backend implementation, benchmark corpus/results, Git Town tooling |
 | Positive eval | known tokenizer/profile admits a call within remaining budget |
 | Negative eval | missing usage/tokenizer, zero remaining budget, overflow, profile mismatch fail before another call |
 | Claim boundary | exact provider/tokenizer profile only; no universal token-count guarantee |
 
-### Leaf 29-B — restart-safe controller state
+### Leaf 29-B — restart-safe controller state (owned by #68)
 
 | Field | Required content |
 |---|---|
@@ -90,7 +92,7 @@ acceptance work must be split rather than delivered as one large PR.
 | Negative eval | stale schema, mismatched source/policy/provider, consumed approval, ambiguous execution outcome fail closed |
 | Claim boundary | single-node supported backend until #14 provides multi-worker coordination |
 
-### Leaf 29-C — bounded candidate selection
+### Leaf 29-C — bounded candidate selection (selection rule owned by #70)
 
 | Field | Required content |
 |---|---|
@@ -120,12 +122,12 @@ Each leaf needs its own eval-first issue or an explicitly separated child issue 
 
 | Workstream | State | Observable outcome | Shared-path rule |
 |---|---|---|---|
-| #27 strong mutation isolation | planned | mutating commands require a conformant strong backend and expose isolation separately from rollback | name integration owner before touching runner, backend, threat-model, schema, or evidence paths |
-| #30 backend readiness | planned | `auto` selects OpenShell only after execution-equivalent readiness; infrastructure failure remains typed | coordinate `verification.py` with #27 and live #12 work |
+| #30 backend readiness | adapter probe current | `auto` selects OpenShell only after execution-equivalent readiness; infrastructure failure remains typed | coordinate `verification.py` with #27 and live #12 work |
+| #27 strong mutation isolation | current for the Docker profile | mutating commands require a conformant strong backend and expose isolation separately from rollback | name integration owner before touching runner, backend, threat-model, schema, or evidence paths |
 | #12 live runtime conformance | open live gate | adversarial evidence for pinned OpenShell/rootless OCI profiles | adapter unit tests are insufficient; evidence paths own raw results |
-| #11 benchmark harness | open/unverified | schema-valid raw deterministic and optional model-backed artifacts | no runtime source edits without a separate issue |
-| #9 observability | open | schema-versioned event/trace contract without secret export or authorization coupling | coordinate event/checkpoint schemas and redaction owner |
-| #10 crash/deadline recovery | open | kill/restart/cancellation matrix reaches documented safe states | coordinate checkpoint, runner, workspace, and event owners |
+| #11 benchmark harness | deterministic harness current; model-backed open/unverified | schema-valid raw deterministic artifacts committed; optional model-backed artifacts pending | no runtime source edits without a separate issue |
+| #9 observability | current | schema-versioned event/trace contract without secret export or authorization coupling | coordinate event/checkpoint schemas and redaction owner |
+| #10 crash/deadline recovery | current | kill/restart/cancellation matrix reaches documented safe states | coordinate checkpoint, runner, workspace, and event owners |
 | #44 Git Town Worker qualification | deployment-blocked | exact package/binary/config/conflict/race/timeout/secret acceptance | evidence path is separate from Python product runtime |
 
 ## Parallel Worker allocation

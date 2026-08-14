@@ -8,14 +8,25 @@ import signal
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 
+from xt_aegis.action_backend import (
+    ActionBackend,
+    UnsafeLocalActionBackend,
+)
 from xt_aegis.checkpoint import CheckpointStore
 from xt_aegis.errors import IdempotencyConflictError, PolicyViolation, WorkspaceSafetyError
 from xt_aegis.events import EventRecorder
 from xt_aegis.identity import RequestIdentity
+from xt_aegis.lifecycle import (
+    CancellationToken,
+    DeadlineExceeded,
+    ExecutionCancelled,
+    Transition,
+)
 from xt_aegis.models import (
     ActionRequest,
     CheckResult,
@@ -30,6 +41,7 @@ from xt_aegis.models import (
 )
 from xt_aegis.policy import PolicyEngine
 from xt_aegis.redaction import redact_text
+from xt_aegis.telemetry import NullTelemetry, SpanName, Telemetry
 from xt_aegis.workspace import IsolatedWorkspace, WorkspaceTransaction
 
 
@@ -47,11 +59,17 @@ class HarnessRunner:
         workspace: IsolatedWorkspace,
         checkpoint_store: CheckpointStore,
         event_recorder: EventRecorder | None = None,
+        telemetry: Telemetry | None = None,
+        fault_hook: Callable[[Transition], None] | None = None,
+        action_backend: ActionBackend | None = None,
     ) -> None:
         self.skill = skill
         self.workspace = workspace
         self.store = checkpoint_store
         self.events = event_recorder or EventRecorder(checkpoint_store)
+        self.telemetry = telemetry or NullTelemetry()
+        self.fault_hook = fault_hook
+        self.action_backend: ActionBackend = action_backend or UnsafeLocalActionBackend()
         self.policy = PolicyEngine(skill.contract, workspace)
         self._runner_started = time.monotonic()
 
@@ -67,16 +85,21 @@ class HarnessRunner:
         *,
         timeout_seconds: float | None = None,
         max_output_bytes: int = 16_384,
+        cancellation: CancellationToken | None = None,
     ) -> ExecutionResult:
         """Execute once and return output bounded for the calling controller."""
 
         if max_output_bytes < 1:
             raise ValueError("max_output_bytes must be positive")
+        token = cancellation
+        if token is None and timeout_seconds is not None:
+            token = CancellationToken.with_timeout(timeout_seconds)
         return self._bound_execution_output(
             self._execute(
                 request,
                 timeout_seconds=timeout_seconds,
                 max_output_bytes=max_output_bytes,
+                token=token,
             ),
             max_output_bytes,
         )
@@ -87,6 +110,121 @@ class HarnessRunner:
         *,
         timeout_seconds: float | None,
         max_output_bytes: int,
+        token: CancellationToken | None = None,
+    ) -> ExecutionResult:
+        with self.telemetry.span(
+            SpanName.RUN,
+            thread_id=request.thread_id,
+            action_id=request.action_id,
+            idempotency_key=request.idempotency_key,
+            provenance=request.provenance.value,
+            kind=request.action.kind,
+            skill=self.skill.contract.name,
+            risk_level=self.skill.contract.risk_level.value,
+        ) as span:
+            result = self._execute_traced(
+                request,
+                timeout_seconds=timeout_seconds,
+                max_output_bytes=max_output_bytes,
+                token=token,
+            )
+            span.set(
+                status=result.status.value,
+                success=result.success,
+                step_number=result.step_number,
+                reason_code=result.reason_code.value if result.reason_code is not None else None,
+            )
+            if result.status == ExecutionStatus.FAILED:
+                span.fail()
+            return result
+
+    def _execute_traced(
+        self,
+        request: ActionRequest,
+        *,
+        timeout_seconds: float | None,
+        max_output_bytes: int,
+        token: CancellationToken | None,
+    ) -> ExecutionResult:
+        """Own the cancellation boundary for the phase that runs before a snapshot exists."""
+
+        prepared: dict[str, int] = {}
+        try:
+            return self._execute_phases(
+                request,
+                timeout_seconds=timeout_seconds,
+                max_output_bytes=max_output_bytes,
+                token=token,
+                prepared=prepared,
+            )
+        except (ExecutionCancelled, DeadlineExceeded) as exc:
+            return self._unavailable_terminal(
+                request=request,
+                exc=exc,
+                step_number=prepared.get("step"),
+                max_output_bytes=max_output_bytes,
+            )
+
+    def _unavailable_terminal(
+        self,
+        *,
+        request: ActionRequest,
+        exc: ExecutionCancelled | DeadlineExceeded,
+        step_number: int | None,
+        max_output_bytes: int,
+    ) -> ExecutionResult:
+        """Persist a cancelled or expired request so a restart cannot execute it without a new one."""
+
+        identity = RequestIdentity.from_request(request, skill=self.skill)
+        trace_id = self.events.new_trace_id()
+        started_at = _utc_now()
+        started_clock = time.perf_counter()
+        workspace_sha = self.workspace.hash_tree()
+        if step_number is None:
+            try:
+                step_number = self.store.prepare_step(request, identity)
+            except IdempotencyConflictError as conflict:
+                return self._emit_identity_conflict(
+                    trace_id=trace_id,
+                    request=request,
+                    identity=identity,
+                    step_number=conflict.step_number,
+                    before_sha=workspace_sha,
+                    started_at=started_at,
+                    started_clock=started_clock,
+                    reason=str(conflict),
+                )
+        cancelled = isinstance(exc, ExecutionCancelled)
+        result = self._terminal_result(
+            request=request,
+            identity=identity,
+            step_number=step_number,
+            status=ExecutionStatus.BLOCKED,
+            success=False,
+            before_sha=workspace_sha,
+            after_sha=workspace_sha,
+            started_at=started_at,
+            started_clock=started_clock,
+            policy_reasons=[str(exc)],
+            reason_code=(
+                ExecutionReasonCode.CANCELLED if cancelled else ExecutionReasonCode.DEADLINE_EXCEEDED
+            ),
+        )
+        return self._persist_and_emit(
+            trace_id,
+            result,
+            "cancelled" if cancelled else "deadline_exceeded",
+            max_output_bytes=max_output_bytes,
+        )
+
+    def _execute_phases(
+        self,
+        request: ActionRequest,
+        *,
+        timeout_seconds: float | None,
+        max_output_bytes: int,
+        token: CancellationToken | None,
+        prepared: dict[str, int],
     ) -> ExecutionResult:
         trace_id = self.events.new_trace_id()
         identity = RequestIdentity.from_request(request, skill=self.skill)
@@ -110,6 +248,8 @@ class HarnessRunner:
             },
         )
 
+        self._transition(Transition.REQUEST_RECEIVED, token)
+
         try:
             cached = self.store.get_cached_result(request.idempotency_key, identity)
         except IdempotencyConflictError as exc:
@@ -125,9 +265,19 @@ class HarnessRunner:
             )
 
         try:
-            self.policy.validate_request(request)
-            for condition in (*self.skill.contract.preconditions, *self.skill.contract.postconditions):
-                self.policy.validate_condition(condition)
+            with self.telemetry.span(SpanName.POLICY_EVALUATE, action_id=request.action_id) as policy_span:
+                try:
+                    self.policy.validate_request(request)
+                    for condition in (
+                        *self.skill.contract.preconditions,
+                        *self.skill.contract.postconditions,
+                    ):
+                        self.policy.validate_condition(condition)
+                except PolicyViolation:
+                    policy_span.set(passed=False)
+                    raise
+                policy_span.set(passed=True)
+            self._transition(Transition.POLICY_EVALUATED, token)
         except PolicyViolation as exc:
             try:
                 step_number = self.store.prepare_step(request, identity)
@@ -187,6 +337,28 @@ class HarnessRunner:
                 reason=str(exc),
             )
 
+        prepared["step"] = step_number
+        self._transition(Transition.STEP_PREPARED, token)
+
+        isolation_reason = self._isolation_reason()
+        if isolation_reason is not None:
+            result = self._terminal_result(
+                request=request,
+                identity=identity,
+                step_number=step_number,
+                status=ExecutionStatus.BLOCKED,
+                success=False,
+                before_sha=before_sha,
+                after_sha=before_sha,
+                started_at=started_at,
+                started_clock=started_clock,
+                policy_reasons=[isolation_reason],
+                reason_code=ExecutionReasonCode.ISOLATION_UNAVAILABLE,
+            )
+            return self._persist_and_emit(
+                trace_id, result, "isolation_unavailable", max_output_bytes=max_output_bytes
+            )
+
         budget_reasons = self._budget_reasons(step_number)
         if budget_reasons:
             result = self._terminal_result(
@@ -206,11 +378,18 @@ class HarnessRunner:
                 trace_id, result, "budget_blocked", max_output_bytes=max_output_bytes
             )
 
-        if self._requires_approval() and not self.store.claim_approval(
-            request.approval_id,
-            request,
-            identity,
-        ):
+        approval_claimed = True
+        if self._requires_approval():
+            with self.telemetry.span(
+                SpanName.APPROVAL_WAIT,
+                action_id=request.action_id,
+                approval_id=request.approval_id,
+                risk_level=self.skill.contract.risk_level.value,
+            ) as approval_span:
+                approval_claimed = self.store.claim_approval(request.approval_id, request, identity)
+                approval_span.set(outcome="claimed" if approval_claimed else "not_claimed")
+            self._transition(Transition.APPROVAL_RESOLVED, token)
+        if not approval_claimed:
             approval_state = self.store.approval_state(request.approval_id, request, identity)
             if approval_state == "denied":
                 result = self._terminal_result(
@@ -264,12 +443,16 @@ class HarnessRunner:
         try:
             transaction = self.workspace.begin_transaction()
             before_sha = transaction.before_sha256
+            self._transition(Transition.SNAPSHOT_CREATED, token)
 
-            for condition in self.skill.contract.preconditions:
-                check = self._run_command(
+            for check_index, condition in enumerate(self.skill.contract.preconditions):
+                check = self._checked_condition(
                     condition,
+                    check_kind="precondition",
+                    check_index=check_index,
                     deadline=deadline,
                     max_output_bytes=remaining_output_bytes,
+                    token=token,
                 )
                 preconditions.append(check)
                 total_output_original_bytes += check.output_original_bytes
@@ -286,7 +469,7 @@ class HarnessRunner:
                     },
                 )
                 if not check.passed:
-                    rollback_integrity = transaction.rollback()
+                    rollback_integrity = self._rollback(transaction)
                     after_sha = self.workspace.hash_tree()
                     result = self._terminal_result(
                         request=request,
@@ -319,19 +502,27 @@ class HarnessRunner:
                         trace_id, result, "precondition_failed", max_output_bytes=max_output_bytes
                     )
 
-            action_result = self._execute_action(
-                request,
-                deadline=deadline,
-                max_output_bytes=remaining_output_bytes,
-            )
+            with self.telemetry.span(
+                SpanName.ACTION_EXECUTE, action_id=request.action_id, kind=request.action.kind
+            ) as action_span:
+                self._transition(Transition.ACTION_STARTED, token)
+                action_result = self._execute_action(
+                    request,
+                    deadline=deadline,
+                    max_output_bytes=remaining_output_bytes,
+                )
+                action_span.set(passed=action_result.passed, exit_code=action_result.exit_code)
+                if not action_result.passed:
+                    action_span.fail()
             action_exit_code = action_result.exit_code
             action_expected_exit_codes = self._expected_exit_codes(request)
             action_stdout = action_result.stdout
             action_stderr = action_result.stderr
             total_output_original_bytes += action_result.output_original_bytes
             remaining_output_bytes -= len((action_stdout + action_stderr).encode())
+            self._transition(Transition.ACTION_COMPLETED, token)
             if not action_result.passed:
-                rollback_integrity = transaction.rollback()
+                rollback_integrity = self._rollback(transaction)
                 after_sha = self.workspace.hash_tree()
                 result = self._terminal_result(
                     request=request,
@@ -367,11 +558,14 @@ class HarnessRunner:
                     trace_id, result, "action_failed", max_output_bytes=max_output_bytes
                 )
 
-            for condition in self.skill.contract.postconditions:
-                check = self._run_command(
+            for check_index, condition in enumerate(self.skill.contract.postconditions):
+                check = self._checked_condition(
                     condition,
+                    check_kind="postcondition",
+                    check_index=check_index,
                     deadline=deadline,
                     max_output_bytes=remaining_output_bytes,
+                    token=token,
                 )
                 postconditions.append(check)
                 total_output_original_bytes += check.output_original_bytes
@@ -388,7 +582,7 @@ class HarnessRunner:
                     },
                 )
                 if not check.passed:
-                    rollback_integrity = transaction.rollback()
+                    rollback_integrity = self._rollback(transaction)
                     after_sha = self.workspace.hash_tree()
                     result = self._terminal_result(
                         request=request,
@@ -447,12 +641,59 @@ class HarnessRunner:
                 trace_id, result, "action_succeeded", max_output_bytes=max_output_bytes
             )
 
+        except (ExecutionCancelled, DeadlineExceeded) as exc:
+            rolled_back = False
+            rollback_integrity = None
+            if transaction is not None:
+                try:
+                    rollback_integrity = self._rollback(transaction)
+                    rolled_back = True
+                except WorkspaceSafetyError:
+                    rollback_integrity = False
+            result = self._terminal_result(
+                request=request,
+                identity=identity,
+                step_number=step_number,
+                status=(
+                    ExecutionStatus.ROLLED_BACK
+                    if rolled_back and rollback_integrity
+                    else ExecutionStatus.FAILED
+                ),
+                success=False,
+                before_sha=before_sha,
+                after_sha=self.workspace.hash_tree(),
+                started_at=started_at,
+                started_clock=started_clock,
+                preconditions=preconditions,
+                postconditions=postconditions,
+                action_exit_code=action_exit_code,
+                action_expected_exit_codes=action_expected_exit_codes,
+                action_stdout=action_stdout,
+                action_stderr=f"{action_stderr}\n{exc}".strip(),
+                rolled_back=rolled_back,
+                rollback_integrity=rollback_integrity,
+                policy_reasons=[str(exc)],
+                reason_code=(
+                    ExecutionReasonCode.CANCELLED
+                    if isinstance(exc, ExecutionCancelled)
+                    else ExecutionReasonCode.DEADLINE_EXCEEDED
+                ),
+                output_truncated=False,
+                output_original_bytes=total_output_original_bytes,
+            )
+            return self._persist_and_emit(
+                trace_id,
+                result,
+                "cancelled" if isinstance(exc, ExecutionCancelled) else "deadline_exceeded",
+                max_output_bytes=max_output_bytes,
+            )
+
         except (OSError, subprocess.SubprocessError, WorkspaceSafetyError) as exc:
             rollback_integrity = None
             rolled_back = False
             if transaction is not None:
                 try:
-                    rollback_integrity = transaction.rollback()
+                    rollback_integrity = self._rollback(transaction)
                     rolled_back = True
                 except WorkspaceSafetyError:
                     rollback_integrity = False
@@ -482,6 +723,72 @@ class HarnessRunner:
             return self._persist_and_emit(
                 trace_id, result, "executor_exception", max_output_bytes=max_output_bytes
             )
+
+    def _checked_condition(
+        self,
+        condition: CommandSpec,
+        *,
+        check_kind: str,
+        check_index: int,
+        deadline: float | None,
+        max_output_bytes: int,
+        token: CancellationToken | None,
+    ) -> CheckResult:
+        """Run one declared condition inside its own span without changing the verdict."""
+
+        with self.telemetry.span(
+            SpanName.ASSERTION_CHECK,
+            check_kind=check_kind,
+            check_index=check_index,
+            description=condition.description,
+        ) as span:
+            check = self._run_command(condition, deadline=deadline, max_output_bytes=max_output_bytes)
+            span.set(passed=check.passed, exit_code=check.exit_code)
+            if not check.passed:
+                span.fail()
+            self._transition(
+                Transition.PRECONDITION_CHECKED
+                if check_kind == "precondition"
+                else Transition.POSTCONDITION_CHECKED,
+                token,
+            )
+            return check
+
+    def _transition(self, transition: Transition, token: CancellationToken | None) -> None:
+        """One boundary: cancellation and deadline are enforced here, and faults are injected here.
+
+        Both checks share this exit so a new boundary cannot honor one and silently skip the other.
+        """
+
+        if self.fault_hook is not None:
+            self.fault_hook(transition)
+        if token is not None:
+            token.raise_if_unavailable()
+
+    def _rollback(self, transaction: WorkspaceTransaction) -> bool:
+        """Every rollback goes through one exit so the span and its verdict cannot be forgotten."""
+
+        with self.telemetry.span(SpanName.WORKSPACE_ROLLBACK) as span:
+            self._transition(Transition.ROLLBACK_STARTED, None)
+            integrity = transaction.rollback()
+            span.set(rollback_integrity=integrity)
+            if not integrity:
+                span.fail()
+            self._transition(Transition.ROLLBACK_COMPLETED, None)
+            return integrity
+
+    def _isolation_reason(self) -> str | None:
+        """Fail closed before any mutation when the contract requires isolation the backend cannot give."""
+
+        if not self.skill.contract.requires_isolation:
+            return None
+        backend = self.action_backend
+        if not backend.strong_isolation:
+            return f"the contract requires strong isolation and {backend.name.value} does not provide it"
+        verdict = backend.readiness(self.workspace.root)
+        if not verdict.ready:
+            return f"the required {backend.name.value} backend is not ready: {verdict.reason}"
+        return None
 
     def _requires_approval(self) -> bool:
         return self.skill.contract.requires_approval or self.skill.contract.risk_level in {
@@ -559,7 +866,12 @@ class HarnessRunner:
         deadline: float | None,
         max_output_bytes: int,
     ) -> CheckResult:
-        cwd = self.workspace.resolve_relative(command.cwd)
+        cwd = self.action_backend.host_cwd(self.workspace.root, command.cwd)
+        argv = self.action_backend.host_argv(
+            list(command.argv),
+            workspace_root=self.workspace.root,
+            relative_cwd=command.cwd,
+        )
         home = self.workspace.run_root / "home"
         home.mkdir(parents=True, exist_ok=True)
         environment = {
@@ -575,7 +887,7 @@ class HarnessRunner:
         if deadline is not None:
             timeout_seconds = max(0.001, min(timeout_seconds, deadline - started))
         process = subprocess.Popen(
-            command.argv,
+            argv,
             cwd=cwd,
             env=environment,
             shell=False,
@@ -656,6 +968,8 @@ class HarnessRunner:
             output_original_bytes=output_original_bytes,
             rolled_back=rolled_back,
             rollback_integrity=rollback_integrity,
+            isolation_backend=self.action_backend.name.value,
+            isolation_verdict=self.action_backend.strong_isolation,
             workspace_before_sha256=before_sha,
             workspace_after_sha256=after_sha,
             request_digest_version=identity.version,
@@ -875,7 +1189,15 @@ class HarnessRunner:
     ) -> ExecutionResult:
         result = self._bound_execution_output(result, max_output_bytes)
         result = result.model_copy(update={"output_budget_bytes": max_output_bytes})
-        self.store.save_result(result)
+        with self.telemetry.span(
+            SpanName.CHECKPOINT_PERSIST,
+            event_type=event_type,
+            step_number=result.step_number,
+            status=result.status.value,
+            success=result.success,
+        ):
+            self.store.save_result(result)
+            self._transition(Transition.RESULT_SAVED, None)
         self.events.emit(
             trace_id=trace_id,
             thread_id=result.thread_id,

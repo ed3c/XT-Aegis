@@ -35,5 +35,9 @@ class IdempotencyConflictError(XTAegisError):
         super().__init__(message)
 
 
+class StateVersionConflict(XTAegisError):
+    """Raised when a state transition loses a compare-and-set race, or its row is gone."""
+
+
 class CheckpointSchemaError(XTAegisError):
     """Raised when a persisted checkpoint schema is unsupported."""

@@ -158,6 +158,26 @@ class EvidenceRegistry(BaseModel):
         raise KeyError(claim_id)
 
 
+class ReadinessComponent(StrEnum):
+    """Separately observable prerequisite of a strong backend."""
+
+    EXECUTABLE = "executable"
+    POLICY = "policy"
+    VERSION = "version"
+    GATEWAY = "gateway"
+    RUNTIME = "runtime"
+
+
+class BackendReadiness(BaseModel):
+    """One readiness component and the exact reason it is or is not ready."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    component: ReadinessComponent
+    ready: bool
+    reason: str = Field(max_length=2048)
+
+
 class BackendAvailability(BaseModel):
     """Runtime discovery result."""
 
@@ -168,6 +188,7 @@ class BackendAvailability(BaseModel):
     executable: str | None = None
     strong_isolation: bool
     reason: str
+    components: list[BackendReadiness] = Field(default_factory=list, max_length=16)
 
 
 class DoctorReport(BaseModel):

@@ -1,0 +1,13 @@
+{
+  "os": "Debian GNU/Linux 12 (bookworm)",
+  "debian_version": "12.15",
+  "architecture": "x86_64",
+  "kernel": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535",
+  "bash": "GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)",
+  "git": "git version 2.39.5",
+  "git_town": "Git Town 24.0.0",
+  "shellcheck": "0.9.0",
+  "jq": "jq-1.6",
+  "timeout": "timeout (GNU coreutils) 9.1",
+  "note": "Emulated x86_64 under Docker on an arm64 developer host. Recorded because it is not the deployment host and is not the immutable Worker image."
+}

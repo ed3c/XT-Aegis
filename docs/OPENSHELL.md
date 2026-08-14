@@ -19,6 +19,45 @@ kernel.
 3. Keep `verification/policies/openshell.yaml` unchanged for the first run.
 4. Run `xt-aegis doctor --backend openshell` before executing a recipe.
 
+## Readiness model
+
+`doctor` and `auto` do not treat executable presence as proof that a recipe can run. The adapter probes four
+components in order and stops at the first failure, reporting the remaining components as `not probed`:
+
+| Component | Probe | Not-ready meaning |
+|---|---|---|
+| `executable` | `shutil.which("openshell")` | OpenShell is not installed on `PATH` |
+| `policy` | default-deny policy file is present | the reviewed policy is missing or `XT_AEGIS_OPENSHELL_POLICY` points elsewhere |
+| `version` | `openshell --version` | the release does not match the reviewed adapter version, or reports no parsable version |
+| `gateway` | `openshell status` | no active, reachable gateway resolves for the account and session that will launch the sandbox |
+
+The version and gateway probes run through the same working directory and the same forwarded session
+environment (`_openshell_host_environment`) that `sandbox create` uses, so a gateway that the launch path
+cannot resolve also fails the probe. The adapter is reviewed against OpenShell `0.0.52`; another reviewed
+release is accepted by setting `XT_AEGIS_OPENSHELL_SUPPORTED_VERSION`.
+
+Consequences:
+
+- `xt-aegis doctor --format json` reports `components[]` with `component`, `ready`, and the exact reason;
+- `auto` never selects OpenShell while any component is not ready, and never falls back to `unsafe-local`;
+- a probe failure, a launch failure, or a backend that becomes unready between probe and launch produces a
+  typed `unsupported` infrastructure verdict with a bounded single-line diagnostic, not a failed claim.
+
+### Proof that the recipe actually started
+
+A ready gateway is still not proof that a sandbox can be created: an OpenShell gateway can answer `status`
+and then reject `sandbox create` with `FailedPrecondition: sandbox is not ready`. Because a runtime that
+never launched exits non-zero exactly like a failing test, the exit code cannot separate the two.
+
+The adapter therefore issues a fresh 128-bit entry token per run and passes it to the in-sandbox launcher.
+`xt_aegis.sandbox_exec` writes `xt-aegis-sandbox-entered:<token>` to stderr immediately before `execvp`, so
+the marker exists only if the recipe really started inside the sandbox. The host removes that line from
+retained evidence. A missing or non-matching marker is reported as `unsupported` with the bounded runtime
+diagnostic instead of a failed repository claim.
+
+The probe still does not create a throwaway sandbox during `doctor`; sandbox-creation readiness is proven
+at launch time by the marker, and adversarial live coverage remains issue #12.
+
 ## Source-binding model
 
 The adapter does not ask the sandbox to verify only the source baked into the verifier image. It starts
@@ -134,7 +173,8 @@ xt-aegis evidence pack \
 3. installs a checksum-recorded, pinned OpenShell release through the official installer;
 4. runs `doctor` and all implemented claim recipes through the OpenShell backend;
 5. propagates verifier failures through every `tee` pipeline with `pipefail`;
-6. records gateway configuration, Docker and image metadata, status, journal, and sandbox inventory;
+6. records gateway configuration, Docker and image metadata, status, journal, sandbox inventory, and the
+   state and logs of every container the run left behind;
 7. packs successful verification evidence or deterministic failure diagnostics;
 8. uploads the resulting archive as a GitHub Actions artifact.
 
@@ -151,6 +191,13 @@ rerun the same commands on infrastructure they control before labeling evidence
 Repository tests prove that the adapter:
 
 - detects a missing executable or policy;
+- reports each readiness component separately and marks unprobed components explicitly;
+- refuses an unreviewed or unparsable OpenShell version and accepts an explicitly reviewed override;
+- treats a failing, timing-out, or unlaunchable `openshell status` as an unready gateway;
+- keeps `auto` from selecting OpenShell when any component is not ready;
+- turns an unready gateway into an `unsupported` verification result rather than a failed claim;
+- treats a recipe that never entered the sandbox, or a forged entry marker, as `unsupported`;
+- emits the entry marker from the launcher before `execvp` and keeps it out of retained evidence;
 - uploads the checkout root directly into `/workspace` instead of silently testing only image-baked code;
 - starts the host process at the selected verification root rather than at a recipe subdirectory;
 - uses only flags supported by the pinned OpenShell v0.0.52 interface;
@@ -177,4 +224,6 @@ workflow must not report OpenShell host isolation as verified.
 - policy or image changes invalidate comparisons unless their digests are retained.
 
 For environments where OpenShell is unavailable, use rootless Podman or Docker with the verifier image.
+The OCI adapter runs the verifier as the host uid and gid rather than as root inside the container; the
+read-only mount means the process only needs read access to it.
 `unsafe-local` is a development mode, not a substitute for isolation.

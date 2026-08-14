@@ -19,12 +19,16 @@ revision. Do not derive current state from a branch name or an old PR descriptio
 | Canonical request/policy identity, approval binding, exact replay | `identity.py`, `checkpoint.py`, `runner.py`; PR #31 | `current` | authenticated actor identity and external-side-effect idempotency remain separate work |
 | Declared command exit-code semantics | `models.py`, `runner.py`; PR #31 | `current` | exit membership is an outcome contract, not semantic correctness by itself |
 | Provider-neutral proposal boundary and trusted envelope | `proposals.py`, `providers/ollama.py`; PR #51 | `current` | no live-provider correctness, availability, privacy, or version-attestation claim |
-| Finite diagnose-repair controller core | `controller.py`; PR #52 | `current partial` | issue #29 retains token-admission, restart, candidate-selection, and model-evidence leaves |
+| Finite diagnose-repair controller core with provider-token admission | `controller.py`; PRs #52 and #60 | `current partial` | issue #29 retains restart, candidate-selection, and model-evidence leaves |
 | Streaming subprocess output enforcement | `runner.py`, result models/tests/evidence; PR #54 | `current` | lower-bound byte count after excess and OS pipe buffering remain documented limits; no strong isolation |
 | Mypy 2 backend-map compatibility | `verification.py`; PR #56 | `current` | static compatibility only; backend selection and live conformance claims are unchanged |
 | Source-bound OpenShell verification | `verification.py`, integration docs; PR #23 | `current` | strong action isolation and execution-equivalent readiness remain #27/#30 |
-| Strong isolation for mutating commands | issue #27 | `planned` | live conformance remains gated by #12 |
-| Execution-equivalent OpenShell readiness | issue #30 | `planned` | version-pinned doctor/execution agreement required |
+| Execution-equivalent OpenShell readiness | `verification.py`, `verification_models.py`; issue #30 | `current adapter probe` | live version-pinned doctor/execution agreement remains #12 conformance evidence |
+| Deterministic runtime benchmark harness | `benchmark.py`, `verification/schemas/benchmark-report.schema.json`; issue #11 | `current` | raw trials are profile-bound; no threshold is enforced and no performance claim is promoted |
+| Strong isolation for mutating commands | `action_backend.py`, `runner.py`, [`ACTION_ISOLATION.md`](ACTION_ISOLATION.md); issue #27 | `current for the Docker profile` | pinned OpenShell and rootless Podman adversarial evidence remains #12 |
+| Span vocabulary, attribute allowlist, versioned event envelope, offline replay | `telemetry.py`, `replay.py`, `events.py`; issue #9 | `current` | telemetry is off by default; a trace is not evidence of semantic correctness |
+| Named transitions, kill-tested recovery, cancellation and deadlines | `lifecycle.py`, `runner.py`, [`RECOVERY.md`](RECOVERY.md); issue #10 | `current` | single-node only; distributed failover remains #14 and external exactly-once remains #15 |
+| Default-deny egress decisions and credential injection | `egress.py`, [`EGRESS.md`](EGRESS.md); issue #13 | `current decision plane` | it decides, it does not enforce at the socket; runtime denial remains #12 |
 | Model-backed Harness uplift and performance evidence | issues #11/#24/#29 | `unverified` | pinned corpus, equal baselines, raw failed/timed-out trials |
 | Git Town repository-side Worker contract | `scripts/git-town/`; PR #41 | `merged contract` | exact live Worker profile remains `deployment-blocked` by #44 |
 
@@ -146,8 +150,10 @@ Only `execution_failed` and `assertion_failed` are retryable.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> RequestProposal
-    RequestProposal --> ProposalRejected: non-ready provider outcome
+    [*] --> Admit
+    Admit --> BudgetExhausted: remaining tokens below the declared reservation, or usage unreportable
+    Admit --> RequestProposal: reservation fits the remaining budget
+    RequestProposal --> ProposalRejected: non-ready outcome or declared-profile mismatch
     RequestProposal --> BudgetExhausted: time/token/proposal budget
     RequestProposal --> BuildEnvelope: ready proposal
     BuildEnvelope --> Execute
@@ -159,8 +165,8 @@ stateDiagram-v2
     Execute --> Passed
     Execute --> RetryCandidate: execution_failed / assertion_failed
     RetryCandidate --> RepeatedFailure: equivalent-cycle limit
-    RetryCandidate --> BudgetExhausted: no attempt/token/time/output budget
-    RetryCandidate --> RequestProposal: bounded diagnostic repair context
+    RetryCandidate --> BudgetExhausted: no attempt/time/output budget
+    RetryCandidate --> Admit: bounded diagnostic repair context
     ProposalRejected --> [*]
     InfrastructureUnavailable --> [*]
     RecoveryFailed --> [*]
@@ -172,9 +178,24 @@ stateDiagram-v2
     Passed --> [*]
 ```
 
-The controller is current as a finite core. Streaming execution-output enforcement is also current. Issue
-#29 remains open for provider-token admission, restart-safe state, candidate selection, and pinned
-model-backed acceptance.
+Every provider call passes one admission gate. The gate refuses before a call when the remaining prompt or
+completion budget is smaller than the reservation declared by `ProviderAdmission`, and when a previous
+attempt returned no usage, because the remaining budget can no longer be computed. A refusal is recorded as
+an attempt whose `proposal_status` and `provider_profile` are `null`; those two fields are populated only
+for attempts that actually reached a provider. Each call receives the **remaining** budget rather than the
+run total, so a cooperative provider cannot spend the whole run on one call.
+
+A run given a run identifier persists its state after every attempt and at its terminal exit. A restart
+either resumes the persisted attempt number, token totals, repair context, and cycle counters, or it
+terminates with `recovery_failed` before calling the provider. It refuses when the state schema is stale or
+unreadable, when the task, run context, budgets, or declared provider admission profile changed, when an
+attempt was still in flight and its workspace outcome is therefore unknown, or when the run already reached
+a terminal state. A refused resume never overwrites the record it refused to trust.
+
+The controller is current as a finite core with token admission and restart-safe state. Streaming
+execution-output enforcement is also current. Issue #29 remains open for candidate selection and pinned
+model-backed acceptance. Distributed coordination remains #14, and an interrupted attempt's external side
+effects remain #15.
 
 ## 4. Deterministic runner State Machine
 
@@ -188,8 +209,13 @@ Exact `ExecutionReasonCode` values currently include:
 
 ```text
 policy_denied | approval_denied | approval_required | budget_exhausted
-identity_conflict | output_budget_exhausted
+identity_conflict | output_budget_exhausted | cancelled | deadline_exceeded
+isolation_unavailable
 ```
+
+`cancelled` and `deadline_exceeded` are terminal and persisted. A cancelled or expired request keeps its
+step row, so a restart replays that terminal record instead of becoming executable again; executing it
+requires a new authorized request with a new identity.
 
 ```mermaid
 stateDiagram-v2

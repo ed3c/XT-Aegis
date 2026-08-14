@@ -52,6 +52,28 @@ jobs:
       - name: Run deterministic demo
         run: xt-aegis demo --output-dir /tmp/xt-aegis-ci-demo
 
+      - name: Smoke benchmark
+        if: matrix.python-version == '3.12'
+        # A shared runner cannot support a wall-clock threshold; this step only proves the harness
+        # produces a schema-valid artifact and that no case fails.
+        run: |
+          xt-aegis benchmark \
+            --files 8 \
+            --file-bytes 1024 \
+            --warmup 1 \
+            --trials 3 \
+            --output-dir /tmp/xt-aegis-benchmark \
+            --format text
+
+      - name: Upload smoke benchmark artifact
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-smoke
+          path: /tmp/xt-aegis-benchmark/benchmark-report.json
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Verify claim contract
         if: matrix.python-version == '3.12'
         run: |

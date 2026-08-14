@@ -8,7 +8,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from xt_aegis.benchmark import (
+    CASE_NAMES,
+    BenchmarkWorkload,
+    format_report,
+    run_benchmark,
+    write_report,
+)
 from xt_aegis.demo import run_demo
+from xt_aegis.replay import ReplayError, format_timeline, replay_events
+from xt_aegis.sbom import build_sbom, write_sbom
 from xt_aegis.skill import SkillCompiler
 from xt_aegis.verification import (
     VerificationError,
@@ -73,6 +82,31 @@ def _build_parser() -> argparse.ArgumentParser:
     pack_parser.add_argument("--input", type=Path, required=True)
     pack_parser.add_argument("--output", type=Path, required=True)
     pack_parser.add_argument("--format", choices=["json", "text"], default="json")
+
+    benchmark_parser = subparsers.add_parser(
+        "benchmark", help="measure deterministic runtime cases and emit raw profile-bound trials"
+    )
+    benchmark_parser.add_argument(
+        "--case", action="append", dest="cases", choices=list(CASE_NAMES), default=None
+    )
+    benchmark_parser.add_argument("--files", type=int, default=32)
+    benchmark_parser.add_argument("--file-bytes", type=int, default=4096)
+    benchmark_parser.add_argument("--warmup", type=int, default=1)
+    benchmark_parser.add_argument("--trials", type=int, default=5)
+    benchmark_parser.add_argument("--seed", type=int, default=0)
+    benchmark_parser.add_argument("--timeout-seconds", type=float, default=120.0)
+    benchmark_parser.add_argument("--output-dir", type=Path, default=None)
+    benchmark_parser.add_argument("--format", choices=["json", "text"], default="text")
+    replay_parser = subparsers.add_parser(
+        "replay", help="reconstruct an execution timeline from a persisted JSONL trajectory"
+    )
+    replay_parser.add_argument("--events", type=Path, required=True)
+    replay_parser.add_argument("--format", choices=["json", "text"], default="text")
+    sbom_parser = subparsers.add_parser(
+        "sbom", help="write a deterministic CycloneDX inventory of the installed environment"
+    )
+    sbom_parser.add_argument("--output", type=Path, default=Path("sbom.json"))
+    sbom_parser.add_argument("--format", choices=["json", "text"], default="text")
 
     mcp_parser = subparsers.add_parser("mcp", help="start the MCP evidence and verification server")
     mcp_parser.add_argument("--registry", type=Path, default=None)
@@ -143,6 +177,44 @@ def main(argv: list[str] | None = None) -> int:
             )
             _print(report.model_dump(mode="json"), args.format)
             return 0 if report.selected_backend is not None else 10
+        if args.command == "benchmark":
+            benchmark_report = run_benchmark(
+                workload=BenchmarkWorkload(
+                    files=args.files,
+                    file_bytes=args.file_bytes,
+                    warmup=args.warmup,
+                    trials=args.trials,
+                    seed=args.seed,
+                    timeout_seconds=args.timeout_seconds,
+                ),
+                case_names=args.cases,
+            )
+            if args.output_dir is not None:
+                write_report(benchmark_report, args.output_dir)
+            if args.format == "json":
+                print(benchmark_report.model_dump_json(indent=2))
+            else:
+                print(format_report(benchmark_report))
+            return 0 if all(summary.failed == 0 for summary in benchmark_report.summaries) else 30
+        if args.command == "replay":
+            timeline = replay_events(args.events)
+            if args.format == "json":
+                print(timeline.model_dump_json(indent=2))
+            else:
+                print(format_timeline(timeline))
+            return 0
+        if args.command == "sbom":
+            document = build_sbom()
+            path = write_sbom(args.output)
+            summary = {
+                "path": str(path),
+                "spec_version": document["specVersion"],
+                "project": document["metadata"]["component"]["name"],
+                "project_version": document["metadata"]["component"]["version"],
+                "components": len(document["components"]),
+            }
+            _print(summary, args.format)
+            return 0
         if args.command == "plan":
             plan = verification_plan(
                 claim_id=args.claim,
@@ -177,7 +249,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyError as exc:
         _print({"status": VerificationStatus.ERROR.value, "error": f"unknown claim: {exc.args[0]}"}, "json")
         return 50
-    except (OSError, VerificationError, ValueError) as exc:
+    except (OSError, ReplayError, VerificationError, ValueError) as exc:
         _print(
             {
                 "status": VerificationStatus.ERROR.value,

@@ -36,6 +36,12 @@ dev = [
   "types-PyYAML>=6.0.12",
 ]
 mcp = ["mcp[cli]>=1.26,<3"]
+otel = [
+  "opentelemetry-api>=1.30,<2",
+  "opentelemetry-sdk>=1.30,<2",
+  "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
+]
+postgres = ["psycopg[binary]>=3.1,<4"]
 
 [project.scripts]
 xt-aegis = "xt_aegis.cli:main"
@@ -79,6 +85,18 @@ python_version = "3.11"
 strict = true
 packages = ["xt_aegis"]
 warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+# The OpenTelemetry SDK and OTLP exporter are optional extras; the bridge imports them lazily and the
+# type checker must not require them to be installed for a default install.
+module = "opentelemetry.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# psycopg is an optional extra; the PostgreSQL backend imports it lazily and the type checker must not
+# require it to be installed for a default install.
+module = "psycopg.*"
+ignore_missing_imports = true
 
 [tool.coverage.run]
 branch = true

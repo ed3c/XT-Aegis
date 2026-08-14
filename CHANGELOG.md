@@ -16,10 +16,82 @@ project uses Semantic Versioning for published interfaces.
 - an optional loopback-only Ollama adapter with bounded no-proxy/no-redirect stdlib HTTP transport and
   typed refusal, timeout, malformed, oversized, truncated, and provider-error outcomes;
 - an argv-only sandbox launcher that confines recipe working directories beneath the uploaded source root;
+- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs;
+- per-component OpenShell readiness (`executable`, `policy`, `version`, `gateway`) reported by
+  `xt-aegis doctor` with the exact reason each component is unavailable;
+- a per-run sandbox entry token that proves an OpenShell recipe actually started inside the sandbox, so a
+  runtime that never launched is reported as `unsupported` instead of as failed repository claims.
+- a protected external side-effect runner that persists intent before dispatch, never repeats a committed
+  operation, and records an ambiguous outcome as `unknown` for reconciliation instead of retrying it.
+- a deny-by-default admission decision for mutating MCP calls that refuses before anything else when a
+  required protection is unavailable, rejects replayed nonces, undeclared tools, missing scopes, and any
+  approval that does not cover the exact call. No mutating tool is enabled by it.
+- verifiable backup and restore of the durable state: a consistent online copy, a manifest with digest,
+  schema version, and per-table row counts, and a restore that verifies everything before it writes.
+- resumable approval notification that carries no payload, bounds re-notification per approval, and accepts
+  a decision only when subject, action digest, policy version, nonce, and deadline all hold.
+- `xt-aegis benchmark`, a deterministic runtime measurement harness that emits a schema-valid, profile-bound
+  artifact retaining every raw trial including failures and deadline overruns, plus a CI smoke run that
+  enforces no wall-clock threshold.
+- a fixed span vocabulary (`run`, `policy.evaluate`, `approval.wait`, `action.execute`, `assertion.check`,
+  `workspace.rollback`, `checkpoint.persist`) with an attribute allowlist, a local-only recorder, and an
+  optional OpenTelemetry bridge that owns no exporter or endpoint;
+- `xt-aegis replay`, which reconstructs an execution timeline from a persisted JSONL trajectory without
+  invoking a model or a tool;
+- a `schema_version` field on every JSONL trajectory record, with a fail-closed compatibility rule.
+- a default-deny egress policy with host canonicalization, private/metadata address rejection, mixed-answer
+  and rebinding detection, and redirect denial, plus a credential broker whose injections are single-use
+  and bound to one subject, tool, destination, argument digest, reason, and expiry.
+- a deterministic candidate-selection rule that disqualifies a candidate which started from a drifted
+  baseline, failed its assertions, did not succeed, or could not establish rollback integrity, breaks ties
+  by proposal digest so the same candidates always select the same one, and names every rejection.
+- a written checkpoint-backend contract and a PostgreSQL implementation, with one conformance suite that
+  proves both backends agree on step reservation, identity conflicts, terminal results, the approval state
+  machine, events, and resume position;
+- an ordered, recorded schema-migration ledger shared by both checkpoint backends, and a monotonic
+  `state_version` with a compare-and-set guard on every mutating transition, so the second of two
+  concurrent writers is told it lost instead of silently overwriting the first.
+- `xt-aegis sbom`, a deterministic CycloneDX inventory generated from installed distribution metadata using
+  only the standard library, and a deployment-profile document naming tested and unsupported configurations;
+- a release step that generates that inventory from a clean install of the built wheel, refuses to publish
+  when it does not describe the release being cut, attests it with `actions/attest-sbom`, and attaches it
+  to the GitHub release.
+- fail-closed Host and Origin validation on the MCP HTTP transport, which previously ran with the SDK's
+  backwards-compatible default of no DNS-rebinding protection at all, plus a compatibility matrix naming
+  the tested SDK version;
 - a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs.
+- per-resource leases with monotonic fencing tokens on SQLite and PostgreSQL, expiry computed by the
+  database rather than the caller, and one conformance suite that runs against both backends.
 
 ### Changed
 
+- `auto` selects OpenShell only after an execution-equivalent readiness probe resolves the reviewed version
+  and an active gateway through the same environment the sandbox launch uses; an unready gateway now
+  produces a typed `unsupported` infrastructure verdict instead of failed repository claims;
+- `ProviderAdmission`, a trusted pre-call token-admission contract that declares the expected provider
+  profile and the per-call prompt/completion reservation, recorded in every controller result.
+
+### Changed
+
+- the controller now admits every provider call through one gate before it is issued: a call is refused
+  when the remaining prompt or completion budget is below the declared reservation, or when a previous
+  attempt reported no usage, and each call receives the remaining budget instead of the run total;
+- a controller attempt that never reached a provider records `proposal_status` and `provider_profile` as
+  `null`, so a refusal is distinguishable from a provider outcome;
+- controller runs given a run identifier persist their attempt number, token totals, repair context, and
+  cycle counters, and a restart either resumes them or terminates with `recovery_failed`; a changed task,
+  run context, budget, or provider admission profile, an unreadable or stale state record, an attempt still
+  in flight, and an already-terminal run each refuse without calling the provider;
+- cancellation and deadlines are enforced at named execution transitions, and a cancelled or expired
+  request is persisted as a terminal `cancelled` or `deadline_exceeded` result that a restart replays
+  instead of executing;
+- mutating command actions run through an explicit action-execution backend; a contract that declares
+  `requires_isolation` is blocked with `isolation_unavailable` before any snapshot when the backend is weak
+  or unready, and `auto` never falls back to `unsafe-local`;
+- results report `isolation_backend` and `isolation_verdict` separately from `rollback_integrity`, so a
+  restored workspace is no longer readable as process containment;
+- the canonical request-digest version moved to `1.1` because the skill contract gained `requires_isolation`;
+  a record written under `1.0` now mismatches instead of comparing two different meanings;
 - command actions now honor `CommandSpec.expected_exit_codes` instead of requiring exit code zero;
 - action, precondition, postcondition, and terminal evidence record actual and expected exit codes;
 - OpenShell verification now uploads the selected checkout into `/workspace`, disables automatic providers,

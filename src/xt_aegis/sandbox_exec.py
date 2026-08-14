@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from pathlib import Path
 from typing import NoReturn
+
+ENTRY_MARKER_PREFIX = "xt-aegis-sandbox-entered:"
 
 
 class SandboxExecError(ValueError):
@@ -25,7 +28,12 @@ def resolve_workdir(root: str | Path, relative_cwd: str) -> Path:
     return workdir
 
 
-def exec_argv(root: str | Path, relative_cwd: str, argv: list[str]) -> NoReturn:
+def exec_argv(
+    root: str | Path,
+    relative_cwd: str,
+    argv: list[str],
+    entry_token: str | None = None,
+) -> NoReturn:
     """Change to the confined workdir and replace the process without invoking a shell."""
 
     if not argv or not argv[0].strip():
@@ -33,6 +41,11 @@ def exec_argv(root: str | Path, relative_cwd: str, argv: list[str]) -> NoReturn:
     if Path(argv[0]).name != argv[0]:
         raise SandboxExecError("path-qualified executables are not allowed")
     workdir = resolve_workdir(root, relative_cwd)
+    if entry_token:
+        # Positive proof that the recipe started inside the sandbox; the caller cannot infer this
+        # from an exit code, because a runtime that never launched also exits non-zero.
+        sys.stderr.write(f"{ENTRY_MARKER_PREFIX}{entry_token}\n")
+        sys.stderr.flush()
     os.chdir(workdir)
     os.execvp(argv[0], argv)
 
@@ -41,6 +54,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a verified argv inside an uploaded source tree")
     parser.add_argument("--root", type=Path, default=Path("/workspace"))
     parser.add_argument("--cwd", default=".")
+    parser.add_argument("--entry-token", default="")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     return parser
 
@@ -52,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     if command and command[0] == "--":
         command = command[1:]
     try:
-        exec_argv(args.root, args.cwd, command)
+        exec_argv(args.root, args.cwd, command, entry_token=args.entry_token)
     except (OSError, SandboxExecError) as exc:
         parser.error(str(exc))
     return 2
