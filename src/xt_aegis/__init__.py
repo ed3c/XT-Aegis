@@ -41,6 +41,7 @@ from xt_aegis.proposals import (
     build_action_request,
 )
 from xt_aegis.runner import HarnessRunner
+from xt_aegis.sbom import build_sbom, write_sbom
 from xt_aegis.skill import SkillCompiler
 from xt_aegis.verification_models import BackendName, VerificationResult, VerificationStatus
 
@@ -84,6 +85,8 @@ __all__ = [
     "VerificationResult",
     "VerificationStatus",
     "build_action_request",
+    "build_sbom",
+    "write_sbom",
 ]
 
 __version__ = "0.2.0"

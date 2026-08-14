@@ -48,6 +48,9 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
 
+A deterministic SBOM and the supported deployment profile (#86, part of #17) are current. Signing, SBOM
+release attachment, schema migration policy, and independent assessment remain open.
+
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
 

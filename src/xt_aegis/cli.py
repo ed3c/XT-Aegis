@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from xt_aegis.demo import run_demo
+from xt_aegis.sbom import build_sbom, write_sbom
 from xt_aegis.skill import SkillCompiler
 from xt_aegis.verification import (
     VerificationError,
@@ -73,6 +74,12 @@ def _build_parser() -> argparse.ArgumentParser:
     pack_parser.add_argument("--input", type=Path, required=True)
     pack_parser.add_argument("--output", type=Path, required=True)
     pack_parser.add_argument("--format", choices=["json", "text"], default="json")
+
+    sbom_parser = subparsers.add_parser(
+        "sbom", help="write a deterministic CycloneDX inventory of the installed environment"
+    )
+    sbom_parser.add_argument("--output", type=Path, default=Path("sbom.json"))
+    sbom_parser.add_argument("--format", choices=["json", "text"], default="text")
 
     mcp_parser = subparsers.add_parser("mcp", help="start the MCP evidence and verification server")
     mcp_parser.add_argument("--registry", type=Path, default=None)
@@ -143,6 +150,18 @@ def main(argv: list[str] | None = None) -> int:
             )
             _print(report.model_dump(mode="json"), args.format)
             return 0 if report.selected_backend is not None else 10
+        if args.command == "sbom":
+            document = build_sbom()
+            path = write_sbom(args.output)
+            summary = {
+                "path": str(path),
+                "spec_version": document["specVersion"],
+                "project": document["metadata"]["component"]["name"],
+                "project_version": document["metadata"]["component"]["version"],
+                "components": len(document["components"]),
+            }
+            _print(summary, args.format)
+            return 0
         if args.command == "plan":
             plan = verification_plan(
                 claim_id=args.claim,
