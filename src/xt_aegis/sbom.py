@@ -42,9 +42,7 @@ def _purl(name: str, version: str) -> str:
 def _license_entries(distribution: metadata.Distribution) -> list[dict[str, Any]]:
     # `PackageMetadata` is mapping-like across versions but only exposes `__getitem__` in its typed
     # interface, so the lookups go through a helper rather than `.get`.
-    declared = _metadata_value(distribution, "License-Expression") or _metadata_value(
-        distribution, "License"
-    )
+    declared = _metadata_value(distribution, "License-Expression") or _metadata_value(distribution, "License")
     if not declared or declared.lower() in {"unknown", "none"}:
         classifiers = [
             str(value).split("::")[-1].strip()
