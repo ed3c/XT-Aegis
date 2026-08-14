@@ -28,8 +28,6 @@ revision. Do not derive current state from a branch name or an old PR descriptio
 | Strong isolation for mutating commands | `action_backend.py`, `runner.py`, [`ACTION_ISOLATION.md`](ACTION_ISOLATION.md); issue #27 | `current for the Docker profile` | pinned OpenShell and rootless Podman adversarial evidence remains #12 |
 | Span vocabulary, attribute allowlist, versioned event envelope, offline replay | `telemetry.py`, `replay.py`, `events.py`; issue #9 | `current` | telemetry is off by default; a trace is not evidence of semantic correctness |
 | Named transitions, kill-tested recovery, cancellation and deadlines | `lifecycle.py`, `runner.py`, [`RECOVERY.md`](RECOVERY.md); issue #10 | `current` | single-node only; distributed failover remains #14 and external exactly-once remains #15 |
-| Strong isolation for mutating commands | issue #27 | `planned` | live conformance remains gated by #12 |
-| Execution-equivalent OpenShell readiness | issue #30 | `planned` | version-pinned doctor/execution agreement required |
 | Default-deny egress decisions and credential injection | `egress.py`, [`EGRESS.md`](EGRESS.md); issue #13 | `current decision plane` | it decides, it does not enforce at the socket; runtime denial remains #12 |
 | Model-backed Harness uplift and performance evidence | issues #11/#24/#29 | `unverified` | pinned corpus, equal baselines, raw failed/timed-out trials |
 | Git Town repository-side Worker contract | `scripts/git-town/`; PR #41 | `merged contract` | exact live Worker profile remains `deployment-blocked` by #44 |
