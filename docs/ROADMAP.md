@@ -57,6 +57,9 @@ resumable notification channel and authenticated decision callback in #15 remain
 delivery claim is made.
 The v0.5 admission decision for mutating MCP calls (#78, a slice of #16) exists as a pure component. No
 mutating tool is registered or callable, and the MCP surface remains read-only by default.
+Backup and restore of checkpoints, approvals, events, and terminal idempotency records (#80, one acceptance
+criterion of #17) is implemented. Signed releases, SBOM and provenance, the supported deployment profile,
+incident response, and independent assessment remain open.
 
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.

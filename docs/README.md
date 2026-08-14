@@ -105,6 +105,7 @@ The complete cross-directory transition table is in
 - [Benchmark contract](BENCHMARKS.md)
 - [Protected external side effects](SIDE_EFFECTS.md)
 - [Admission for mutating MCP calls](MCP_MUTATION.md)
+- [Backup and restore](BACKUP.md)
 - [External verification](EXTERNAL_VERIFICATION.md)
 - [OpenShell](OPENSHELL.md)
 - [Coding-agent Harness contract](CODING_AGENT_HARNESS.md)

@@ -26,6 +26,8 @@ project uses Semantic Versioning for published interfaces.
 - a deny-by-default admission decision for mutating MCP calls that refuses before anything else when a
   required protection is unavailable, rejects replayed nonces, undeclared tools, missing scopes, and any
   approval that does not cover the exact call. No mutating tool is enabled by it.
+- verifiable backup and restore of the durable state: a consistent online copy, a manifest with digest,
+  schema version, and per-table row counts, and a restore that verifies everything before it writes.
 
 ### Changed
 
