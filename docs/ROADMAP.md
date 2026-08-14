@@ -48,6 +48,10 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
 
+The v0.4 checkpoint-backend contract and PostgreSQL implementation (#84, a slice of #14) pass one shared
+conformance suite on both backends. Migrations, compare-and-set on every transition, and runner wiring
+remain open, and no multi-worker production claim is made.
+
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
 
