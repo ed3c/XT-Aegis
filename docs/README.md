@@ -108,6 +108,7 @@ The complete cross-directory transition table is in
 - [Backup and restore](BACKUP.md)
 - [Human-in-the-loop notification](HITL.md)
 - [Observability and replay](OBSERVABILITY.md)
+- [Crash recovery, cancellation, and deadlines](RECOVERY.md)
 - [External verification](EXTERNAL_VERIFICATION.md)
 - [OpenShell](OPENSHELL.md)
 - [Coding-agent Harness contract](CODING_AGENT_HARNESS.md)

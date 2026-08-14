@@ -599,7 +599,9 @@
         "approval_required",
         "budget_exhausted",
         "identity_conflict",
-        "output_budget_exhausted"
+        "output_budget_exhausted",
+        "cancelled",
+        "deadline_exceeded"
       ],
       "title": "ExecutionReasonCode",
       "type": "string"

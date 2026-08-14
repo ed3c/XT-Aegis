@@ -59,6 +59,9 @@ project uses Semantic Versioning for published interfaces.
   cycle counters, and a restart either resumes them or terminates with `recovery_failed`; a changed task,
   run context, budget, or provider admission profile, an unreadable or stale state record, an attempt still
   in flight, and an already-terminal run each refuse without calling the provider;
+- cancellation and deadlines are enforced at named execution transitions, and a cancelled or expired
+  request is persisted as a terminal `cancelled` or `deadline_exceeded` result that a restart replays
+  instead of executing;
 - command actions now honor `CommandSpec.expected_exit_codes` instead of requiring exit code zero;
 - action, precondition, postcondition, and terminal evidence record actual and expected exit codes;
 - OpenShell verification now uploads the selected checkout into `/workspace`, disables automatic providers,

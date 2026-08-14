@@ -27,6 +27,7 @@ revision. Do not derive current state from a branch name or an old PR descriptio
 | Execution-equivalent OpenShell readiness | `verification.py`, `verification_models.py`; issue #30 | `current adapter probe` | live version-pinned doctor/execution agreement remains #12 conformance evidence |
 | Deterministic runtime benchmark harness | `benchmark.py`, `verification/schemas/benchmark-report.schema.json`; issue #11 | `current` | raw trials are profile-bound; no threshold is enforced and no performance claim is promoted |
 | Span vocabulary, attribute allowlist, versioned event envelope, offline replay | `telemetry.py`, `replay.py`, `events.py`; issue #9 | `current` | telemetry is off by default; a trace is not evidence of semantic correctness |
+| Named transitions, kill-tested recovery, cancellation and deadlines | `lifecycle.py`, `runner.py`, [`RECOVERY.md`](RECOVERY.md); issue #10 | `current` | single-node only; distributed failover remains #14 and external exactly-once remains #15 |
 | Model-backed Harness uplift and performance evidence | issues #11/#24/#29 | `unverified` | pinned corpus, equal baselines, raw failed/timed-out trials |
 | Git Town repository-side Worker contract | `scripts/git-town/`; PR #41 | `merged contract` | exact live Worker profile remains `deployment-blocked` by #44 |
 
@@ -207,8 +208,12 @@ Exact `ExecutionReasonCode` values currently include:
 
 ```text
 policy_denied | approval_denied | approval_required | budget_exhausted
-identity_conflict | output_budget_exhausted
+identity_conflict | output_budget_exhausted | cancelled | deadline_exceeded
 ```
+
+`cancelled` and `deadline_exceeded` are terminal and persisted. A cancelled or expired request keeps its
+step row, so a restart replays that terminal record instead of becoming executable again; executing it
+requires a new authorized request with a new identity.
 
 ```mermaid
 stateDiagram-v2

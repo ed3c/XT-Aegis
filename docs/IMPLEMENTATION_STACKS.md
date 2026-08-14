@@ -127,7 +127,7 @@ Each leaf needs its own eval-first issue or an explicitly separated child issue 
 | #12 live runtime conformance | open live gate | adversarial evidence for pinned OpenShell/rootless OCI profiles | adapter unit tests are insufficient; evidence paths own raw results |
 | #11 benchmark harness | deterministic harness current; model-backed open/unverified | schema-valid raw deterministic artifacts committed; optional model-backed artifacts pending | no runtime source edits without a separate issue |
 | #9 observability | current | schema-versioned event/trace contract without secret export or authorization coupling | coordinate event/checkpoint schemas and redaction owner |
-| #10 crash/deadline recovery | open | kill/restart/cancellation matrix reaches documented safe states | coordinate checkpoint, runner, workspace, and event owners |
+| #10 crash/deadline recovery | current | kill/restart/cancellation matrix reaches documented safe states | coordinate checkpoint, runner, workspace, and event owners |
 | #44 Git Town Worker qualification | deployment-blocked | exact package/binary/config/conflict/race/timeout/secret acceptance | evidence path is separate from Python product runtime |
 
 ## Parallel Worker allocation

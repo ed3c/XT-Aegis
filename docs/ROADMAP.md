@@ -48,6 +48,8 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] OpenShell readiness and conformance gate (#30; the execution-equivalent component probe is current on
   `main`, while live version-pinned doctor/execution agreement evidence remains #12);
 - [x] schema-versioned events, span vocabulary, and offline trajectory replay (#9);
+- [x] process-kill fault injection at every persisted transition, plus cancellation and deadline
+  propagation (#10);
 - [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
 - [ ] OpenShell readiness and conformance gate (#30);
