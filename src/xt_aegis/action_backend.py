@@ -62,8 +62,8 @@ class ActionBackend(Protocol):
 class UnsafeLocalActionBackend:
     """Explicit development mode: the command runs as a host subprocess with no OS isolation."""
 
-    name = ActionBackendName.UNSAFE_LOCAL
-    strong_isolation = False
+    name: ActionBackendName = ActionBackendName.UNSAFE_LOCAL
+    strong_isolation: bool = False
 
     def readiness(self, workspace_root: Path) -> IsolationReadiness:
         del workspace_root
@@ -83,7 +83,8 @@ class UnsafeLocalActionBackend:
 class OciActionBackend:
     """Run the command in a container whose only writable bind mount is the owned workspace."""
 
-    strong_isolation = True
+    name: ActionBackendName
+    strong_isolation: bool = True
 
     def __init__(
         self,
