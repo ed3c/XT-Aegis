@@ -48,6 +48,9 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
 
+The v0.5 admission decision for mutating MCP calls (#78, a slice of #16) exists as a pure component. No
+mutating tool is registered or callable, and the MCP surface remains read-only by default.
+
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
 

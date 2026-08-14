@@ -16,7 +16,10 @@ project uses Semantic Versioning for published interfaces.
 - an optional loopback-only Ollama adapter with bounded no-proxy/no-redirect stdlib HTTP transport and
   typed refusal, timeout, malformed, oversized, truncated, and provider-error outcomes;
 - an argv-only sandbox launcher that confines recipe working directories beneath the uploaded source root;
-- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs.
+- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs;
+- a deny-by-default admission decision for mutating MCP calls that refuses before anything else when a
+  required protection is unavailable, rejects replayed nonces, undeclared tools, missing scopes, and any
+  approval that does not cover the exact call. No mutating tool is enabled by it.
 
 ### Changed
 
