@@ -112,6 +112,7 @@ The complete cross-directory transition table is in
 - [Strong isolation for mutating actions](ACTION_ISOLATION.md)
 - [Egress policy and credential injection](EGRESS.md)
 - [Checkpoint storage backends](STORAGE_BACKENDS.md)
+- [Supported deployment profile](DEPLOYMENT_PROFILE.md)
 - [External verification](EXTERNAL_VERIFICATION.md)
 - [OpenShell](OPENSHELL.md)
 - [Coding-agent Harness contract](CODING_AGENT_HARNESS.md)

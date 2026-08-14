@@ -51,6 +51,8 @@ project uses Semantic Versioning for published interfaces.
 - an ordered, recorded schema-migration ledger shared by both checkpoint backends, and a monotonic
   `state_version` with a compare-and-set guard on every mutating transition, so the second of two
   concurrent writers is told it lost instead of silently overwriting the first.
+- `xt-aegis sbom`, a deterministic CycloneDX inventory generated from installed distribution metadata using
+  only the standard library, and a deployment-profile document naming tested and unsupported configurations.
 
 ### Changed
 

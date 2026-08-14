@@ -58,6 +58,7 @@ from xt_aegis.side_effects import (
     EffectState,
     ProtectedEffectRunner,
 )
+from xt_aegis.sbom import build_sbom, write_sbom
 from xt_aegis.skill import SkillCompiler
 from xt_aegis.verification_models import BackendName, VerificationResult, VerificationStatus
 
@@ -122,6 +123,8 @@ __all__ = [
     "restore_backup",
     "verify_backup",
     "select_candidate",
+    "build_sbom",
+    "write_sbom",
 ]
 
 __version__ = "0.2.0"

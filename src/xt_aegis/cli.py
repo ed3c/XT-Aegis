@@ -17,6 +17,7 @@ from xt_aegis.benchmark import (
 )
 from xt_aegis.demo import run_demo
 from xt_aegis.replay import ReplayError, format_timeline, replay_events
+from xt_aegis.sbom import build_sbom, write_sbom
 from xt_aegis.skill import SkillCompiler
 from xt_aegis.verification import (
     VerificationError,
@@ -101,6 +102,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     replay_parser.add_argument("--events", type=Path, required=True)
     replay_parser.add_argument("--format", choices=["json", "text"], default="text")
+    sbom_parser = subparsers.add_parser(
+        "sbom", help="write a deterministic CycloneDX inventory of the installed environment"
+    )
+    sbom_parser.add_argument("--output", type=Path, default=Path("sbom.json"))
+    sbom_parser.add_argument("--format", choices=["json", "text"], default="text")
 
     mcp_parser = subparsers.add_parser("mcp", help="start the MCP evidence and verification server")
     mcp_parser.add_argument("--registry", type=Path, default=None)
@@ -196,6 +202,18 @@ def main(argv: list[str] | None = None) -> int:
                 print(timeline.model_dump_json(indent=2))
             else:
                 print(format_timeline(timeline))
+            return 0
+        if args.command == "sbom":
+            document = build_sbom()
+            path = write_sbom(args.output)
+            summary = {
+                "path": str(path),
+                "spec_version": document["specVersion"],
+                "project": document["metadata"]["component"]["name"],
+                "project_version": document["metadata"]["component"]["version"],
+                "components": len(document["components"]),
+            }
+            _print(summary, args.format)
             return 0
         if args.command == "plan":
             plan = verification_plan(
