@@ -42,6 +42,9 @@ project uses Semantic Versioning for published interfaces.
 - a default-deny egress policy with host canonicalization, private/metadata address rejection, mixed-answer
   and rebinding detection, and redirect denial, plus a credential broker whose injections are single-use
   and bound to one subject, tool, destination, argument digest, reason, and expiry.
+- a deterministic candidate-selection rule that disqualifies a candidate which started from a drifted
+  baseline, failed its assertions, did not succeed, or could not establish rollback integrity, breaks ties
+  by proposal digest so the same candidates always select the same one, and names every rejection.
 
 ### Changed
 

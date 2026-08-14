@@ -92,7 +92,7 @@ acceptance work must be split rather than delivered as one large PR.
 | Negative eval | stale schema, mismatched source/policy/provider, consumed approval, ambiguous execution outcome fail closed |
 | Claim boundary | single-node supported backend until #14 provides multi-worker coordination |
 
-### Leaf 29-C — bounded candidate selection
+### Leaf 29-C — bounded candidate selection (selection rule owned by #70)
 
 | Field | Required content |
 |---|---|

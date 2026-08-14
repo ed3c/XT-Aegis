@@ -84,7 +84,7 @@ flowchart LR
 | merged foundation | PRs #23/#31/#51/#52/#54/#56 | `current` to stated evidence | source binding, identity/exits, proposal, controller core, output enforcement, typing | preserve contracts and limitations in future leaves |
 | controller A | #60 | current | provider-token admission | declared reservation enforced before each call; no tokenizer is bundled |
 | controller B | #68 | current | restart-safe controller state | resume or fail closed; single node only, distributed coordination remains #14 |
-| controller C | #29 child to create | planned | bounded candidate selection | define child workspace, conflict, and selection contract |
+| controller C | #70 | selection rule current | bounded candidate selection | orchestration deferred until a caller exists; see the track D research note |
 | controller evidence | #11/#29 child to create | unverified | direct/equal-feedback/controller raw comparison | pin corpus/model/sampling/environment and preserve failures |
 | isolation | #27 | planned | strong-isolation action backend | design adapter, negative tests, and live #12 gate |
 | readiness | #30 | current adapter probe | execution-equivalent OpenShell readiness | live version-pinned doctor/launch agreement under #12 |

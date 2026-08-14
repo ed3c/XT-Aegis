@@ -1,6 +1,7 @@
 """XT-Aegis: evidence-first deterministic controls around agent actions."""
 
 from xt_aegis.backup import BackupManifest, create_backup, restore_backup, verify_backup
+from xt_aegis.candidates import CandidateOutcome, CandidateSelection, select_candidate
 from xt_aegis.controller import (
     ControllerAttempt,
     ControllerBudgets,
@@ -64,6 +65,8 @@ __all__ = [
     "ApprovalNotifier",
     "BackendName",
     "BackupManifest",
+    "CandidateOutcome",
+    "CandidateSelection",
     "CommandAction",
     "CommandSpec",
     "CompiledSkill",
@@ -114,6 +117,7 @@ __all__ = [
     "create_backup",
     "restore_backup",
     "verify_backup",
+    "select_candidate",
 ]
 
 __version__ = "0.2.0"
