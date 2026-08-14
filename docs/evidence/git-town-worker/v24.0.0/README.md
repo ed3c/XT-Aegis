@@ -1,7 +1,7 @@
 # Git Town v24.0.0 — partial acceptance evidence
 
-**This does not authorize an unattended Worker.** Issue #44's deployment gate stays closed. Five of the
-seventeen evals in #43 and #44 ran here; two failed; ten could not run at all.
+**This does not authorize an unattended Worker.** Issue #44's deployment gate stays closed. Eight of the
+seventeen evals in #43 and #44 have now run; three failed; five still cannot run without a real forge.
 
 ## What this is
 
@@ -21,7 +21,11 @@ requests, or credentials.
 | `EVAL-WORKER-05` committed fixture | passed | `test-fixture.sh` passed unchanged inside the image |
 | `EVAL-WORKER-01` immutable environment | **failed** | the image is a general base with tools installed at run time, not a purpose-built pinned Worker image |
 | `EVAL-WORKER-04` shell analysis passes | **failed** | ShellCheck exits non-zero because findings exist |
-| ten remaining live evals | not run | each needs a disposable remote, real PR metadata, a GitHub CLI session, or a worker credential mechanism |
+| `EVAL-GIT-LIVE-11` preflight isolation | passed | seven refusals, each asserting its own guard message, plus a clean control |
+| `EVAL-GIT-LIVE-12` secret canaries | passed | an injected credential appears in no repository file, log, process argument, or `git town` argv |
+| `EVAL-GIT-LIVE-10` timeout and output bounds | **failed** | the deadline kills an in-group grandchild and the log bound holds; a `setsid` grandchild survives |
+| five remaining live evals | not run | `EVAL-GIT-LIVE-05` through `-09` need real pull requests, PR lineage, and a remote race |
+| `EVAL-WORKER-06`, `-07` | not run | worker credential mechanism and immutable image |
 
 `eval-results.json` records the argv, exit code, and evidence path for each.
 
@@ -38,6 +42,40 @@ invocation is outside this evidence PR's path ownership, so the finding is recor
 Worker image built without package-channel installation. This container installs `git`, `curl`, and
 `shellcheck` from Debian at run time, so it cannot satisfy that eval however complete its manifest is.
 
+## The three evals added by the second run
+
+The earlier bundle recorded `EVAL-GIT-LIVE-10`, `-11`, and `-12` as `not_run` on the reading that they need
+a GitHub repository. They do not. A bare repository on local disk is a real `origin`, and every guard those
+evals exercise fires before any `gh` call. `run-preflight-evals.sh` runs them in the same pinned profile.
+
+**`EVAL-GIT-LIVE-11` — seven refusals, each for its own reason.** Wrong origin, dirty worktree, suspended
+Git operation, a manifest naming a branch that does not exist, a malformed manifest row, a held repository
+lock, and a tampered artifact checksum. Every case asserts three things: a non-zero exit, the specific
+message that guard produces, and that `git town undo` was never invoked — a guard that refuses *after*
+calling undo has already touched the repository.
+
+The first attempt at this eval produced seven false passes and is worth recording, because the failure mode
+is generic. `common.sh` derives `REPO_ROOT` from the **script's own** directory, not from the caller's, so a
+fixture that copied the scripts outside a repository made every case die at `require_repo` with "not inside
+a Git repository" — non-zero, and unrelated to the guard under test. Two changes fixed it: the fixture now
+commits the scripts inside the fixture repository, and every case names the message it expects. A
+`control-clean-bootstrap` case runs the same command on an untouched fixture and must succeed, so a
+refusal below it is the named guard rather than a broken fixture.
+
+**`EVAL-GIT-LIVE-12` — the canary is clean, and the check no longer sees itself.** A synthetic credential
+passed through `GH_TOKEN` and `GITHUB_TOKEN` appears in no repository file, no log, no process argument,
+and no recorded `git town` argv. The first run reported a leak into process arguments; that was the check
+detecting its own `grep`, whose argv held the canary, because `ps` was piped straight into it. The
+snapshot is now taken to a file first.
+
+**`EVAL-GIT-LIVE-10` — one half passes, the other is a stated limit.** `bound_file` truncated a 4,000,000
+byte log to 65,495 bytes against a 65,536 limit, exercising the repository's own function rather than a
+restatement of its rule. The deadline terminated a grandchild in the worker's process group. A grandchild
+that calls `setsid` survives it, because `timeout` signals the process group and a new session is no longer
+in it. `git town` does not call `setsid`, so this is not a defect in the worker — but "the deadline
+terminates the process tree" is what the eval claims, and it is not true of a process that leaves the
+group. Recorded as failed rather than narrowed to the half that passes.
+
 ## One gap this run exposed
 
 `scripts/git-town/git-town.lock` pins the release artifact, the license blob, and the config digest, but it
@@ -52,6 +90,21 @@ That value came from a package whose digest matches the pinned lock, so it is a 
 pin. Pinning it belongs to a change that owns `scripts/git-town/**`, not to this evidence bundle.
 
 ## Reproduction
+
+### The preflight evals (`-10`, `-11`, `-12`)
+
+```bash
+mkdir -p out
+docker run --rm --platform linux/amd64 \
+  -v "$(git rev-parse --show-toplevel):/src:ro" -v "$PWD/out:/out" debian:12-slim \
+  bash /src/docs/evidence/git-town-worker/v24.0.0/run-preflight-evals.sh
+```
+
+Writes `out/preflight-results.jsonl`, `out/preflight-environment.json`, and one log per case. The script
+exits 0 whether or not a case failed: the caller reads the JSON, so a failing guard is a finding rather
+than something that disappears into an exit code.
+
+### The identity and contract evals (`-01` through `-04`)
 
 Requires Docker and network access to the GitHub release assets. The whole run takes a few minutes, most of
 it emulation overhead on an arm64 host.
@@ -82,7 +135,8 @@ and their provenance chain are in `artifact-manifest.json`.
 
 ## What is required before any Worker is authorized
 
-Everything marked `not_run` in `eval-results.json`: a disposable remote with synthetic pull requests, a real
+Everything still marked `not_run` in `eval-results.json` — `EVAL-GIT-LIVE-05` through `-09`, which need a
+disposable remote with synthetic pull requests, a real
 `sync --all` in parent-before-child order, a real semantic conflict, partial-mutation detection, a
 remote-update race, timeout and output bounds, the eleven preflight refusals, and secret canaries injected
 through a real worker credential mechanism. Those need a dedicated GitHub test repository and an authorized

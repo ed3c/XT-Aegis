@@ -1,0 +1,4 @@
+branch=agent/child-a parent=main issue=1 pr=1
+  git config --local git-town-branch.agent/child-a.parent main
+branch=agent/child-b parent=agent/child-a issue=2 pr=2
+  git config --local git-town-branch.agent/child-b.parent agent/child-a

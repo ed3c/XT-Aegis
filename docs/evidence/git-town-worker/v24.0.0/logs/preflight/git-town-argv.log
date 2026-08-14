@@ -1,0 +1,2 @@
+config get-parent agent/child-a
+config get-parent agent/child-b
