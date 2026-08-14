@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "profile": "developer-host container, linux/amd64 under emulation",
+  "image": {
+    "reference": "debian:bookworm-slim",
+    "digest": "sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241",
+    "immutable": true,
+    "note": "a general base image with tools installed at run time, not a purpose-built pinned worker image"
+  },
+  "operating_system": "Debian GNU/Linux 12 (bookworm)",
+  "architecture": "x86_64",
+  "kernel": "7.0.14-orbstack-00380-ga7e0a2dc9535",
+  "host": {
+    "platform": "Darwin arm64",
+    "container_runtime": "Docker 29.4.0",
+    "emulation": "linux/amd64 executed on an arm64 host"
+  },
+  "tools": {
+    "bash": "GNU bash, version 5.2.15(1)-release (x86_64-pc-linux-gnu)",
+    "git": "git version 2.39.5",
+    "shellcheck": "0.9.0",
+    "timeout": "timeout (GNU coreutils) 9.1",
+    "github_cli": "not installed"
+  },
+  "git_town": {
+    "version": "24.0.0",
+    "binary_path": "/usr/bin/git-town",
+    "binary_sha256": "dbaba38145246f602940e7261190f394cb4cd6dbc0d079233e3a15c42a11f461"
+  },
+  "repository": {
+    "commit": "80b4cdc0d8c8f6043daf69c6a151e483c4ee138a",
+    "clean": true,
+    "checkout": "a local clone mounted read-write into the container"
+  },
+  "limitations": [
+    "This is a developer-host container, not an authorized Worker image. It satisfies no deployment gate.",
+    "linux/amd64 ran under emulation on an arm64 host; timing-sensitive behavior is not characterized.",
+    "No GitHub CLI, no credentials, and no remote repository were present, so every eval that needs real PR metadata could not run."
+  ]
+}

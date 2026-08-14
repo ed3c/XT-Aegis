@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0",
+  "upstream": {
+    "project": "git-town/git-town",
+    "tag": "v24.0.0",
+    "release_commit": "0f3e55f5a6bae5b319dd713a0606263d0551af66",
+    "license_id": "MIT",
+    "license_blob_sha": "4bcd5ec1942737f7976b8bac8534a8ab642ec0e0"
+  },
+  "artifacts": [
+    {
+      "name": "checksums.txt",
+      "provenance": "github.com/git-town/git-town release v24.0.0 asset",
+      "sha256_expected": "7532377166cb59dc01c74f86e3a71c54ba9567a461313a5d203a1ea99c571b24",
+      "sha256_observed": "7532377166cb59dc01c74f86e3a71c54ba9567a461313a5d203a1ea99c571b24",
+      "match": true
+    },
+    {
+      "name": "git-town_linux_intel_64.deb",
+      "provenance": "github.com/git-town/git-town release v24.0.0 asset",
+      "size_bytes": 7637316,
+      "sha256_expected": "1535999a402e08c721538473808429eeb71beb929ef51a1438ba007434951dd7",
+      "sha256_observed": "1535999a402e08c721538473808429eeb71beb929ef51a1438ba007434951dd7",
+      "match": true,
+      "package_version": "24.0.0",
+      "package_architecture": "amd64",
+      "listed_in_checksums_txt": true
+    },
+    {
+      "name": "third_party/git-town/LICENSE",
+      "provenance": "copied into this repository",
+      "sha256_expected": "eec8a092b92231375231488d27b959e2fa2be80559c97db60c1b0458d3298791",
+      "sha256_observed": "eec8a092b92231375231488d27b959e2fa2be80559c97db60c1b0458d3298791",
+      "match": true
+    },
+    {
+      "name": ".git-town.toml",
+      "provenance": "this repository",
+      "sha256_expected": "dac32bfc8557e9f9f86537a4e081f32eff90f2965233b48a7676bace687356db",
+      "sha256_observed": "dac32bfc8557e9f9f86537a4e081f32eff90f2965233b48a7676bace687356db",
+      "match": true
+    },
+    {
+      "name": "installed binary /usr/bin/git-town",
+      "provenance": "installed from the verified package inside the container",
+      "sha256_expected": null,
+      "sha256_observed": "dbaba38145246f602940e7261190f394cb4cd6dbc0d079233e3a15c42a11f461",
+      "match": null,
+      "note": "scripts/git-town/git-town.lock does not pin GIT_TOWN_BINARY_SHA256; verify-license.sh accepted the value supplied for this run. Pinning this observed value is a follow-up for the lock file, which this evidence PR does not own."
+    }
+  ],
+  "provenance_chain": [
+    "the release checksums.txt asset hashes to the value pinned in scripts/git-town/git-town.lock",
+    "the entry for git-town_linux_intel_64.deb inside that checksums.txt matches the pinned package hash",
+    "the downloaded package hashes to the same pinned value",
+    "dpkg-deb reports version 24.0.0 and architecture amd64 from that package"
+  ]
+}
