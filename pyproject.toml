@@ -81,6 +81,12 @@ strict = true
 packages = ["xt_aegis"]
 warn_unused_ignores = true
 
+[[tool.mypy.overrides]]
+# psycopg is an optional extra; the PostgreSQL lease store imports it lazily and the type checker must not
+# require it to be installed for a default install.
+module = "psycopg.*"
+ignore_missing_imports = true
+
 [tool.coverage.run]
 branch = true
 source = ["xt_aegis"]
