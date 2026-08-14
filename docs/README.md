@@ -103,6 +103,7 @@ The complete cross-directory transition table is in
 - [Roadmap](ROADMAP.md)
 - [Evidence](EVIDENCE.md)
 - [Benchmark contract](BENCHMARKS.md)
+- [Protected external side effects](SIDE_EFFECTS.md)
 - [External verification](EXTERNAL_VERIFICATION.md)
 - [OpenShell](OPENSHELL.md)
 - [Coding-agent Harness contract](CODING_AGENT_HARNESS.md)

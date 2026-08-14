@@ -21,6 +21,8 @@ project uses Semantic Versioning for published interfaces.
   `xt-aegis doctor` with the exact reason each component is unavailable;
 - a per-run sandbox entry token that proves an OpenShell recipe actually started inside the sandbox, so a
   runtime that never launched is reported as `unsupported` instead of as failed repository claims.
+- a protected external side-effect runner that persists intent before dispatch, never repeats a committed
+  operation, and records an ambiguous outcome as `unknown` for reconciliation instead of retrying it.
 
 ### Changed
 
