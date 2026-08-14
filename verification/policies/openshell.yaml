@@ -6,11 +6,17 @@ version: 1
 # and xt_aegis.sandbox_exec.
 filesystem_policy:
   include_workdir: true
+  # Every entry must be a directory. OpenShell grants `ReadDir` on each path it is given, and Landlock
+  # rejects that right on anything that is not a directory:
+  #
+  #   Failed to prepare sandbox: incompatible directory-only access-rights: BitFlags<AccessFs>(0b1000, ReadDir)
+  #
+  # `/dev/urandom` and `/dev/null` are character devices, so naming them here failed the whole sandbox
+  # before any recipe ran. `/dev` covers both at the only granularity Landlock accepts.
   read_only:
     - /usr
     - /lib
     - /proc
-    - /dev/urandom
     - /etc
     - /var/log
     - /opt/xt-aegis
@@ -18,7 +24,7 @@ filesystem_policy:
     - /sandbox
     - /workspace
     - /tmp
-    - /dev/null
+    - /dev
 
 # A runtime that cannot enforce Landlock must reject this policy rather than
 # silently weakening the filesystem boundary.
