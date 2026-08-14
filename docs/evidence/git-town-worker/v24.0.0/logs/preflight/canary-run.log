@@ -1,0 +1,3 @@
+branch=agent/child-a parent=main issue=1 pr=1
+branch=agent/child-b parent=agent/child-a issue=2 pr=2
+parent metadata applied without rebasing; run verify-stack.sh before sync
