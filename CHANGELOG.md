@@ -47,7 +47,10 @@ project uses Semantic Versioning for published interfaces.
   by proposal digest so the same candidates always select the same one, and names every rejection.
 - a written checkpoint-backend contract and a PostgreSQL implementation, with one conformance suite that
   proves both backends agree on step reservation, identity conflicts, terminal results, the approval state
-  machine, events, and resume position.
+  machine, events, and resume position;
+- an ordered, recorded schema-migration ledger shared by both checkpoint backends, and a monotonic
+  `state_version` with a compare-and-set guard on every mutating transition, so the second of two
+  concurrent writers is told it lost instead of silently overwriting the first.
 
 ### Changed
 

@@ -10,8 +10,9 @@ import pytest
 from xt_aegis.checkpoint import CheckpointStore
 from xt_aegis.checkpoint_backend import CheckpointBackend
 from xt_aegis.checkpoint_postgres import PostgresCheckpointStore
-from xt_aegis.errors import ApprovalError, IdempotencyConflictError
+from xt_aegis.errors import ApprovalError, IdempotencyConflictError, StateVersionConflict
 from xt_aegis.identity import RequestIdentity
+from xt_aegis.migrations import MIGRATIONS
 from xt_aegis.models import (
     ActionRequest,
     ExecutionResult,
@@ -310,15 +311,102 @@ def test_run_status_can_be_updated(backend: CheckpointBackend) -> None:
     backend.start_run(THREAD, "safe_refactor")
 
     backend.set_run_status(THREAD, "blocked")
-
-    # No public reader exists for run status; the contract is that the call is accepted and idempotent.
     backend.set_run_status(THREAD, "blocked")
+
+    state = backend.run_state(THREAD)
+    assert state is not None
+    assert state.status == "blocked"
+
+
+def test_the_run_state_version_increases_on_every_transition(backend: CheckpointBackend) -> None:
+    backend.start_run(THREAD, "safe_refactor")
+    start = backend.run_state(THREAD)
+    assert start is not None
+
+    backend.set_run_status(THREAD, "blocked")
+    backend.set_run_status(THREAD, "running")
+    end = backend.run_state(THREAD)
+
+    assert end is not None
+    assert end.state_version == start.state_version + 2
+
+
+def test_a_run_transition_from_a_stale_version_is_refused(backend: CheckpointBackend) -> None:
+    """The losing writer of a concurrent pair must be told, not silently overwritten."""
+
+    backend.start_run(THREAD, "safe_refactor")
+    observed = backend.run_state(THREAD)
+    assert observed is not None
+
+    backend.set_run_status(THREAD, "blocked", expected_version=observed.state_version)
+
+    with pytest.raises(StateVersionConflict):
+        backend.set_run_status(THREAD, "failed", expected_version=observed.state_version)
+    current = backend.run_state(THREAD)
+    assert current is not None
+    assert current.status == "blocked"
+
+
+def test_a_transition_on_an_absent_run_is_refused(backend: CheckpointBackend) -> None:
+    with pytest.raises(StateVersionConflict):
+        backend.set_run_status("thread.does.not.exist", "failed")
+
+
+def test_a_terminal_result_is_never_overwritten(backend: CheckpointBackend, compiled_skill) -> None:  # type: ignore[no-untyped-def]
+    backend.start_run(THREAD, "safe_refactor")
+    request = _request()
+    identity = _identity(request, compiled_skill)
+    step_number = backend.prepare_step(request, identity)
+    backend.save_result(_result(request, identity, step_number))
+    written = backend.step_state(request.idempotency_key)
+    assert written is not None
+
+    replacement = _result(request, identity, step_number).model_copy(
+        update={"status": ExecutionStatus.FAILED, "success": False}
+    )
+    with pytest.raises(IdempotencyConflictError, match="terminal result"):
+        backend.save_result(replacement)
+
+    unchanged = backend.step_state(request.idempotency_key)
+    assert unchanged is not None
+    assert unchanged.status == ExecutionStatus.SUCCEEDED.value
+    assert unchanged.state_version == written.state_version
+
+
+def test_the_step_state_version_increases_when_a_result_is_written(
+    backend: CheckpointBackend,
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    backend.start_run(THREAD, "safe_refactor")
+    request = _request()
+    identity = _identity(request, compiled_skill)
+    step_number = backend.prepare_step(request, identity)
+    reserved = backend.step_state(request.idempotency_key)
+    assert reserved is not None
+    assert reserved.status == "received"
+
+    backend.save_result(_result(request, identity, step_number))
+
+    written = backend.step_state(request.idempotency_key)
+    assert written is not None
+    assert written.state_version == reserved.state_version + 1
+
+
+def test_the_migration_history_is_recorded_in_order(backend: CheckpointBackend) -> None:
+    history = backend.migration_history()
+
+    assert [entry["version"] for entry in history] == [migration.version for migration in MIGRATIONS]
+    assert all(entry["applied_at"] for entry in history)
+    assert all(entry["description"] for entry in history)
 
 
 def test_both_backends_satisfy_the_protocol(backend: CheckpointBackend) -> None:
     for name in (
         "start_run",
         "set_run_status",
+        "run_state",
+        "step_state",
+        "migration_history",
         "get_cached_result",
         "prepare_step",
         "save_result",
