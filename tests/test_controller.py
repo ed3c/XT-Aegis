@@ -14,6 +14,7 @@ from xt_aegis.controller import (
     ControllerStopReason,
     DiagnoseRepairController,
     InfrastructureUnavailableError,
+    ProviderAdmission,
 )
 from xt_aegis.identity import RequestIdentity
 from xt_aegis.models import (
@@ -1127,3 +1128,212 @@ def test_repair_diagnostic_is_redacted_and_byte_bounded_before_provider_reuse(
     assert len(first_diagnostic.encode()) <= 64
     assert "supersecret" not in provider.requests[1].task
     assert first_diagnostic in provider.requests[1].task
+
+
+def _admission(**overrides: object) -> ProviderAdmission:
+    declared: dict[str, object] = {"provider": "fake", "model": "deterministic", "version": "1.0"}
+    declared.update(overrides)
+    return ProviderAdmission(**declared)  # type: ignore[arg-type]
+
+
+def _ready_outcome(content: str = "value = 1\n", **profile_overrides: str) -> ProposalOutcome:
+    profile = _profile()
+    if profile_overrides:
+        profile = profile.model_copy(update=profile_overrides)
+    return ProposalOutcome(
+        status=ProposalStatus.READY,
+        profile=profile,
+        proposal=Proposal(content=content),
+        usage=ProviderUsage(prompt_tokens=5, completion_tokens=5),
+    )
+
+
+def _admission_controller(
+    *,
+    provider: RecordingProvider,
+    compiled_skill: object,
+    budgets: ControllerBudgets,
+    admission: ProviderAdmission | None,
+) -> DiagnoseRepairController:
+    return DiagnoseRepairController(
+        provider=provider,
+        executor=RejectingExecutor(),
+        skill=compiled_skill,  # type: ignore[arg-type]
+        trusted=TrustedEnvelopeConfig(target_path="sample_project/app.py"),
+        context=_context(),
+        budgets=budgets,
+        admission=admission,
+        identity_source=FixedIdentitySource(),
+    )
+
+
+def test_declared_reservation_admits_a_call_that_fits_the_remaining_budget(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.REFUSED,
+                profile=_profile(),
+                diagnostic="declined",
+                usage=ProviderUsage(prompt_tokens=5, completion_tokens=5),
+            )
+        ]
+    )
+    controller = _admission_controller(
+        provider=provider,
+        compiled_skill=compiled_skill,
+        budgets=ControllerBudgets(max_attempts=1, max_prompt_tokens=100, max_completion_tokens=100),
+        admission=_admission(reserve_prompt_tokens=100, reserve_completion_tokens=100),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert len(provider.requests) == 1
+    assert result.stop_reason == ControllerStopReason.PROPOSAL_REJECTED
+    assert result.admission is not None
+    assert result.admission.reserve_prompt_tokens == 100
+
+
+@pytest.mark.parametrize(
+    ("reserve", "budget_field", "expected_fragment"),
+    [
+        (
+            {"reserve_prompt_tokens": 101},
+            {"max_prompt_tokens": 100},
+            "prompt token budget cannot cover the next call",
+        ),
+        (
+            {"reserve_completion_tokens": 101},
+            {"max_completion_tokens": 100},
+            "completion token budget cannot cover the next call",
+        ),
+    ],
+)
+def test_reservation_larger_than_the_budget_refuses_before_any_call(
+    compiled_skill,  # type: ignore[no-untyped-def]
+    reserve: dict[str, int],
+    budget_field: dict[str, int],
+    expected_fragment: str,
+) -> None:
+    provider = RecordingProvider(outcomes=[_ready_outcome("must not be requested\n")])
+    controller = _admission_controller(
+        provider=provider,
+        compiled_skill=compiled_skill,
+        budgets=ControllerBudgets(max_attempts=2, **budget_field),
+        admission=_admission(**reserve),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert provider.requests == []
+    assert result.stop_reason == ControllerStopReason.BUDGET_EXHAUSTED
+    assert expected_fragment in result.diagnostic
+    assert result.attempts[0].proposal_status is None
+    assert result.attempts[0].provider_profile is None
+    assert result.token_usage_complete is True
+
+
+def test_spent_budget_refuses_the_next_call_before_it_is_issued(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.MALFORMED,
+                profile=_profile(),
+                diagnostic="unusable proposal",
+                usage=ProviderUsage(prompt_tokens=60, completion_tokens=1),
+            ),
+            _ready_outcome("must not be requested\n"),
+        ]
+    )
+    controller = _admission_controller(
+        provider=provider,
+        compiled_skill=compiled_skill,
+        budgets=ControllerBudgets(max_attempts=3, max_prompt_tokens=100, max_completion_tokens=100),
+        admission=_admission(reserve_prompt_tokens=50, reserve_completion_tokens=1),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert len(provider.requests) == 1
+    assert result.stop_reason == ControllerStopReason.PROPOSAL_REJECTED
+
+
+def test_remaining_budget_is_passed_to_each_provider_call(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.REFUSED,
+                profile=_profile(),
+                diagnostic="declined",
+                usage=ProviderUsage(prompt_tokens=5, completion_tokens=5),
+            )
+        ]
+    )
+    controller = _admission_controller(
+        provider=provider,
+        compiled_skill=compiled_skill,
+        budgets=ControllerBudgets(max_attempts=1, max_prompt_tokens=100, max_completion_tokens=80),
+        admission=_admission(),
+    )
+
+    controller.run(task="Propose one bounded change.")
+
+    assert provider.requests[0].max_prompt_tokens == 100
+    assert provider.requests[0].max_completion_tokens == 80
+
+
+def test_declared_profile_mismatch_stops_without_another_call(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    provider = RecordingProvider(
+        outcomes=[
+            _ready_outcome(model="swapped-model"),
+            _ready_outcome("must not be requested\n"),
+        ]
+    )
+    controller = _admission_controller(
+        provider=provider,
+        compiled_skill=compiled_skill,
+        budgets=ControllerBudgets(max_attempts=3),
+        admission=_admission(),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert len(provider.requests) == 1
+    assert result.stop_reason == ControllerStopReason.PROPOSAL_REJECTED
+    assert "provider profile mismatch" in result.diagnostic
+    assert "swapped-model" in result.diagnostic
+    assert result.attempts[0].provider_profile is not None
+    assert result.attempts[0].provider_profile.model == "swapped-model"
+
+
+def test_matching_declared_profile_does_not_stop_the_run(
+    compiled_skill,  # type: ignore[no-untyped-def]
+) -> None:
+    provider = RecordingProvider(
+        outcomes=[
+            ProposalOutcome(
+                status=ProposalStatus.REFUSED,
+                profile=_profile(),
+                diagnostic="declined",
+                usage=ProviderUsage(prompt_tokens=1, completion_tokens=1),
+            )
+        ]
+    )
+    controller = _admission_controller(
+        provider=provider,
+        compiled_skill=compiled_skill,
+        budgets=ControllerBudgets(max_attempts=1),
+        admission=_admission(),
+    )
+
+    result = controller.run(task="Propose one bounded change.")
+
+    assert result.stop_reason == ControllerStopReason.PROPOSAL_REJECTED
+    assert "profile mismatch" not in result.diagnostic

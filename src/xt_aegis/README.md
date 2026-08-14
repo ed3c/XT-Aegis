@@ -196,7 +196,7 @@ PR #56 backend typing compatibility
 Open independent leaves:
 
 ```text
-#29 provider-token admission / restart state / candidate selection / model-backed acceptance
+#29 restart state / candidate selection / model-backed acceptance (provider-token admission delivered by #60)
 #27 strong mutation isolation
 #30 execution-equivalent readiness
 #11 benchmark evidence

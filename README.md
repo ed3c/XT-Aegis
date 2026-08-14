@@ -45,7 +45,7 @@ The complete contribution contract is [`AGENTS.md`](AGENTS.md).
 | Canonical request identity, approval binding, exact replay | current | PR #31; `identity.py`, `checkpoint.py`, `runner.py` |
 | Declared command exit-code semantics | current | PR #31; `models.py`, `runner.py` |
 | Provider-neutral proposal and trusted envelope | current | PR #51; `proposals.py`, `providers/ollama.py` |
-| Finite diagnose-repair controller core | current partial | PR #52; issue #29 retains token admission, restart, candidate, and model-evidence leaves |
+| Finite diagnose-repair controller core | current partial | PRs #52 and #60; provider-token admission is current, issue #29 retains restart, candidate, and model-evidence leaves |
 | Streaming subprocess output enforcement | current | PR #54; shared stdout/stderr budget, process-group termination, bounded evidence, rollback on failed mutation |
 | Backend-map static typing compatibility | current | PR #56; mypy 2 compatibility without backend-selection behavior change |
 | Source-bound OpenShell verification | current | PR #23; strong action isolation/readiness remain #27/#30 |
@@ -164,7 +164,7 @@ flowchart TD
 
 | Leaf | Required split or dependency | State |
 |---|---|---|
-| #29 | split provider-token admission, restart-safe state, candidate selection, and model-backed comparison | open/current partial parent capability |
+| #29 | token admission delivered by #60; restart-safe state, candidate selection, and model-backed comparison remain split | open/current partial parent capability |
 | #27 | add a conformant isolated mutation backend and separate isolation/rollback verdicts | planned |
 | #30 | make automatic OpenShell selection depend on execution-equivalent readiness | adapter probe current; live smoke evidence open under #12 |
 | #11 | publish raw deterministic/model-backed trials with exact profile metadata | open/unverified |

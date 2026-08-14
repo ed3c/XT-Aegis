@@ -27,6 +27,16 @@ project uses Semantic Versioning for published interfaces.
 - `auto` selects OpenShell only after an execution-equivalent readiness probe resolves the reviewed version
   and an active gateway through the same environment the sandbox launch uses; an unready gateway now
   produces a typed `unsupported` infrastructure verdict instead of failed repository claims;
+- `ProviderAdmission`, a trusted pre-call token-admission contract that declares the expected provider
+  profile and the per-call prompt/completion reservation, recorded in every controller result.
+
+### Changed
+
+- the controller now admits every provider call through one gate before it is issued: a call is refused
+  when the remaining prompt or completion budget is below the declared reservation, or when a previous
+  attempt reported no usage, and each call receives the remaining budget instead of the run total;
+- a controller attempt that never reached a provider records `proposal_status` and `provider_profile` as
+  `null`, so a refusal is distinguishable from a provider outcome;
 - command actions now honor `CommandSpec.expected_exit_codes` instead of requiring exit code zero;
 - action, precondition, postcondition, and terminal evidence record actual and expected exit codes;
 - OpenShell verification now uploads the selected checkout into `/workspace`, disables automatic providers,
