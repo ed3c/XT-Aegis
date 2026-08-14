@@ -24,6 +24,7 @@ property held.
 ## The supported container profile
 
 ```text
+--user <host uid>:<gid>   non-root inside the container, matching the mount's ownership
 --network none            no egress from the action
 --read-only               root filesystem is immutable
 --cap-drop ALL            no Linux capabilities
@@ -55,6 +56,7 @@ traversal cannot widen what the container can reach.
 with a stated reason when it is not. On the supported profile it proves that a command:
 
 - runs inside the workspace mount and sees the workspace content;
+- runs as a non-root user rather than as uid 0;
 - cannot write outside the mount, and no artifact appears on the host;
 - cannot read a host file placed next to the workspace;
 - has no network;

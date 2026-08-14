@@ -145,6 +145,10 @@ class OciActionBackend:
             executable,
             "run",
             "--rm",
+            # The host uid/gid keeps the process non-root inside the container while still matching the
+            # ownership of the bind-mounted workspace; a container that runs as uid 0 satisfies neither.
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
             "--network",
             "none",
             "--read-only",

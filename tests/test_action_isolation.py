@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -192,6 +193,7 @@ def test_the_container_argv_denies_network_and_mounts_only_the_workspace(tmp_pat
     )
 
     assert "--network" in argv and argv[argv.index("--network") + 1] == "none"
+    assert argv[argv.index("--user") + 1] == f"{os.getuid()}:{os.getgid()}"
     assert "--read-only" in argv
     assert argv[argv.index("--cap-drop") + 1] == "ALL"
     assert argv[argv.index("--security-opt") + 1] == "no-new-privileges"
@@ -224,6 +226,18 @@ def test_live_container_runs_the_command_inside_the_workspace_mount(tmp_path: Pa
     assert "VALUE = 1" in result.action_stdout
     assert result.isolation_verdict is True
     assert result.isolation_backend == "docker"
+
+
+@requires_docker
+def test_live_container_runs_as_a_non_root_user(tmp_path: Path) -> None:
+    runner = _runner(tmp_path, backend=OciActionBackend(ActionBackendName.DOCKER, image=ACTION_IMAGE))
+    argv = _script(runner, "whoami.py", "import os\nprint('uid', os.getuid())\n")
+
+    result = runner.execute(_command_request(argv, key="isolation-live-0007"))
+
+    assert result.status == ExecutionStatus.SUCCEEDED, result.action_stderr
+    assert "uid 0" not in result.action_stdout
+    assert f"uid {os.getuid()}" in result.action_stdout
 
 
 @requires_docker
