@@ -41,6 +41,12 @@ from xt_aegis.proposals import (
     build_action_request,
 )
 from xt_aegis.runner import HarnessRunner
+from xt_aegis.side_effects import (
+    EffectIdentity,
+    EffectRecord,
+    EffectState,
+    ProtectedEffectRunner,
+)
 from xt_aegis.skill import SkillCompiler
 from xt_aegis.verification_models import BackendName, VerificationResult, VerificationStatus
 
@@ -57,6 +63,9 @@ __all__ = [
     "ControllerRunContext",
     "ControllerStopReason",
     "DiagnoseRepairController",
+    "EffectIdentity",
+    "EffectRecord",
+    "EffectState",
     "ExecutionReasonCode",
     "ExecutionResult",
     "ExecutionStatus",
@@ -69,6 +78,7 @@ __all__ = [
     "ProposalProvider",
     "ProposalRequest",
     "ProposalStatus",
+    "ProtectedEffectRunner",
     "Provenance",
     "ProviderProfile",
     "ProviderUsage",

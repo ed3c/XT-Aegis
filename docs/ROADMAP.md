@@ -48,6 +48,10 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
 
+The v0.4 protected side-effect runner (#76, a slice of #15) is implemented against synthetic adapters. The
+resumable notification channel and authenticated decision callback in #15 remain open, and no exactly-once
+delivery claim is made.
+
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
 
