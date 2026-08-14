@@ -139,6 +139,19 @@ jobs:
             > verification-out/runtime/gateway-info.txt 2> verification-out/runtime/gateway-info.err
           openshell sandbox list \
             > verification-out/runtime/sandboxes.txt 2> verification-out/runtime/sandboxes.err
+          # The gateway journal reports that a sandbox container restarted after a failure, but not why.
+          # Without the container's own state and logs the next reader has to re-derive that from the
+          # client-side error, which is where issue #12's investigation stalled.
+          docker ps --all --no-trunc --format '{{json .}}' \
+            > verification-out/runtime/containers.json 2> verification-out/runtime/containers.err
+          for container in $(docker ps --all --quiet | head -20); do
+            docker inspect "${container}" \
+              >> verification-out/runtime/container-inspect.json 2>&1
+            {
+              printf '=== %s ===\n' "${container}"
+              docker logs --tail 200 "${container}" 2>&1
+            } >> verification-out/runtime/container-logs.txt
+          done
           exit 0
 
       - name: Pack deterministic verification evidence
