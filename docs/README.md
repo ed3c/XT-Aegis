@@ -109,6 +109,7 @@ The complete cross-directory transition table is in
 - [Human-in-the-loop notification](HITL.md)
 - [Observability and replay](OBSERVABILITY.md)
 - [Crash recovery, cancellation, and deadlines](RECOVERY.md)
+- [Strong isolation for mutating actions](ACTION_ISOLATION.md)
 - [External verification](EXTERNAL_VERIFICATION.md)
 - [OpenShell](OPENSHELL.md)
 - [Coding-agent Harness contract](CODING_AGENT_HARNESS.md)

@@ -12,7 +12,9 @@ from pydantic import BaseModel
 
 from xt_aegis.models import ActionRequest, CompiledSkill
 
-REQUEST_DIGEST_VERSION = "1.0"
+#: Bumped whenever the canonical contract or request payload gains, loses, or retypes a field. A stored
+#: record from an older version therefore mismatches instead of silently comparing different meanings.
+REQUEST_DIGEST_VERSION = "1.1"
 
 
 def _normalize(value: object) -> object:

@@ -23,9 +23,9 @@ revision. Do not derive current state from a branch name or an old PR descriptio
 | Streaming subprocess output enforcement | `runner.py`, result models/tests/evidence; PR #54 | `current` | lower-bound byte count after excess and OS pipe buffering remain documented limits; no strong isolation |
 | Mypy 2 backend-map compatibility | `verification.py`; PR #56 | `current` | static compatibility only; backend selection and live conformance claims are unchanged |
 | Source-bound OpenShell verification | `verification.py`, integration docs; PR #23 | `current` | strong action isolation and execution-equivalent readiness remain #27/#30 |
-| Strong isolation for mutating commands | issue #27 | `planned` | live conformance remains gated by #12 |
 | Execution-equivalent OpenShell readiness | `verification.py`, `verification_models.py`; issue #30 | `current adapter probe` | live version-pinned doctor/execution agreement remains #12 conformance evidence |
 | Deterministic runtime benchmark harness | `benchmark.py`, `verification/schemas/benchmark-report.schema.json`; issue #11 | `current` | raw trials are profile-bound; no threshold is enforced and no performance claim is promoted |
+| Strong isolation for mutating commands | `action_backend.py`, `runner.py`, [`ACTION_ISOLATION.md`](ACTION_ISOLATION.md); issue #27 | `current for the Docker profile` | pinned OpenShell and rootless Podman adversarial evidence remains #12 |
 | Span vocabulary, attribute allowlist, versioned event envelope, offline replay | `telemetry.py`, `replay.py`, `events.py`; issue #9 | `current` | telemetry is off by default; a trace is not evidence of semantic correctness |
 | Named transitions, kill-tested recovery, cancellation and deadlines | `lifecycle.py`, `runner.py`, [`RECOVERY.md`](RECOVERY.md); issue #10 | `current` | single-node only; distributed failover remains #14 and external exactly-once remains #15 |
 | Model-backed Harness uplift and performance evidence | issues #11/#24/#29 | `unverified` | pinned corpus, equal baselines, raw failed/timed-out trials |
@@ -209,6 +209,7 @@ Exact `ExecutionReasonCode` values currently include:
 ```text
 policy_denied | approval_denied | approval_required | budget_exhausted
 identity_conflict | output_budget_exhausted | cancelled | deadline_exceeded
+isolation_unavailable
 ```
 
 `cancelled` and `deadline_exceeded` are terminal and persisted. A cancelled or expired request keeps its

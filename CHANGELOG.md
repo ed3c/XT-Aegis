@@ -62,6 +62,13 @@ project uses Semantic Versioning for published interfaces.
 - cancellation and deadlines are enforced at named execution transitions, and a cancelled or expired
   request is persisted as a terminal `cancelled` or `deadline_exceeded` result that a restart replays
   instead of executing;
+- mutating command actions run through an explicit action-execution backend; a contract that declares
+  `requires_isolation` is blocked with `isolation_unavailable` before any snapshot when the backend is weak
+  or unready, and `auto` never falls back to `unsafe-local`;
+- results report `isolation_backend` and `isolation_verdict` separately from `rollback_integrity`, so a
+  restored workspace is no longer readable as process containment;
+- the canonical request-digest version moved to `1.1` because the skill contract gained `requires_isolation`;
+  a record written under `1.0` now mismatches instead of comparing two different meanings;
 - command actions now honor `CommandSpec.expected_exit_codes` instead of requiring exit code zero;
 - action, precondition, postcondition, and terminal evidence record actual and expected exit codes;
 - OpenShell verification now uploads the selected checkout into `/workspace`, disables automatic providers,

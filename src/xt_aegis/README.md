@@ -101,6 +101,7 @@ Exact machine-readable `ExecutionReasonCode` values currently include:
 ```text
 policy_denied | approval_denied | approval_required | budget_exhausted
 identity_conflict | output_budget_exhausted | cancelled | deadline_exceeded
+isolation_unavailable
 ```
 
 ```mermaid

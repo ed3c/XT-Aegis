@@ -13,6 +13,10 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 
+from xt_aegis.action_backend import (
+    ActionBackend,
+    UnsafeLocalActionBackend,
+)
 from xt_aegis.checkpoint import CheckpointStore
 from xt_aegis.errors import IdempotencyConflictError, PolicyViolation, WorkspaceSafetyError
 from xt_aegis.events import EventRecorder
@@ -57,6 +61,7 @@ class HarnessRunner:
         event_recorder: EventRecorder | None = None,
         telemetry: Telemetry | None = None,
         fault_hook: Callable[[Transition], None] | None = None,
+        action_backend: ActionBackend | None = None,
     ) -> None:
         self.skill = skill
         self.workspace = workspace
@@ -64,6 +69,7 @@ class HarnessRunner:
         self.events = event_recorder or EventRecorder(checkpoint_store)
         self.telemetry = telemetry or NullTelemetry()
         self.fault_hook = fault_hook
+        self.action_backend: ActionBackend = action_backend or UnsafeLocalActionBackend()
         self.policy = PolicyEngine(skill.contract, workspace)
         self._runner_started = time.monotonic()
 
@@ -333,6 +339,25 @@ class HarnessRunner:
 
         prepared["step"] = step_number
         self._transition(Transition.STEP_PREPARED, token)
+
+        isolation_reason = self._isolation_reason()
+        if isolation_reason is not None:
+            result = self._terminal_result(
+                request=request,
+                identity=identity,
+                step_number=step_number,
+                status=ExecutionStatus.BLOCKED,
+                success=False,
+                before_sha=before_sha,
+                after_sha=before_sha,
+                started_at=started_at,
+                started_clock=started_clock,
+                policy_reasons=[isolation_reason],
+                reason_code=ExecutionReasonCode.ISOLATION_UNAVAILABLE,
+            )
+            return self._persist_and_emit(
+                trace_id, result, "isolation_unavailable", max_output_bytes=max_output_bytes
+            )
 
         budget_reasons = self._budget_reasons(step_number)
         if budget_reasons:
@@ -752,6 +777,19 @@ class HarnessRunner:
             self._transition(Transition.ROLLBACK_COMPLETED, None)
             return integrity
 
+    def _isolation_reason(self) -> str | None:
+        """Fail closed before any mutation when the contract requires isolation the backend cannot give."""
+
+        if not self.skill.contract.requires_isolation:
+            return None
+        backend = self.action_backend
+        if not backend.strong_isolation:
+            return f"the contract requires strong isolation and {backend.name.value} does not provide it"
+        verdict = backend.readiness(self.workspace.root)
+        if not verdict.ready:
+            return f"the required {backend.name.value} backend is not ready: {verdict.reason}"
+        return None
+
     def _requires_approval(self) -> bool:
         return self.skill.contract.requires_approval or self.skill.contract.risk_level in {
             RiskLevel.HIGH,
@@ -828,7 +866,12 @@ class HarnessRunner:
         deadline: float | None,
         max_output_bytes: int,
     ) -> CheckResult:
-        cwd = self.workspace.resolve_relative(command.cwd)
+        cwd = self.action_backend.host_cwd(self.workspace.root, command.cwd)
+        argv = self.action_backend.host_argv(
+            list(command.argv),
+            workspace_root=self.workspace.root,
+            relative_cwd=command.cwd,
+        )
         home = self.workspace.run_root / "home"
         home.mkdir(parents=True, exist_ok=True)
         environment = {
@@ -844,7 +887,7 @@ class HarnessRunner:
         if deadline is not None:
             timeout_seconds = max(0.001, min(timeout_seconds, deadline - started))
         process = subprocess.Popen(
-            command.argv,
+            argv,
             cwd=cwd,
             env=environment,
             shell=False,
@@ -925,6 +968,8 @@ class HarnessRunner:
             output_original_bytes=output_original_bytes,
             rolled_back=rolled_back,
             rollback_integrity=rollback_integrity,
+            isolation_backend=self.action_backend.name.value,
+            isolation_verdict=self.action_backend.strong_isolation,
             workspace_before_sha256=before_sha,
             workspace_after_sha256=after_sha,
             request_digest_version=identity.version,
