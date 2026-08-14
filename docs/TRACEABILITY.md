@@ -1,128 +1,152 @@
-# Intent, Issue, PR, Eval, and Evidence Traceability
+# Intent, State Machine, Issue, PR, Eval, and Evidence Traceability
 
-This index lets a human or Worker Agent reconstruct project intent without relying on conversation memory.
-It records the path from source intent to controlling document, issue, branch/PR, evals, evidence state,
-and known limitation. An index entry is not execution authority and does not prove its claim.
+This index lets a Human or Worker Agent reconstruct project intent without relying on conversation memory.
+It records the path from source intent to controlling contract, State Machine, directory owner, issue,
+branch/PR, evals, evidence state, and known limitation. An index entry is not execution authority and does
+not prove its claim.
 
 ## Trace path
 
 ```text
 source intent
   -> stable INTENT ID
-  -> controlling document
+  -> controlling contract and State Machine
   -> eval-first issue
-  -> branch and PR lineage
-  -> owned paths
-  -> eval IDs and evidence
+  -> branch / PR lineage and owned directories
+  -> implementation / tests / recipes
+  -> evidence level
   -> status and limitation
 ```
 
-Update this file in the same reviewable PR whenever a source, owner, branch parent, PR base, eval, evidence
-level, or capability status changes.
+Update this file in the same reviewable PR whenever a source, state, transition, directory owner, branch
+parent, PR base, eval, evidence level, or capability status changes.
 
 ## Status vocabulary
 
 | Status | Meaning |
 |---|---|
 | `current` | Implemented or accepted on `main`, supported only to the stated evidence level. |
+| `current partial` | A useful bounded implementation is on `main`, but the parent issue retains separate acceptance leaves. |
 | `merged contract` | Documentation or repository tooling is accepted on `main`; target/live evidence may still be pending. |
 | `under review` | Exists only in an open PR or unmerged branch. |
 | `planned` | Required behavior is specified, but no accepted implementation exists on `main`. |
-| `unverified` | An implementation, adapter, or exploratory result exists, but its claimed profile lacks accepted reproducible evidence. |
+| `unverified` | Implementation or exploratory results exist, but the claimed profile lacks accepted reproducible evidence. |
 | `deployment-blocked` | Repository-side tooling exists, but real unattended use is prohibited until an exact live profile passes. |
 | `unsupported` | A required backend or protection is unavailable; no weaker automatic fallback is permitted. |
 
 ## Intent index
 
-| Intent | Requirement | Controlling source | Issue / PR / branch | Primary evals | Status | Limitation or next gate |
+| Intent | Requirement | State Machine / controlling source | Issue / PR | Primary evals | Status | Limitation or next gate |
 |---|---|---|---|---|---|---|
-| `INTENT-001` | Bind approvals and idempotency to a versioned canonical request and policy identity. | [`CODING_AGENT_HARNESS.md`](CODING_AGENT_HARNESS.md), [`HARNESS_EVALS.md`](HARNESS_EVALS.md), #24 | #25; merged PR #31 `agent/harness-request-identity-exit-contract` | `EVAL-HARNESS-ID-01..06`, #25 substitution/replay cases | `current` | PR #31 passed local gates, two-axis review, GitHub checks, and merge authority; authenticated identity and external-side-effect idempotency remain separate work. |
-| `INTENT-002` | Honor declared `expected_exit_codes` for command actions while preserving assertion and rollback semantics. | [`CODING_AGENT_HARNESS.md`](CODING_AGENT_HARNESS.md), #28 | #28; merged PR #31 | `EVAL-HARNESS-EXEC-01..03`, #28 validation/result/event cases | `current` | Declared exits remain outcome contracts; assertions and isolation are still required for semantic confidence. |
-| `INTENT-003` | Limit model/provider output to a bounded proposal; trusted code constructs the execution envelope. | [`CODING_AGENT_HARNESS.md`](CODING_AGENT_HARNESS.md), ADR 0005, #26 | #26; merged PR #51 `agent/provider-neutral-proposal-adapter` | `EVAL-HARNESS-PROP-01..06`, `trusted-proposal-envelope` recipe | `current` | Local fake-provider and adapter evals cover override, path, bytes, malformed/refused/timeout/truncation/oversize, model substitution, proxy/redirect, and fresh identity. No live Ollama correctness, availability, privacy, or version-attestation evidence. |
-| `INTENT-004` | Add a finite diagnose-repair controller outside `HarnessRunner` with explicit stop conditions. | [`CODING_AGENT_HARNESS.md`](CODING_AGENT_HARNESS.md), [`HARNESS_EVALS.md`](HARNESS_EVALS.md), #29 | merged partial core PR #52; #53 `agent/streaming-output-budget` | partial `EVAL-HARNESS-CTRL-01..05`, `EVAL-HARNESS-CTRL-07`; `bounded-repair-controller` recipe | core `current`; #53 streaming output enforcement `under review` | Deterministic tests cover taxonomy, typed execution reasons, result-identity binding, bounded attempt evidence, fresh identity, repeated cycles, and command-output termination. Provider-token admission remains cooperative; `CTRL-06` restart resume, candidate selection, strong isolation, and model-backed uplift remain unverified. |
-| `INTENT-005` | Route mutating command actions through a conformant strong-isolation backend. | [`THREAT_MODEL.md`](THREAT_MODEL.md), [`CODING_AGENT_HARNESS.md`](CODING_AGENT_HARNESS.md), #27 | #27; live runtime evidence also tracked by #12 | `EVAL-ISOLATION-*`, #12 adversarial matrix | `planned` | Workspace rollback must never be described as host or OS containment. |
-| `INTENT-006` | Make OpenShell auto-selection depend on execution-equivalent readiness and typed infrastructure verdicts. | [`OPENSHELL.md`](OPENSHELL.md), [`INTEGRATION_REQUIREMENTS.md`](INTEGRATION_REQUIREMENTS.md), #30 | #30; related #12; PR #23 advances source binding only | `EVAL-READINESS-*`, live version-pinned smoke | `planned` | PR #23 does not close readiness or mutation-isolation work. |
-| `INTENT-007` | Measure first-pass success, post-repair success, Harness-specific uplift, mutation persistence, latency, cost, tokens, retries, and stop reasons separately. | [`HARNESS_EVALS.md`](HARNESS_EVALS.md), [`BENCHMARKS.md`](BENCHMARKS.md), #11, #24 | #11 and #24 | `EVAL-BENCH-*` | `unverified` | Exploratory local results are not universal or accepted profile claims; failed and timed-out trials remain raw evidence. |
-| `INTENT-008` | Separate model correctness, orchestration effect, and safety/failure-containment effect. | [`CODING_AGENT_HARNESS.md`](CODING_AGENT_HARNESS.md), ADR 0005 | #35; merged PR #40; implementation evidence remains #11/#24 | `EVAL-HARNESS-05`, `EVAL-BENCH-*` | `merged contract` | Measurement rules are accepted; model-backed uplift remains unverified. |
-| `INTENT-009` | Preserve failed, timed-out, unsupported, and negative-result evidence. | [`EVALS.md`](EVALS.md), [`HARNESS_EVALS.md`](HARNESS_EVALS.md), [`EVIDENCE.md`](EVIDENCE.md) | #33/#35; merged PRs #38/#40 | `EVAL-COMMON-03`, `EVAL-HARNESS-05` | `current` | Raw model/runtime artifacts remain with their owning implementation/evidence issues. |
-| `INTENT-010` | Scope security, correctness, latency, compatibility, and supply-chain claims to exact source/runtime profiles. | [`EVALS.md`](EVALS.md), [`THREAT_MODEL.md`](THREAT_MODEL.md), [`GIT_TOWN_LICENSE.md`](GIT_TOWN_LICENSE.md) | merged PRs #38/#41; #11, #12, #44 retain live gates | `EVAL-COMMON-04`, `EVAL-GIT-LIVE-*` | `current` | The rule is current; individual model/runtime/Worker profiles remain unverified or blocked until evidence passes. |
-| `INTENT-011` | Require eval-first issues and PRs with explicit evidence status. | [`EVALS.md`](EVALS.md), [`ISSUE_PR_CONTRACT.md`](ISSUE_PR_CONTRACT.md) | #33/#37; merged PRs #38/#42 | `EVAL-FOUNDATION-*`, `EVAL-META-*` | `current` | New work uses the merged issue form and PR lineage/evidence template. |
-| `INTENT-012` | Provide local directory routing, source-of-truth, data-flow, and escalation instructions. | root [`AGENTS.md`](../AGENTS.md), local `README.md`/`AGENTS.md` files | #34; merged PR #39 | `EVAL-DIR-*` | `current` | Scoped guides may narrow root rules but may not broaden authority. |
-| `INTENT-013` | Make stacked-branch lineage explicit and machine-readable for parallel Workers. | [`STACKED_PRS.md`](STACKED_PRS.md), [`ISSUE_PR_CONTRACT.md`](ISSUE_PR_CONTRACT.md) | #33/#36/#37; merged PRs #38/#41/#42 | `EVAL-FOUNDATION-06`, `EVAL-GIT-09`, `EVAL-META-02` | `merged contract` | The committed `scripts/git-town/stack.tsv` is header-only; no active stack is authorized. |
-| `INTENT-014` | Use an exact permissively licensed Git Town release with license and artifact identity gates. | [`GIT_TOWN_LICENSE.md`](GIT_TOWN_LICENSE.md), `scripts/git-town/git-town.lock`, third-party notice | #36; merged PR #41 | `EVAL-GIT-03`, `EVAL-GIT-04` | `merged contract` | MIT removes a proprietary-service dependency; it does not guarantee zero legal, patent, trademark, supply-chain, security, or operational risk. |
-| `INTENT-015` | Provide Bash-only foreground/background non-interactive stack synchronization that fails closed. | [`STACKED_PRS.md`](STACKED_PRS.md), [`scripts/git-town/README.md`](../scripts/git-town/README.md) | #36; merged PR #41; live acceptance #44 | `EVAL-GIT-01..10`, `EVAL-GIT-LIVE-01..12` | `deployment-blocked` | Repository fixture and CI passed; exact binary, ShellCheck, real forge/conflict/race/safe-force/secret evidence remains #44. |
-| `INTENT-016` | Allow multiple Worker Agents only with disjoint path ownership and named conflict owners. | root [`AGENTS.md`](../AGENTS.md), [`ISSUE_PR_CONTRACT.md`](ISSUE_PR_CONTRACT.md) | #33/#37; merged PRs #38/#42 | `EVAL-FOUNDATION-*`, `EVAL-META-03`, `EVAL-META-04` | `current` | Scope expansion requires an issue update before editing. |
-| `INTENT-017` | Bind external verification to the user-selected source revision and preserve stricter integration requirements. | [`INTEGRATION_REQUIREMENTS.md`](INTEGRATION_REQUIREMENTS.md), [`OPENSHELL.md`](OPENSHELL.md), #12 | PR #23 `fix/openshell-source-bound-verification` | PR #23 CI and live source-matched OpenShell conformance | `under review` | PR #23 must rebase onto current `main` and retain stricter source-binding requirements. |
-| `INTENT-018` | Keep repository prose, issues, retrieved memory, and model text outside execution authority. | root [`AGENTS.md`](../AGENTS.md), [`THREAT_MODEL.md`](THREAT_MODEL.md), [`PROMPT_INJECTION.md`](PROMPT_INJECTION.md) | established on `main`; reinforced by merged PRs #38–#42/#46 | `EVAL-FOUNDATION-08`, policy/negative tests | `current` | External integrations still own correct provenance and authority separation. |
-| `INTENT-019` | Accept one exact Git Town v24.0.0 Worker image before real XT-Aegis unattended use. | [`GIT_TOWN_LICENSE.md`](GIT_TOWN_LICENSE.md), [`STACKED_PRS.md`](STACKED_PRS.md), #44 | #44; future evidence PR limited to `docs/evidence/git-town-worker/v24.0.0/**` | `EVAL-GIT-LIVE-01..12` | `deployment-blocked` | No scheduled/background Worker may operate on a real XT-Aegis checkout until the exact profile is accepted. |
-| `INTENT-020` | Reconcile the completed documentation program without promoting runtime claims. | root [`AGENTS.md`](../AGENTS.md), root [`README.md`](../README.md), this index, [`docs/README.md`](README.md) | #45; merged PR #46; parent #32 closed | `EVAL-CLOSEOUT-01..08` | `current` | Documentation routing is complete; PRs #23/#31, issues #24–#30/#11/#12, and live Worker #44 remain separate work. |
-| `INTENT-021` | Package the Git Town adoption and unattended-worker rules as a repository-portable system prompt. | [`prompts/git-town-repository-bootstrap/README.md`](prompts/git-town-repository-bootstrap/README.md), ADR 0006 | #49; PR #50 | `EVAL-PROMPT-01..12` | `merged contract` | PR #50 packages a prompt contract only; copying it does not adopt Git Town or authorize a live Worker in another repository. |
+| `INTENT-001` | Bind approvals and idempotency to versioned canonical request and policy identity. | runner/checkpoint State Machine; [`CODING_AGENT_HARNESS.md`](CODING_AGENT_HARNESS.md) | #25; merged PR #31 | identity substitution, restart, replay, legacy/future schema, approval cases | `current` | Digest integrity is not actor authentication; external exactly-once remains #15. |
+| `INTENT-002` | Honor declared `expected_exit_codes` while preserving assertion and rollback semantics. | runner State Machine; `models.py`, `runner.py` | #28; merged PR #31 | zero/non-zero/multiple, timeout, signal, postcondition cases | `current` | Exit membership is not semantic correctness without assertions. |
+| `INTENT-003` | Limit provider output to bounded proposal content; trusted code constructs the execution envelope. | proposal/envelope State Machine; `proposals.py`, provider README, ADR 0005 | #26; merged PR #51 | `EVAL-HARNESS-PROP-*` | `current` | No live provider correctness, availability, privacy, or version-attestation claim. |
+| `INTENT-004` | Add finite diagnose-repair transitions with explicit stop conditions and bounded command output. | controller/runner State Machines; `controller.py`, `runner.py`, [`HARNESS_EVALS.md`](HARNESS_EVALS.md) | #29; merged PRs #52 and #54; closed #53 | controller transition/budget/cycle/redaction/identity/output cases | `current partial` | Finite controller core and streaming output enforcement are current. Provider-token admission, restart-safe state, candidate selection, strong isolation, and model-backed acceptance remain open. |
+| `INTENT-005` | Route mutating command actions through a conformant strong-isolation backend. | runner/isolation State Machine; [`THREAT_MODEL.md`](THREAT_MODEL.md) | #27; live evidence #12 | isolation adversarial matrix | `planned` | Workspace rollback and process-group termination are not host/process containment. |
+| `INTENT-006` | Make OpenShell auto-selection depend on execution-equivalent readiness and typed infrastructure verdicts. | verification/backend State Machine; [`OPENSHELL.md`](OPENSHELL.md) | #30; related #12; PR #23 supplies source binding only | readiness component and version-pinned doctor/execution cases | `planned` | Binary/gateway presence alone is insufficient; no unsafe-local fallback. |
+| `INTENT-007` | Measure first-pass/post-repair success, Harness uplift, mutation persistence, latency, cost, tokens, retries, and stops separately. | benchmark/claim State Machine; [`BENCHMARKS.md`](BENCHMARKS.md) | #11, #24, #29 | `EVAL-BENCH-*` | `unverified` | Preserve failed/timed-out raw trials; one model/machine profile does not generalize. |
+| `INTENT-008` | Separate model correctness, orchestration effect, and safety/failure containment. | controller and benchmark State Machines; ADR 0005 | #35 / merged PR #40; evidence #11/#24/#29 | Harness measurement and benchmark comparisons | `merged contract` | Measurement rules are accepted; model-backed uplift remains unverified. |
+| `INTENT-009` | Preserve failed, timed-out, unsupported, policy-denied, and negative-result evidence. | verification/benchmark/evidence State Machines; [`EVALS.md`](EVALS.md), [`EVIDENCE.md`](EVIDENCE.md) | merged PRs #38/#40 and ongoing evidence issues | common evidence/claim evals | `current` | Raw model/runtime artifacts remain with their owning issues. |
+| `INTENT-010` | Scope security, correctness, latency, compatibility, and supply-chain claims to exact profiles. | evidence/claim State Machine; threat model and Git Town license gate | merged PRs #38/#41; live gates #11/#12/#44 | profile and live acceptance evals | `current` | Individual profiles remain unverified or blocked until exact evidence passes. |
+| `INTENT-011` | Require eval-first issues and PRs with explicit evidence status. | change-lifecycle State Machine; [`EVALS.md`](EVALS.md), [`ISSUE_PR_CONTRACT.md`](ISSUE_PR_CONTRACT.md) | #33/#37; merged PRs #38/#42 | foundation/meta evals | `current` | New work declares outcome, paths, State Machine/data-flow delta, lineage, evals, and stops. |
+| `INTENT-012` | Provide local directory routing, source-of-truth, data-flow, and escalation instructions. | directory ownership table; root/local README and AGENTS files | #34 / PR #39; #57 / PR #58 | directory and `EVAL-STATE-*` checks | `current` when this index is on `main` | Scoped guides mirror source/schema state and narrow root rules; they never grant authority. |
+| `INTENT-013` | Make branch/PR lineage explicit and machine-readable for parallel Workers. | change-lifecycle and Git Town Worker State Machines; [`STACKED_PRS.md`](STACKED_PRS.md) | merged PRs #38/#41/#42 | lineage/manifest/PR-base evals | `merged contract` | Product dependency or merge order is not automatically an active Git Town stack. |
+| `INTENT-014` | Use an exact permissively licensed Git Town release with license and artifact identity gates. | Git Town Worker preflight; [`GIT_TOWN_LICENSE.md`](GIT_TOWN_LICENSE.md) | #36; merged PR #41 | `EVAL-GIT-03`, `EVAL-GIT-04` | `merged contract` | MIT removes a proprietary-service dependency but does not guarantee zero legal/supply-chain risk. |
+| `INTENT-015` | Provide Bash-only foreground/background non-interactive stack synchronization that fails closed. | Git Town Worker State Machine; [`scripts/git-town/README.md`](../scripts/git-town/README.md) | #36 / PR #41; live #44 | repository fixture and `EVAL-GIT-LIVE-*` | `deployment-blocked` | Header-only manifest blocks mutation; exact binary/conflict/race/secret evidence remains #44. |
+| `INTENT-016` | Allow multiple Worker Agents only with disjoint paths and named conflict owners. | change-lifecycle State Machine; root [`AGENTS.md`](../AGENTS.md), issue/PR contract | merged PRs #38/#42 | path/lineage/meta evals | `current` | Scope expansion requires issue update before editing. |
+| `INTENT-017` | Bind external verification to the user-selected source revision. | verification State Machine; [`INTEGRATION_REQUIREMENTS.md`](INTEGRATION_REQUIREMENTS.md) | #12; merged PR #23 | source-matched adapter/live conformance | `current` source binding | Strong action isolation/readiness and live adversarial profiles remain #27/#30/#12. |
+| `INTENT-018` | Keep repository prose, issues, retrieved memory, and model text outside execution authority. | every State Machine boundary; root AGENTS, threat/prompt-injection docs | established on `main` | policy, negative, and authority-boundary evals | `current` | External integrations still own correct provenance and authorization. |
+| `INTENT-019` | Accept one exact Git Town Worker image before real unattended use. | Git Town Worker qualification State Machine | #44; evidence path `docs/evidence/git-town-worker/v24.0.0/**` | `EVAL-GIT-LIVE-01..12` | `deployment-blocked` | No scheduled/background Worker may operate on a real checkout until accepted. |
+| `INTENT-020` | Reconcile documentation-program state without promoting runtime claims. | documentation/change lifecycle | #45 / PR #46; parent #32 closed | closeout evals | `current` | Documentation completion does not close benchmark, isolation, readiness, or live Worker gates. |
+| `INTENT-021` | Package Git Town adoption rules as a repository-portable system prompt. | prompt contract lifecycle | #49 / merged PR #50 | `EVAL-PROMPT-01..12` | `current` | Copying the prompt does not authorize target-repository writes or deployment. |
+| `INTENT-022` | Maintain a directory-to-State-Machine-to-data-flow-to-leaf-stack index for Agent handoff. | [`REPOSITORY_STATE_MACHINES.md`](REPOSITORY_STATE_MACHINES.md), [`IMPLEMENTATION_STACKS.md`](IMPLEMENTATION_STACKS.md), root/local README files | #57 / PR #58 | `EVAL-STATE-01..09` | `current` when merged on `main`; otherwise `under review` | The index must follow current source and GitHub state without activating Git Town or promoting claims. |
 
-## Documentation-first program
+## Current capability graph
 
-| Outcome | Issue | PR | Main paths | State |
-|---|---:|---:|---|---|
-| Agent reading order, precedence, eval foundation, design notes | #33 | #38 | root entry points and docs routing/evals/traceability/design | merged |
-| Directory-local routing and scoped Agent instructions | #34 | #39 | directory `README.md`/`AGENTS.md` files | merged |
-| Harness trust boundary, failure taxonomy, eval matrix | #35 | #40 | Harness docs and ADR 0005 | merged |
-| Pinned Git Town and fail-closed Bash stack contract | #36 | #41 | config, Git Town docs/scripts, third-party notice | merged; live deployment blocked by #44 |
-| Eval-first issue form, PR template, molecular work-slice contract | #37 | #42 | issue/PR metadata and contract | merged |
-| Program status reconciliation | #45 | #46 | root/index Markdown files | merged; #32 and #45 closed |
+```mermaid
+flowchart LR
+    P23[PR #23<br/>source binding] --> RT[#12 live runtime]
+    P31[PR #31<br/>identity + exits] --> P51[PR #51<br/>proposal boundary]
+    P51 --> P52[PR #52<br/>controller core]
+    P52 --> P54[PR #54<br/>streaming output]
+    P54 --> R29[#29 remaining leaves]
+    P56[PR #56<br/>typing compatibility]
+    ISO[#27 isolation] --> RT
+    READY[#30 readiness] --> RT
+    R29 --> BENCH[#11 model-backed evidence]
+    GT[#44 Git Town Worker] --> GTP[one eligible Worker profile]
+```
 
-These PRs did not add or modify XT-Aegis Python product behavior.
+## Current molecular implementation index
 
-## Reusable prompt package
+| Lane | Issue / PR | State | Primary owned area | Next required action |
+|---|---|---|---|---|
+| merged foundation | PRs #23/#31/#51/#52/#54/#56 | `current` to stated evidence | source binding, identity/exits, proposal, controller core, output enforcement, typing | preserve contracts and limitations in future leaves |
+| controller A | #29 child to create | planned | provider-token admission | define exact tokenizer/profile and pre-call rejection evals |
+| controller B | #29 child to create | planned | restart-safe controller state | define persistence/migration/kill-restart matrix |
+| controller C | #29 child to create | planned | bounded candidate selection | define child workspace, conflict, and selection contract |
+| controller evidence | #11/#29 child to create | unverified | direct/equal-feedback/controller raw comparison | pin corpus/model/sampling/environment and preserve failures |
+| isolation | #27 | planned | strong-isolation action backend | design adapter, negative tests, and live #12 gate |
+| readiness | #30 | planned | execution-equivalent OpenShell readiness | typed probe and doctor/launch agreement |
+| runtime evidence | #12 | open | pinned adversarial OpenShell/rootless OCI artifacts | publish exact environment and failed trials |
+| repository ops | #44 | deployment-blocked | exact Git Town Worker acceptance | package/binary/ShellCheck/conflict/race/secret matrix |
+| documentation delivery | #57 / PR #58 | current on `main` after merge | README and central indexes | future status changes update these files in owning PRs |
 
-Issue #49 and PR #50 establish the portable package under
-[`docs/prompts/git-town-repository-bootstrap/`](prompts/git-town-repository-bootstrap/).
+See [`IMPLEMENTATION_STACKS.md`](IMPLEMENTATION_STACKS.md) for split details, path allocation, and handoff
+procedure.
 
-The package must remain:
+## Directory/state ownership map
 
-- target-repository agnostic;
-- read-only by default;
-- explicit about write authorization;
-- version-aware rather than copying XT-Aegis Git Town keys blindly;
-- eval-first and idempotent;
-- strict about license, checksum, lineage, dedicated checkout, semantic conflict, and recovery;
-- separate from exact-binary/live-worker qualification.
-
-Acceptance of the prompt package does not accept Git Town in another repository.
-
-## Open implementation and evidence work
-
-| Work | Current state | Required action |
+| Area | Owned State Machine or evidence role | Index |
 |---|---|---|
-| PR #23 `fix/openshell-source-bound-verification` | open and requires rebase | Owner reconciles root/integration docs, preserves source binding, reruns implementation and live-profile evals. |
-| PR #51 `agent/provider-neutral-proposal-adapter` | #26 implementation under review | Local gates and independent review passed; require scoped merge-gate and GitHub checks. The older `agent/harness-proposal-adapter` branch is superseded and must not be force-updated. |
-| Issue #44 live Git Town Worker acceptance | open | Exact-profile evidence remains path-disjoint; deployment stays blocked. |
-| Issues #24–#30, #11, #12 | open or planned evidence/implementation | Follow their dependency order and accepted Harness/runtime eval contracts. |
+| `.github/` | issue/PR/check/review lifecycle | [README](../.github/README.md) |
+| `src/xt_aegis/` | proposal, controller, runner, checkpoint, verification, MCP | [README](../src/xt_aegis/README.md) |
+| `src/xt_aegis/providers/` | provider response normalization | [README](../src/xt_aegis/providers/README.md) |
+| `tests/` | positive/negative/failure-path evidence lifecycle | [README](../tests/README.md) |
+| `verification/` | claim plan/backend/result/bundle lifecycle | [README](../verification/README.md) |
+| `benchmarks/` | pinned profile/raw trial/summary lifecycle | [README](../benchmarks/README.md) |
+| `scripts/git-town/` | no-active-stack/preflight/sync/recovery lifecycle | [README](../scripts/git-town/README.md) |
 
-Documentation or prompt Workers MUST NOT force-update these code branches or claim their conflicts are
-resolved.
-
-## Active stack state
+## Active Git Town state
 
 The committed [`scripts/git-town/stack.tsv`](../scripts/git-town/stack.tsv) contains its header and no
 active rows. Therefore:
 
 - no unattended XT-Aegis stack synchronization is authorized;
 - `verify-stack.sh`, foreground sync, and background sync fail before mutation;
-- future rows may be added only after open eval-first PRs exist and their bases match the reviewed graph;
-- merged or closed PR rows are removed immediately;
-- a dedicated Worker checkout contains only manifest-declared branches and parents.
+- product dependency sequences in this index do not become manifest rows automatically;
+- future rows require open eval-first PRs, matching bases/parents, a dedicated allowlisted checkout, and an
+  authorized exact Worker profile;
+- merged or closed PR rows are removed immediately.
 
-The disposable fixture writes synthetic rows solely for orchestration tests.
+## Open implementation and evidence work
+
+| Work | State | Required next artifact |
+|---|---|---|
+| #29 remaining controller acceptance | open/current partial parent | molecular child issues for token admission, restart state, candidate selection, and model evidence |
+| #27 strong mutation isolation | planned | architecture/adapter issue-owned PR with adversarial tests and separate isolation verdict |
+| #30 OpenShell readiness | planned | version-aware probe and doctor/launch consistency tests |
+| #11 reproducible benchmarks | open/unverified | raw schema-valid trials, environment manifest, exact commands, summaries |
+| #12 live runtime conformance | open | pinned OpenShell/rootless OCI adversarial evidence |
+| #9 observability | open | schema-versioned event/trace contract and secret-safe exporter tests |
+| #10 crash/deadline recovery | open | kill/restart/cancellation State Machine and fault-injection evidence |
+| #14/#15 | planned | distributed coordination and protected external-side-effect contracts |
+| #16 | planned | authenticated fail-closed mutating MCP adapter after prerequisites |
+| #17 | planned | exact production reference profile and supply-chain evidence |
+| #44 Git Town Worker | deployment-blocked | exact live Worker evidence bundle |
 
 ## Claim-change rule
 
 A stronger product/runtime claim requires the same PR to contain or link:
 
 - implementation within a bounded trust boundary;
-- positive, negative, failure, migration, and recovery tests required by its issue;
+- corresponding State Machine/data-flow/schema updates;
+- positive, negative, failure, migration, replay, timeout, and recovery tests required by its issue;
 - a reproducible recipe or raw artifact for the exact profile;
 - explicit limitations and non-goals;
-- matching architecture, threat model, roadmap, schema, and `PROJECT_EVIDENCE.json` changes where applicable.
+- matching architecture, threat model, roadmap, schema, and `PROJECT_EVIDENCE.json` changes where
+  applicable.
 
-Documentation completion, a prompt package, generic green CI, adapter construction, a fake-client fixture,
-or one local model run is not enough to promote runtime, isolation, correctness-uplift, performance,
+Documentation completion, a diagram, generic green CI, adapter construction, a fake-client fixture, or one
+local model run is not enough to promote runtime, isolation, correctness uplift, performance,
 compatibility, deployment, or production claims.
