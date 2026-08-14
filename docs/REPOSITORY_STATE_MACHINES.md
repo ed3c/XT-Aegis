@@ -19,7 +19,7 @@ revision. Do not derive current state from a branch name or an old PR descriptio
 | Canonical request/policy identity, approval binding, exact replay | `identity.py`, `checkpoint.py`, `runner.py`; PR #31 | `current` | authenticated actor identity and external-side-effect idempotency remain separate work |
 | Declared command exit-code semantics | `models.py`, `runner.py`; PR #31 | `current` | exit membership is an outcome contract, not semantic correctness by itself |
 | Provider-neutral proposal boundary and trusted envelope | `proposals.py`, `providers/ollama.py`; PR #51 | `current` | no live-provider correctness, availability, privacy, or version-attestation claim |
-| Finite diagnose-repair controller core | `controller.py`; PR #52 | `current partial` | issue #29 retains token-admission, restart, candidate-selection, and model-evidence leaves |
+| Finite diagnose-repair controller core with provider-token admission | `controller.py`; PRs #52 and #60 | `current partial` | issue #29 retains restart, candidate-selection, and model-evidence leaves |
 | Streaming subprocess output enforcement | `runner.py`, result models/tests/evidence; PR #54 | `current` | lower-bound byte count after excess and OS pipe buffering remain documented limits; no strong isolation |
 | Mypy 2 backend-map compatibility | `verification.py`; PR #56 | `current` | static compatibility only; backend selection and live conformance claims are unchanged |
 | Source-bound OpenShell verification | `verification.py`, integration docs; PR #23 | `current` | strong action isolation and execution-equivalent readiness remain #27/#30 |
@@ -146,8 +146,10 @@ Only `execution_failed` and `assertion_failed` are retryable.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> RequestProposal
-    RequestProposal --> ProposalRejected: non-ready provider outcome
+    [*] --> Admit
+    Admit --> BudgetExhausted: remaining tokens below the declared reservation, or usage unreportable
+    Admit --> RequestProposal: reservation fits the remaining budget
+    RequestProposal --> ProposalRejected: non-ready outcome or declared-profile mismatch
     RequestProposal --> BudgetExhausted: time/token/proposal budget
     RequestProposal --> BuildEnvelope: ready proposal
     BuildEnvelope --> Execute
@@ -159,8 +161,8 @@ stateDiagram-v2
     Execute --> Passed
     Execute --> RetryCandidate: execution_failed / assertion_failed
     RetryCandidate --> RepeatedFailure: equivalent-cycle limit
-    RetryCandidate --> BudgetExhausted: no attempt/token/time/output budget
-    RetryCandidate --> RequestProposal: bounded diagnostic repair context
+    RetryCandidate --> BudgetExhausted: no attempt/time/output budget
+    RetryCandidate --> Admit: bounded diagnostic repair context
     ProposalRejected --> [*]
     InfrastructureUnavailable --> [*]
     RecoveryFailed --> [*]
@@ -172,9 +174,16 @@ stateDiagram-v2
     Passed --> [*]
 ```
 
-The controller is current as a finite core. Streaming execution-output enforcement is also current. Issue
-#29 remains open for provider-token admission, restart-safe state, candidate selection, and pinned
-model-backed acceptance.
+Every provider call passes one admission gate. The gate refuses before a call when the remaining prompt or
+completion budget is smaller than the reservation declared by `ProviderAdmission`, and when a previous
+attempt returned no usage, because the remaining budget can no longer be computed. A refusal is recorded as
+an attempt whose `proposal_status` and `provider_profile` are `null`; those two fields are populated only
+for attempts that actually reached a provider. Each call receives the **remaining** budget rather than the
+run total, so a cooperative provider cannot spend the whole run on one call.
+
+The controller is current as a finite core with token admission. Streaming execution-output enforcement is
+also current. Issue #29 remains open for restart-safe state, candidate selection, and pinned model-backed
+acceptance.
 
 ## 4. Deterministic runner State Machine
 

@@ -47,7 +47,8 @@ longer active leaves and must not be added to the Git Town manifest.
 
 ```mermaid
 flowchart TD
-    MAIN[Current main] --> CTRL[#29 remaining controller acceptance]
+    MAIN[Current main] --> ADMIT[#60 provider-token admission]
+    MAIN --> CTRL[#29 remaining controller acceptance]
     MAIN --> ISO[#27 strong-isolation action backend]
     MAIN --> READY[#30 execution-equivalent OpenShell readiness]
     MAIN --> BENCH[#11 reproducible benchmark harness]
@@ -66,12 +67,13 @@ parents, bases, paths, and evals exist.
 Issue #29 remains open after the finite controller core and streaming-output enforcement. Its remaining
 acceptance work must be split rather than delivered as one large PR.
 
-### Leaf 29-A — provider-token admission
+### Leaf 29-A — provider-token admission (owned by #60)
 
 | Field | Required content |
 |---|---|
 | Outcome | Refuse a next provider call before it can exceed an enforceable prompt/completion budget for one declared provider/tokenizer profile |
-| Suggested branch | `agent/controller-provider-token-admission` |
+| Owning issue | #60 |
+| Branch | `agent/controller-provider-token-admission` |
 | Primary paths | provider/controller request contracts, focused provider/controller tests, matching schema/docs |
 | Excluded paths | strong backend implementation, benchmark corpus/results, Git Town tooling |
 | Positive eval | known tokenizer/profile admits a call within remaining budget |

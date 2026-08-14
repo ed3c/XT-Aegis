@@ -41,7 +41,7 @@ parent, PR base, eval, evidence level, or capability status changes.
 | `INTENT-001` | Bind approvals and idempotency to versioned canonical request and policy identity. | runner/checkpoint State Machine; [`CODING_AGENT_HARNESS.md`](CODING_AGENT_HARNESS.md) | #25; merged PR #31 | identity substitution, restart, replay, legacy/future schema, approval cases | `current` | Digest integrity is not actor authentication; external exactly-once remains #15. |
 | `INTENT-002` | Honor declared `expected_exit_codes` while preserving assertion and rollback semantics. | runner State Machine; `models.py`, `runner.py` | #28; merged PR #31 | zero/non-zero/multiple, timeout, signal, postcondition cases | `current` | Exit membership is not semantic correctness without assertions. |
 | `INTENT-003` | Limit provider output to bounded proposal content; trusted code constructs the execution envelope. | proposal/envelope State Machine; `proposals.py`, provider README, ADR 0005 | #26; merged PR #51 | `EVAL-HARNESS-PROP-*` | `current` | No live provider correctness, availability, privacy, or version-attestation claim. |
-| `INTENT-004` | Add finite diagnose-repair transitions with explicit stop conditions and bounded command output. | controller/runner State Machines; `controller.py`, `runner.py`, [`HARNESS_EVALS.md`](HARNESS_EVALS.md) | #29; merged PRs #52 and #54; closed #53 | controller transition/budget/cycle/redaction/identity/output cases | `current partial` | Finite controller core and streaming output enforcement are current. Provider-token admission, restart-safe state, candidate selection, strong isolation, and model-backed acceptance remain open. |
+| `INTENT-004` | Add finite diagnose-repair transitions with explicit stop conditions and bounded command output. | controller/runner State Machines; `controller.py`, `runner.py`, [`HARNESS_EVALS.md`](HARNESS_EVALS.md) | #29; merged PRs #52 and #54; closed #53; #60 | controller transition/budget/cycle/redaction/identity/output/admission cases | `current partial` | Finite controller core, streaming output enforcement, and pre-call provider-token admission are current. Restart-safe state, candidate selection, strong isolation, and model-backed acceptance remain open. |
 | `INTENT-005` | Route mutating command actions through a conformant strong-isolation backend. | runner/isolation State Machine; [`THREAT_MODEL.md`](THREAT_MODEL.md) | #27; live evidence #12 | isolation adversarial matrix | `planned` | Workspace rollback and process-group termination are not host/process containment. |
 | `INTENT-006` | Make OpenShell auto-selection depend on execution-equivalent readiness and typed infrastructure verdicts. | verification/backend State Machine; [`OPENSHELL.md`](OPENSHELL.md) | #30; related #12; PR #23 supplies source binding only | readiness component and version-pinned doctor/execution cases | `planned` | Binary/gateway presence alone is insufficient; no unsafe-local fallback. |
 | `INTENT-007` | Measure first-pass/post-repair success, Harness uplift, mutation persistence, latency, cost, tokens, retries, and stops separately. | benchmark/claim State Machine; [`BENCHMARKS.md`](BENCHMARKS.md) | #11, #24, #29 | `EVAL-BENCH-*` | `unverified` | Preserve failed/timed-out raw trials; one model/machine profile does not generalize. |
@@ -82,7 +82,7 @@ flowchart LR
 | Lane | Issue / PR | State | Primary owned area | Next required action |
 |---|---|---|---|---|
 | merged foundation | PRs #23/#31/#51/#52/#54/#56 | `current` to stated evidence | source binding, identity/exits, proposal, controller core, output enforcement, typing | preserve contracts and limitations in future leaves |
-| controller A | #29 child to create | planned | provider-token admission | define exact tokenizer/profile and pre-call rejection evals |
+| controller A | #60 | current | provider-token admission | declared reservation enforced before each call; no tokenizer is bundled |
 | controller B | #29 child to create | planned | restart-safe controller state | define persistence/migration/kill-restart matrix |
 | controller C | #29 child to create | planned | bounded candidate selection | define child workspace, conflict, and selection contract |
 | controller evidence | #11/#29 child to create | unverified | direct/equal-feedback/controller raw comparison | pin corpus/model/sampling/environment and preserve failures |
@@ -123,7 +123,7 @@ active rows. Therefore:
 
 | Work | State | Required next artifact |
 |---|---|---|
-| #29 remaining controller acceptance | open/current partial parent | molecular child issues for token admission, restart state, candidate selection, and model evidence |
+| #29 remaining controller acceptance | open/current partial parent | token admission closed by #60; restart state, candidate selection, and model evidence remain |
 | #27 strong mutation isolation | planned | architecture/adapter issue-owned PR with adversarial tests and separate isolation verdict |
 | #30 OpenShell readiness | planned | version-aware probe and doctor/launch consistency tests |
 | #11 reproducible benchmarks | open/unverified | raw schema-valid trials, environment manifest, exact commands, summaries |

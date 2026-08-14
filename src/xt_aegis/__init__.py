@@ -9,6 +9,7 @@ from xt_aegis.controller import (
     ControllerStopReason,
     DiagnoseRepairController,
     InfrastructureUnavailableError,
+    ProviderAdmission,
 )
 from xt_aegis.models import (
     ActionRequest,
@@ -70,6 +71,7 @@ __all__ = [
     "ProposalRequest",
     "ProposalStatus",
     "Provenance",
+    "ProviderAdmission",
     "ProviderProfile",
     "ProviderUsage",
     "RequestIdentitySource",
