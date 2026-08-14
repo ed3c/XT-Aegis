@@ -48,6 +48,9 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
 
+The v0.4 human-in-the-loop notification and decision binding (#82) completes the second half of #15's scope
+alongside #76. Neither is wired into the runner yet, and no exactly-once delivery claim is made.
+
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
 
