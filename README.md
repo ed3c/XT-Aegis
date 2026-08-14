@@ -54,6 +54,7 @@ The complete contribution contract is [`AGENTS.md`](AGENTS.md).
 | Strong mutation isolation | current for the Docker profile | #27; adversarial live evidence for the pinned OpenShell and rootless Podman profiles still belongs to #12 |
 | Span vocabulary, attribute allowlist, and offline replay | current | #9; telemetry is off by default and XT-Aegis owns no exporter |
 | Crash-safe transitions, cancellation, and deadlines | current | #10; every transition is kill-tested with a real child process |
+| Default-deny egress decisions and credential broker | current | #13; a decision plane, not socket-level enforcement, which remains #12 |
 | Model-backed correctness/performance evidence | unverified | #11, #24, #29 |
 | Git Town repository-side workflow | merged contract | exact unattended Worker remains deployment-blocked by #44 |
 

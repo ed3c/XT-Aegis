@@ -39,6 +39,9 @@ project uses Semantic Versioning for published interfaces.
 - `xt-aegis replay`, which reconstructs an execution timeline from a persisted JSONL trajectory without
   invoking a model or a tool;
 - a `schema_version` field on every JSONL trajectory record, with a fail-closed compatibility rule.
+- a default-deny egress policy with host canonicalization, private/metadata address rejection, mixed-answer
+  and rebinding detection, and redirect denial, plus a credential broker whose injections are single-use
+  and bound to one subject, tool, destination, argument digest, reason, and expiry.
 
 ### Changed
 

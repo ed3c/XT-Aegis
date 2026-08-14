@@ -131,6 +131,7 @@ active rows. Therefore:
 | #18 research tracks | decided | six notes in `docs/design/` with promote/defer/split/reject decisions; no claim promoted |
 | #9 observability | current | delivered: span vocabulary, allowlisted attributes, versioned JSONL envelope, offline replay |
 | #10 crash recovery | current | delivered: named transitions, process-kill matrix, cancellation and deadline reason codes, recovery table |
+| #13 egress and credentials | decision plane current | socket-level enforcement in the sandbox profile remains #12 |
 | #10 crash/deadline recovery | open | kill/restart/cancellation State Machine and fault-injection evidence |
 | #14/#15 | planned | distributed coordination and protected external-side-effect contracts |
 | #16 | planned | authenticated fail-closed mutating MCP adapter after prerequisites |
