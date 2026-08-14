@@ -48,6 +48,9 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] OpenShell readiness and conformance gate (#30; the execution-equivalent component probe is current on
   `main`, while live version-pinned doctor/execution agreement evidence remains #12);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
+- [ ] OpenShell readiness and conformance gate (#30);
+- [ ] benchmark corpus and reproducible outcome evidence (#11; the deterministic runtime harness and raw
+  artifact contract are current, while model-backed comparison evidence remains open).
 
 Research tracks (#18) are decided in `docs/design/`: branch-and-evaluate and provider adapters are
 promoted, AST scopes and model-authored memory are rejected, and signed skills and knowledge caches are

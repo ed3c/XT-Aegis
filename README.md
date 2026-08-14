@@ -51,6 +51,7 @@ The complete contribution contract is [`AGENTS.md`](AGENTS.md).
 | Source-bound OpenShell verification | current | PR #23; strong action isolation/readiness remain #27/#30 |
 | Strong mutation isolation | planned | #27; live profile evidence also belongs to #12 |
 | Execution-equivalent OpenShell readiness | current adapter probe | #30; per-component executable/policy/version/gateway probe shares the execution environment; live agreement evidence belongs to #12 |
+| Deterministic runtime benchmark harness | current | #11; raw profile-bound trials, no threshold enforced in CI |
 | Model-backed correctness/performance evidence | unverified | #11, #24, #29 |
 | Git Town repository-side workflow | merged contract | exact unattended Worker remains deployment-blocked by #44 |
 

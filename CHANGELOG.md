@@ -30,6 +30,9 @@ project uses Semantic Versioning for published interfaces.
   schema version, and per-table row counts, and a restore that verifies everything before it writes.
 - resumable approval notification that carries no payload, bounds re-notification per approval, and accepts
   a decision only when subject, action digest, policy version, nonce, and deadline all hold.
+- `xt-aegis benchmark`, a deterministic runtime measurement harness that emits a schema-valid, profile-bound
+  artifact retaining every raw trial including failures and deadline overruns, plus a CI smoke run that
+  enforces no wall-clock threshold.
 
 ### Changed
 
