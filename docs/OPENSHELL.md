@@ -173,7 +173,8 @@ xt-aegis evidence pack \
 3. installs a checksum-recorded, pinned OpenShell release through the official installer;
 4. runs `doctor` and all implemented claim recipes through the OpenShell backend;
 5. propagates verifier failures through every `tee` pipeline with `pipefail`;
-6. records gateway configuration, Docker and image metadata, status, journal, and sandbox inventory;
+6. records gateway configuration, Docker and image metadata, status, journal, sandbox inventory, and the
+   state and logs of every container the run left behind;
 7. packs successful verification evidence or deterministic failure diagnostics;
 8. uploads the resulting archive as a GitHub Actions artifact.
 
