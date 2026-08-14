@@ -223,4 +223,6 @@ workflow must not report OpenShell host isolation as verified.
 - policy or image changes invalidate comparisons unless their digests are retained.
 
 For environments where OpenShell is unavailable, use rootless Podman or Docker with the verifier image.
+The OCI adapter runs the verifier as the host uid and gid rather than as root inside the container; the
+read-only mount means the process only needs read access to it.
 `unsafe-local` is a development mode, not a substitute for isolation.

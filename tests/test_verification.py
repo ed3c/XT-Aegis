@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tarfile
 from collections.abc import Mapping
@@ -528,6 +529,8 @@ def test_oci_backend_has_default_deny_and_read_only_source(
     assert preview[0] == "/usr/bin/docker"
     assert "none" in preview
     assert "--read-only" in preview
+    assert preview[preview.index("--user") + 1] == f"{os.getuid()}:{os.getgid()}"
+    assert preview[preview.index("--user") + 1] != "0:0"
     assert "no-new-privileges" in preview
     assert any(item.endswith("dst=/workspace,readonly") for item in preview)
     assert preview[-2:] == ["python", "--version"]

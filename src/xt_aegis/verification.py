@@ -664,6 +664,10 @@ class OciBackend:
             executable,
             "run",
             "--rm",
+            # Non-root inside the container. The source mount is read-only, so the uid only has to be
+            # able to read it; running as uid 0 would meet none of the supported-profile criteria.
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
             "--network",
             "none",
             "--read-only",
@@ -710,6 +714,7 @@ class OciBackend:
             "network": "none",
             "read_only_root": True,
             "read_only_source": True,
+            "non_root_user": True,
             "cap_drop": "ALL",
             "no_new_privileges": True,
             "pids_limit": 128,
