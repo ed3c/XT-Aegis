@@ -11,11 +11,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from xt_aegis.errors import ApprovalError, CheckpointSchemaError, IdempotencyConflictError
+from xt_aegis.checkpoint_backend import RunState, StepState
+from xt_aegis.errors import ApprovalError, IdempotencyConflictError, StateVersionConflict
 from xt_aegis.identity import RequestIdentity
+from xt_aegis.migrations import SCHEMA_VERSION, apply_migrations, migration_history
 from xt_aegis.models import ActionRequest, ExecutionResult, ExecutionStatus
 
-_STATE_SCHEMA_VERSION = "2"
+_STATE_SCHEMA_VERSION = str(SCHEMA_VERSION)
 _DEFAULT_APPROVAL_TTL_SECONDS = 900
 
 
@@ -33,6 +35,8 @@ _FINAL_STATUSES = {
     ExecutionStatus.BLOCKED.value,
     ExecutionStatus.FAILED.value,
 }
+_FINAL_STATUS_ORDER = tuple(sorted(_FINAL_STATUSES))
+_FINAL_STATUS_PLACEHOLDERS = ", ".join("?" for _ in _FINAL_STATUS_ORDER)
 
 
 class CheckpointStore:
@@ -62,85 +66,16 @@ class CheckpointStore:
 
     def _initialize(self) -> None:
         with self._connection() as connection:
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS metadata (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL
-                )
-                """
-            )
-            schema_row = connection.execute(
-                "SELECT value FROM metadata WHERE key = 'schema_version'"
-            ).fetchone()
-            if schema_row is not None and schema_row["value"] != _STATE_SCHEMA_VERSION:
-                raise CheckpointSchemaError(f"unsupported checkpoint schema version: {schema_row['value']}")
-
-            connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS runs (
-                    thread_id TEXT PRIMARY KEY,
-                    skill_name TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS steps (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    thread_id TEXT NOT NULL,
-                    action_id TEXT NOT NULL,
-                    idempotency_key TEXT NOT NULL UNIQUE,
-                    step_number INTEGER NOT NULL,
-                    status TEXT NOT NULL,
-                    request_json TEXT NOT NULL,
-                    request_digest_version TEXT NOT NULL,
-                    request_digest TEXT NOT NULL,
-                    policy_digest TEXT NOT NULL,
-                    result_json TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    UNIQUE(thread_id, step_number),
-                    FOREIGN KEY(thread_id) REFERENCES runs(thread_id)
-                );
-
-                CREATE TABLE IF NOT EXISTS approvals (
-                    approval_id TEXT PRIMARY KEY,
-                    thread_id TEXT NOT NULL,
-                    action_id TEXT NOT NULL,
-                    idempotency_key TEXT NOT NULL,
-                    actor_id TEXT,
-                    request_digest_version TEXT NOT NULL,
-                    request_digest TEXT NOT NULL,
-                    policy_digest TEXT NOT NULL,
-                    decision TEXT NOT NULL,
-                    reviewer TEXT,
-                    created_at TEXT NOT NULL,
-                    expires_at TEXT NOT NULL,
-                    decided_at TEXT,
-                    consumed_at TEXT,
-                    UNIQUE(thread_id, action_id, idempotency_key),
-                    FOREIGN KEY(thread_id) REFERENCES runs(thread_id)
-                );
-
-                CREATE TABLE IF NOT EXISTS events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    trace_id TEXT NOT NULL,
-                    thread_id TEXT NOT NULL,
-                    event_type TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_steps_thread ON steps(thread_id, step_number);
-                CREATE INDEX IF NOT EXISTS idx_events_thread ON events(thread_id, id);
-                """
-            )
+            # The ledger owns the schema. `_migrate_legacy_schema` still runs because databases predating
+            # the ledger may be missing identity columns that no numbered migration ever added.
+            apply_migrations(connection, dialect="sqlite")
             self._migrate_legacy_schema(connection)
-            connection.execute(
-                "INSERT OR IGNORE INTO metadata(key, value) VALUES ('schema_version', ?)",
-                (_STATE_SCHEMA_VERSION,),
-            )
+
+    def migration_history(self) -> list[dict[str, Any]]:
+        """The ordered record of how this database reached its current schema."""
+
+        with self._connection() as connection:
+            return migration_history(connection)
 
     def _migrate_legacy_schema(self, connection: sqlite3.Connection) -> None:
         self._ensure_column(connection, "steps", "request_digest_version", "TEXT")
@@ -176,12 +111,57 @@ class CheckpointStore:
                 (thread_id, skill_name, "running", now, now),
             )
 
-    def set_run_status(self, thread_id: str, status: str) -> None:
+    def set_run_status(self, thread_id: str, status: str, *, expected_version: int | None = None) -> None:
         with self._connection() as connection:
-            connection.execute(
-                "UPDATE runs SET status = ?, updated_at = ? WHERE thread_id = ?",
-                (status, utc_now(), thread_id),
+            self._set_run_status(connection, thread_id, status, expected_version=expected_version)
+
+    @staticmethod
+    def _set_run_status(
+        connection: sqlite3.Connection,
+        thread_id: str,
+        status: str,
+        *,
+        expected_version: int | None = None,
+    ) -> None:
+        """Compare-and-set the run row, bumping its version so a concurrent writer can tell it lost."""
+
+        guard = "" if expected_version is None else " AND state_version = ?"
+        parameters: tuple[Any, ...] = (status, utc_now(), thread_id)
+        if expected_version is not None:
+            parameters = (*parameters, expected_version)
+        cursor = connection.execute(
+            "UPDATE runs SET status = ?, updated_at = ?, state_version = state_version + 1 "
+            f"WHERE thread_id = ?{guard}",
+            parameters,
+        )
+        if cursor.rowcount != 1:
+            raise StateVersionConflict(
+                f"run {thread_id} was not at the expected state version, or does not exist"
             )
+
+    def run_state(self, thread_id: str) -> RunState | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT status, state_version FROM runs WHERE thread_id = ?",
+                (thread_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return RunState(status=str(row["status"]), state_version=int(row["state_version"]))
+
+    def step_state(self, idempotency_key: str) -> StepState | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT status, step_number, state_version FROM steps WHERE idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+        if row is None:
+            return None
+        return StepState(
+            status=str(row["status"]),
+            step_number=int(row["step_number"]),
+            state_version=int(row["state_version"]),
+        )
 
     def get_cached_result(
         self,
@@ -284,13 +264,14 @@ class CheckpointStore:
         now = utc_now()
         with self._connection() as connection:
             cursor = connection.execute(
-                """
+                f"""
                 UPDATE steps
-                SET status = ?, result_json = ?, updated_at = ?
+                SET status = ?, result_json = ?, updated_at = ?, state_version = state_version + 1
                 WHERE idempotency_key = ?
                   AND request_digest_version = ?
                   AND request_digest = ?
                   AND policy_digest = ?
+                  AND status NOT IN ({_FINAL_STATUS_PLACEHOLDERS})
                 """,
                 (
                     result.status.value,
@@ -300,17 +281,27 @@ class CheckpointStore:
                     result.request_digest_version,
                     result.request_digest,
                     result.policy_digest,
+                    *_FINAL_STATUS_ORDER,
                 ),
             )
             if cursor.rowcount != 1:
                 raise IdempotencyConflictError(
-                    "result identity does not match the reserved idempotency record",
+                    self._save_result_reason(connection, result),
                     step_number=result.step_number,
                 )
-            connection.execute(
-                "UPDATE runs SET status = ?, updated_at = ? WHERE thread_id = ?",
-                (result.status.value, now, result.thread_id),
-            )
+            self._set_run_status(connection, result.thread_id, result.status.value)
+
+    @staticmethod
+    def _save_result_reason(connection: sqlite3.Connection, result: ExecutionResult) -> str:
+        """Distinguish "someone else already finished this step" from "this is not your step"."""
+
+        row = connection.execute(
+            "SELECT status FROM steps WHERE idempotency_key = ?",
+            (result.idempotency_key,),
+        ).fetchone()
+        if row is not None and str(row["status"]) in _FINAL_STATUSES:
+            return "step already holds a terminal result and will not be overwritten"
+        return "result identity does not match the reserved idempotency record"
 
     def get_or_create_approval(
         self,

@@ -7,10 +7,28 @@ without it, "PostgreSQL support" would mean whatever the second implementation h
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from xt_aegis.identity import RequestIdentity
 from xt_aegis.models import ActionRequest, ExecutionResult
+
+
+@dataclass(frozen=True)
+class RunState:
+    """A run's status together with the version a caller must present to change it."""
+
+    status: str
+    state_version: int
+
+
+@dataclass(frozen=True)
+class StepState:
+    """A step's status and version. Terminal steps are never rewritten."""
+
+    status: str
+    step_number: int
+    state_version: int
 
 
 class CheckpointBackend(Protocol):
@@ -19,8 +37,21 @@ class CheckpointBackend(Protocol):
     def start_run(self, thread_id: str, skill_name: str) -> None:
         """Record that a thread exists; repeated calls are harmless."""
 
-    def set_run_status(self, thread_id: str, status: str) -> None:
-        """Update the run's last known status."""
+    def set_run_status(self, thread_id: str, status: str, *, expected_version: int | None = None) -> None:
+        """Update the run's last known status, bumping its state version.
+
+        Raises `StateVersionConflict` when `expected_version` is given and does not match, or when the run
+        does not exist.
+        """
+
+    def run_state(self, thread_id: str) -> RunState | None:
+        """The run's current status and state version, or ``None`` when it does not exist."""
+
+    def step_state(self, idempotency_key: str) -> StepState | None:
+        """The step's current status, number, and state version, or ``None`` when unreserved."""
+
+    def migration_history(self) -> list[dict[str, Any]]:
+        """The ordered record of how this database reached its current schema."""
 
     def get_cached_result(self, idempotency_key: str, identity: RequestIdentity) -> ExecutionResult | None:
         """Return the terminal result for this exact request, or ``None`` when there is not one yet.
@@ -32,7 +63,11 @@ class CheckpointBackend(Protocol):
         """Reserve or reuse one step number for this exact request."""
 
     def save_result(self, result: ExecutionResult) -> None:
-        """Persist a terminal result whose identity matches the reserved step."""
+        """Persist a terminal result whose identity matches the reserved step.
+
+        Refuses to overwrite a step that already holds a terminal result: the second writer of a
+        concurrent pair is told it lost rather than silently replacing the first one's outcome.
+        """
 
     def get_or_create_approval(
         self, request: ActionRequest, identity: RequestIdentity, *, ttl_seconds: int = 900

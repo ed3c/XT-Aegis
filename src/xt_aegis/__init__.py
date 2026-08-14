@@ -1,6 +1,6 @@
 """XT-Aegis: evidence-first deterministic controls around agent actions."""
 
-from xt_aegis.checkpoint_backend import CheckpointBackend
+from xt_aegis.checkpoint_backend import CheckpointBackend, RunState, StepState
 from xt_aegis.controller import (
     ControllerAttempt,
     ControllerBudgets,
@@ -76,10 +76,12 @@ __all__ = [
     "ProviderUsage",
     "RequestIdentitySource",
     "RiskLevel",
+    "RunState",
     "SamplingProfile",
     "SecureRequestIdentitySource",
     "SkillCompiler",
     "SkillContract",
+    "StepState",
     "TrustedActionEnvelope",
     "TrustedEnvelopeConfig",
     "TrustedRequestIds",

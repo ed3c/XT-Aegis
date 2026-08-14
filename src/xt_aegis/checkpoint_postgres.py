@@ -18,13 +18,17 @@ from contextlib import contextmanager
 from typing import Any
 
 from xt_aegis.checkpoint import utc_now
-from xt_aegis.errors import ApprovalError, IdempotencyConflictError
+from xt_aegis.checkpoint_backend import RunState, StepState
+from xt_aegis.errors import ApprovalError, IdempotencyConflictError, StateVersionConflict
 from xt_aegis.identity import RequestIdentity
+from xt_aegis.migrations import SCHEMA_VERSION, apply_migrations, migration_history
 from xt_aegis.models import ActionRequest, ExecutionResult
 
 _FINAL_STATUSES = {"succeeded", "rolled_back", "blocked", "failed"}
+_FINAL_STATUS_ORDER = tuple(sorted(_FINAL_STATUSES))
+_FINAL_STATUS_PLACEHOLDERS = ", ".join("%s" for _ in _FINAL_STATUS_ORDER)
 _DEFAULT_APPROVAL_TTL_SECONDS = 900
-STATE_SCHEMA_VERSION = "2"
+STATE_SCHEMA_VERSION = str(SCHEMA_VERSION)
 
 
 def _utc_after(seconds: int) -> str:
@@ -50,80 +54,13 @@ class PostgresCheckpointStore:
 
     def _initialize(self) -> None:
         with self._connection() as connection:
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS metadata (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS runs (
-                    thread_id TEXT PRIMARY KEY,
-                    skill_name TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS steps (
-                    idempotency_key TEXT PRIMARY KEY,
-                    thread_id TEXT NOT NULL,
-                    action_id TEXT NOT NULL,
-                    step_number INTEGER NOT NULL,
-                    status TEXT NOT NULL,
-                    request_json TEXT NOT NULL,
-                    request_digest_version TEXT,
-                    request_digest TEXT,
-                    policy_digest TEXT,
-                    result_json TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS approvals (
-                    approval_id TEXT PRIMARY KEY,
-                    thread_id TEXT NOT NULL,
-                    action_id TEXT NOT NULL,
-                    idempotency_key TEXT NOT NULL,
-                    actor_id TEXT,
-                    request_digest_version TEXT,
-                    request_digest TEXT,
-                    policy_digest TEXT,
-                    decision TEXT NOT NULL,
-                    reviewer TEXT,
-                    created_at TEXT NOT NULL,
-                    expires_at TEXT,
-                    decided_at TEXT,
-                    consumed_at TEXT,
-                    UNIQUE (thread_id, action_id, idempotency_key)
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS events (
-                    id BIGSERIAL PRIMARY KEY,
-                    trace_id TEXT NOT NULL,
-                    thread_id TEXT NOT NULL,
-                    event_type TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )
-                """
-            )
-            connection.execute(
-                "INSERT INTO metadata(key, value) VALUES ('schema_version', %s) ON CONFLICT (key) DO NOTHING",
-                (STATE_SCHEMA_VERSION,),
-            )
+            apply_migrations(connection, dialect="postgres")
+
+    def migration_history(self) -> list[dict[str, Any]]:
+        """The ordered record of how this database reached its current schema."""
+
+        with self._connection() as connection:
+            return migration_history(connection)
 
     def start_run(self, thread_id: str, skill_name: str) -> None:
         now = utc_now()
@@ -137,12 +74,51 @@ class PostgresCheckpointStore:
                 (thread_id, skill_name, now, now),
             )
 
-    def set_run_status(self, thread_id: str, status: str) -> None:
+    def set_run_status(self, thread_id: str, status: str, *, expected_version: int | None = None) -> None:
         with self._connection() as connection:
-            connection.execute(
-                "UPDATE runs SET status = %s, updated_at = %s WHERE thread_id = %s",
-                (status, utc_now(), thread_id),
+            self._set_run_status(connection, thread_id, status, expected_version=expected_version)
+
+    @staticmethod
+    def _set_run_status(
+        connection: Any,
+        thread_id: str,
+        status: str,
+        *,
+        expected_version: int | None = None,
+    ) -> None:
+        guard = "" if expected_version is None else " AND state_version = %s"
+        parameters: tuple[Any, ...] = (status, utc_now(), thread_id)
+        if expected_version is not None:
+            parameters = (*parameters, expected_version)
+        cursor = connection.execute(
+            "UPDATE runs SET status = %s, updated_at = %s, state_version = state_version + 1 "
+            f"WHERE thread_id = %s{guard}",
+            parameters,
+        )
+        if cursor.rowcount != 1:
+            raise StateVersionConflict(
+                f"run {thread_id} was not at the expected state version, or does not exist"
             )
+
+    def run_state(self, thread_id: str) -> RunState | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT status, state_version FROM runs WHERE thread_id = %s",
+                (thread_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return RunState(status=str(row[0]), state_version=int(row[1]))
+
+    def step_state(self, idempotency_key: str) -> StepState | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT status, step_number, state_version FROM steps WHERE idempotency_key = %s",
+                (idempotency_key,),
+            ).fetchone()
+        if row is None:
+            return None
+        return StepState(status=str(row[0]), step_number=int(row[1]), state_version=int(row[2]))
 
     @staticmethod
     def _validate_identity(row: tuple[Any, ...], identity: RequestIdentity, step_number: int) -> None:
@@ -234,13 +210,14 @@ class PostgresCheckpointStore:
         now = utc_now()
         with self._connection() as connection:
             cursor = connection.execute(
-                """
+                f"""
                 UPDATE steps
-                SET status = %s, result_json = %s, updated_at = %s
+                SET status = %s, result_json = %s, updated_at = %s, state_version = state_version + 1
                 WHERE idempotency_key = %s
                   AND request_digest_version = %s
                   AND request_digest = %s
                   AND policy_digest = %s
+                  AND status NOT IN ({_FINAL_STATUS_PLACEHOLDERS})
                 """,
                 (
                     result.status.value,
@@ -250,17 +227,25 @@ class PostgresCheckpointStore:
                     result.request_digest_version,
                     result.request_digest,
                     result.policy_digest,
+                    *_FINAL_STATUS_ORDER,
                 ),
             )
             if cursor.rowcount != 1:
                 raise IdempotencyConflictError(
-                    "result identity does not match the reserved idempotency record",
+                    self._save_result_reason(connection, result),
                     step_number=result.step_number,
                 )
-            connection.execute(
-                "UPDATE runs SET status = %s, updated_at = %s WHERE thread_id = %s",
-                (result.status.value, now, result.thread_id),
-            )
+            self._set_run_status(connection, result.thread_id, result.status.value)
+
+    @staticmethod
+    def _save_result_reason(connection: Any, result: ExecutionResult) -> str:
+        row = connection.execute(
+            "SELECT status FROM steps WHERE idempotency_key = %s",
+            (result.idempotency_key,),
+        ).fetchone()
+        if row is not None and str(row[0]) in _FINAL_STATUSES:
+            return "step already holds a terminal result and will not be overwritten"
+        return "result identity does not match the reserved idempotency record"
 
     def get_or_create_approval(
         self,
