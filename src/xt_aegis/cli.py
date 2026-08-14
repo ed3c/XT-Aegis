@@ -16,6 +16,7 @@ from xt_aegis.benchmark import (
     write_report,
 )
 from xt_aegis.demo import run_demo
+from xt_aegis.replay import ReplayError, format_timeline, replay_events
 from xt_aegis.skill import SkillCompiler
 from xt_aegis.verification import (
     VerificationError,
@@ -95,6 +96,11 @@ def _build_parser() -> argparse.ArgumentParser:
     benchmark_parser.add_argument("--timeout-seconds", type=float, default=120.0)
     benchmark_parser.add_argument("--output-dir", type=Path, default=None)
     benchmark_parser.add_argument("--format", choices=["json", "text"], default="text")
+    replay_parser = subparsers.add_parser(
+        "replay", help="reconstruct an execution timeline from a persisted JSONL trajectory"
+    )
+    replay_parser.add_argument("--events", type=Path, required=True)
+    replay_parser.add_argument("--format", choices=["json", "text"], default="text")
 
     mcp_parser = subparsers.add_parser("mcp", help="start the MCP evidence and verification server")
     mcp_parser.add_argument("--registry", type=Path, default=None)
@@ -184,6 +190,13 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(format_report(benchmark_report))
             return 0 if all(summary.failed == 0 for summary in benchmark_report.summaries) else 30
+        if args.command == "replay":
+            timeline = replay_events(args.events)
+            if args.format == "json":
+                print(timeline.model_dump_json(indent=2))
+            else:
+                print(format_timeline(timeline))
+            return 0
         if args.command == "plan":
             plan = verification_plan(
                 claim_id=args.claim,
@@ -218,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyError as exc:
         _print({"status": VerificationStatus.ERROR.value, "error": f"unknown claim: {exc.args[0]}"}, "json")
         return 50
-    except (OSError, VerificationError, ValueError) as exc:
+    except (OSError, ReplayError, VerificationError, ValueError) as exc:
         _print(
             {
                 "status": VerificationStatus.ERROR.value,

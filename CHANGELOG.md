@@ -33,6 +33,12 @@ project uses Semantic Versioning for published interfaces.
 - `xt-aegis benchmark`, a deterministic runtime measurement harness that emits a schema-valid, profile-bound
   artifact retaining every raw trial including failures and deadline overruns, plus a CI smoke run that
   enforces no wall-clock threshold.
+- a fixed span vocabulary (`run`, `policy.evaluate`, `approval.wait`, `action.execute`, `assertion.check`,
+  `workspace.rollback`, `checkpoint.persist`) with an attribute allowlist, a local-only recorder, and an
+  optional OpenTelemetry bridge that owns no exporter or endpoint;
+- `xt-aegis replay`, which reconstructs an execution timeline from a persisted JSONL trajectory without
+  invoking a model or a tool;
+- a `schema_version` field on every JSONL trajectory record, with a fail-closed compatibility rule.
 
 ### Changed
 

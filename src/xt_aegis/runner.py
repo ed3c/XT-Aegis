@@ -30,6 +30,7 @@ from xt_aegis.models import (
 )
 from xt_aegis.policy import PolicyEngine
 from xt_aegis.redaction import redact_text
+from xt_aegis.telemetry import NullTelemetry, SpanName, Telemetry
 from xt_aegis.workspace import IsolatedWorkspace, WorkspaceTransaction
 
 
@@ -47,11 +48,13 @@ class HarnessRunner:
         workspace: IsolatedWorkspace,
         checkpoint_store: CheckpointStore,
         event_recorder: EventRecorder | None = None,
+        telemetry: Telemetry | None = None,
     ) -> None:
         self.skill = skill
         self.workspace = workspace
         self.store = checkpoint_store
         self.events = event_recorder or EventRecorder(checkpoint_store)
+        self.telemetry = telemetry or NullTelemetry()
         self.policy = PolicyEngine(skill.contract, workspace)
         self._runner_started = time.monotonic()
 
@@ -82,6 +85,38 @@ class HarnessRunner:
         )
 
     def _execute(
+        self,
+        request: ActionRequest,
+        *,
+        timeout_seconds: float | None,
+        max_output_bytes: int,
+    ) -> ExecutionResult:
+        with self.telemetry.span(
+            SpanName.RUN,
+            thread_id=request.thread_id,
+            action_id=request.action_id,
+            idempotency_key=request.idempotency_key,
+            provenance=request.provenance.value,
+            kind=request.action.kind,
+            skill=self.skill.contract.name,
+            risk_level=self.skill.contract.risk_level.value,
+        ) as span:
+            result = self._execute_traced(
+                request,
+                timeout_seconds=timeout_seconds,
+                max_output_bytes=max_output_bytes,
+            )
+            span.set(
+                status=result.status.value,
+                success=result.success,
+                step_number=result.step_number,
+                reason_code=result.reason_code.value if result.reason_code is not None else None,
+            )
+            if result.status == ExecutionStatus.FAILED:
+                span.fail()
+            return result
+
+    def _execute_traced(
         self,
         request: ActionRequest,
         *,
@@ -125,9 +160,18 @@ class HarnessRunner:
             )
 
         try:
-            self.policy.validate_request(request)
-            for condition in (*self.skill.contract.preconditions, *self.skill.contract.postconditions):
-                self.policy.validate_condition(condition)
+            with self.telemetry.span(SpanName.POLICY_EVALUATE, action_id=request.action_id) as policy_span:
+                try:
+                    self.policy.validate_request(request)
+                    for condition in (
+                        *self.skill.contract.preconditions,
+                        *self.skill.contract.postconditions,
+                    ):
+                        self.policy.validate_condition(condition)
+                except PolicyViolation:
+                    policy_span.set(passed=False)
+                    raise
+                policy_span.set(passed=True)
         except PolicyViolation as exc:
             try:
                 step_number = self.store.prepare_step(request, identity)
@@ -206,11 +250,17 @@ class HarnessRunner:
                 trace_id, result, "budget_blocked", max_output_bytes=max_output_bytes
             )
 
-        if self._requires_approval() and not self.store.claim_approval(
-            request.approval_id,
-            request,
-            identity,
-        ):
+        approval_claimed = True
+        if self._requires_approval():
+            with self.telemetry.span(
+                SpanName.APPROVAL_WAIT,
+                action_id=request.action_id,
+                approval_id=request.approval_id,
+                risk_level=self.skill.contract.risk_level.value,
+            ) as approval_span:
+                approval_claimed = self.store.claim_approval(request.approval_id, request, identity)
+                approval_span.set(outcome="claimed" if approval_claimed else "not_claimed")
+        if not approval_claimed:
             approval_state = self.store.approval_state(request.approval_id, request, identity)
             if approval_state == "denied":
                 result = self._terminal_result(
@@ -265,9 +315,11 @@ class HarnessRunner:
             transaction = self.workspace.begin_transaction()
             before_sha = transaction.before_sha256
 
-            for condition in self.skill.contract.preconditions:
-                check = self._run_command(
+            for check_index, condition in enumerate(self.skill.contract.preconditions):
+                check = self._checked_condition(
                     condition,
+                    check_kind="precondition",
+                    check_index=check_index,
                     deadline=deadline,
                     max_output_bytes=remaining_output_bytes,
                 )
@@ -286,7 +338,7 @@ class HarnessRunner:
                     },
                 )
                 if not check.passed:
-                    rollback_integrity = transaction.rollback()
+                    rollback_integrity = self._rollback(transaction)
                     after_sha = self.workspace.hash_tree()
                     result = self._terminal_result(
                         request=request,
@@ -319,11 +371,17 @@ class HarnessRunner:
                         trace_id, result, "precondition_failed", max_output_bytes=max_output_bytes
                     )
 
-            action_result = self._execute_action(
-                request,
-                deadline=deadline,
-                max_output_bytes=remaining_output_bytes,
-            )
+            with self.telemetry.span(
+                SpanName.ACTION_EXECUTE, action_id=request.action_id, kind=request.action.kind
+            ) as action_span:
+                action_result = self._execute_action(
+                    request,
+                    deadline=deadline,
+                    max_output_bytes=remaining_output_bytes,
+                )
+                action_span.set(passed=action_result.passed, exit_code=action_result.exit_code)
+                if not action_result.passed:
+                    action_span.fail()
             action_exit_code = action_result.exit_code
             action_expected_exit_codes = self._expected_exit_codes(request)
             action_stdout = action_result.stdout
@@ -331,7 +389,7 @@ class HarnessRunner:
             total_output_original_bytes += action_result.output_original_bytes
             remaining_output_bytes -= len((action_stdout + action_stderr).encode())
             if not action_result.passed:
-                rollback_integrity = transaction.rollback()
+                rollback_integrity = self._rollback(transaction)
                 after_sha = self.workspace.hash_tree()
                 result = self._terminal_result(
                     request=request,
@@ -367,9 +425,11 @@ class HarnessRunner:
                     trace_id, result, "action_failed", max_output_bytes=max_output_bytes
                 )
 
-            for condition in self.skill.contract.postconditions:
-                check = self._run_command(
+            for check_index, condition in enumerate(self.skill.contract.postconditions):
+                check = self._checked_condition(
                     condition,
+                    check_kind="postcondition",
+                    check_index=check_index,
                     deadline=deadline,
                     max_output_bytes=remaining_output_bytes,
                 )
@@ -388,7 +448,7 @@ class HarnessRunner:
                     },
                 )
                 if not check.passed:
-                    rollback_integrity = transaction.rollback()
+                    rollback_integrity = self._rollback(transaction)
                     after_sha = self.workspace.hash_tree()
                     result = self._terminal_result(
                         request=request,
@@ -452,7 +512,7 @@ class HarnessRunner:
             rolled_back = False
             if transaction is not None:
                 try:
-                    rollback_integrity = transaction.rollback()
+                    rollback_integrity = self._rollback(transaction)
                     rolled_back = True
                 except WorkspaceSafetyError:
                     rollback_integrity = False
@@ -482,6 +542,39 @@ class HarnessRunner:
             return self._persist_and_emit(
                 trace_id, result, "executor_exception", max_output_bytes=max_output_bytes
             )
+
+    def _checked_condition(
+        self,
+        condition: CommandSpec,
+        *,
+        check_kind: str,
+        check_index: int,
+        deadline: float | None,
+        max_output_bytes: int,
+    ) -> CheckResult:
+        """Run one declared condition inside its own span without changing the verdict."""
+
+        with self.telemetry.span(
+            SpanName.ASSERTION_CHECK,
+            check_kind=check_kind,
+            check_index=check_index,
+            description=condition.description,
+        ) as span:
+            check = self._run_command(condition, deadline=deadline, max_output_bytes=max_output_bytes)
+            span.set(passed=check.passed, exit_code=check.exit_code)
+            if not check.passed:
+                span.fail()
+            return check
+
+    def _rollback(self, transaction: WorkspaceTransaction) -> bool:
+        """Every rollback goes through one exit so the span and its verdict cannot be forgotten."""
+
+        with self.telemetry.span(SpanName.WORKSPACE_ROLLBACK) as span:
+            integrity = transaction.rollback()
+            span.set(rollback_integrity=integrity)
+            if not integrity:
+                span.fail()
+            return integrity
 
     def _requires_approval(self) -> bool:
         return self.skill.contract.requires_approval or self.skill.contract.risk_level in {
@@ -875,7 +968,14 @@ class HarnessRunner:
     ) -> ExecutionResult:
         result = self._bound_execution_output(result, max_output_bytes)
         result = result.model_copy(update={"output_budget_bytes": max_output_bytes})
-        self.store.save_result(result)
+        with self.telemetry.span(
+            SpanName.CHECKPOINT_PERSIST,
+            event_type=event_type,
+            step_number=result.step_number,
+            status=result.status.value,
+            success=result.success,
+        ):
+            self.store.save_result(result)
         self.events.emit(
             trace_id=trace_id,
             thread_id=result.thread_id,

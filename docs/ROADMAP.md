@@ -47,6 +47,8 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] bounded diagnose-repair and candidate-selection controller (#29; deterministic finite controller core merged in #52 and streaming command-output enforcement tracked by #53, while hard provider-token admission, restart, selection, and model-backed outcome evidence remain open);
 - [ ] OpenShell readiness and conformance gate (#30; the execution-equivalent component probe is current on
   `main`, while live version-pinned doctor/execution agreement evidence remains #12);
+- [x] schema-versioned events, span vocabulary, and offline trajectory replay (#9);
+- [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
 - [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11; the deterministic runtime harness and raw

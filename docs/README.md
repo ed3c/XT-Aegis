@@ -107,6 +107,7 @@ The complete cross-directory transition table is in
 - [Admission for mutating MCP calls](MCP_MUTATION.md)
 - [Backup and restore](BACKUP.md)
 - [Human-in-the-loop notification](HITL.md)
+- [Observability and replay](OBSERVABILITY.md)
 - [External verification](EXTERNAL_VERIFICATION.md)
 - [OpenShell](OPENSHELL.md)
 - [Coding-agent Harness contract](CODING_AGENT_HARNESS.md)
