@@ -26,13 +26,15 @@ def _normalize(name: str) -> str:
 
 
 def _metadata_value(distribution: metadata.Distribution, key: str) -> str:
-    """Read one metadata field, tolerating absence across importlib.metadata versions."""
+    """Read one metadata field, tolerating absence across importlib.metadata versions.
 
-    try:
-        value = distribution.metadata[key]
-    except KeyError:
-        return ""
-    return str(value) if value else ""
+    `get_all` rather than subscripting: subscripting an absent key returns `None` with a
+    DeprecationWarning today and is documented to raise `KeyError` later, so it would be both noisy now
+    and a different failure later. `get_all` returns `None` for an absent key in every version.
+    """
+
+    values = distribution.metadata.get_all(key) or ()
+    return str(values[0]) if values else ""
 
 
 def _purl(name: str, version: str) -> str:
