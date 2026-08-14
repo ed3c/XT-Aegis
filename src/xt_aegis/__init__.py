@@ -15,8 +15,8 @@ from xt_aegis.controller import (
     ProviderAdmission,
 )
 from xt_aegis.controller_state import ControllerStateRecord, ControllerStateStore
-from xt_aegis.mcp_transport import TransportGuard, build_transport_guard
 from xt_aegis.leases import Lease, LeaseStore, SqliteLeaseStore, StaleFencingToken
+from xt_aegis.mcp_transport import TransportGuard, build_transport_guard
 from xt_aegis.models import (
     ActionRequest,
     CommandAction,
@@ -54,13 +54,13 @@ from xt_aegis.proposals import (
     build_action_request,
 )
 from xt_aegis.runner import HarnessRunner
+from xt_aegis.sbom import build_sbom, write_sbom
 from xt_aegis.side_effects import (
     EffectIdentity,
     EffectRecord,
     EffectState,
     ProtectedEffectRunner,
 )
-from xt_aegis.sbom import build_sbom, write_sbom
 from xt_aegis.skill import SkillCompiler
 from xt_aegis.verification_models import BackendName, VerificationResult, VerificationStatus
 
@@ -95,9 +95,9 @@ __all__ = [
     "FileWriteAction",
     "HarnessRunner",
     "InfrastructureUnavailableError",
-    "PendingApproval",
     "Lease",
     "LeaseStore",
+    "PendingApproval",
     "Proposal",
     "ProposalOutcome",
     "ProposalProvider",
@@ -116,23 +116,23 @@ __all__ = [
     "SignedDecision",
     "SkillCompiler",
     "SkillContract",
-    "StepState",
-    "TransportGuard",
     "SqliteLeaseStore",
     "StaleFencingToken",
+    "StepState",
+    "TransportGuard",
     "TrustedActionEnvelope",
     "TrustedEnvelopeConfig",
     "TrustedRequestIds",
     "VerificationResult",
     "VerificationStatus",
     "build_action_request",
+    "build_sbom",
+    "build_transport_guard",
     "create_backup",
     "restore_backup",
-    "verify_backup",
     "select_candidate",
-    "build_sbom",
+    "verify_backup",
     "write_sbom",
-    "build_transport_guard",
 ]
 
 __version__ = "0.2.0"
