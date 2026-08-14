@@ -16,6 +16,7 @@ from xt_aegis.controller import (
 )
 from xt_aegis.controller_state import ControllerStateRecord, ControllerStateStore
 from xt_aegis.mcp_transport import TransportGuard, build_transport_guard
+from xt_aegis.leases import Lease, LeaseStore, SqliteLeaseStore, StaleFencingToken
 from xt_aegis.models import (
     ActionRequest,
     CommandAction,
@@ -95,6 +96,8 @@ __all__ = [
     "HarnessRunner",
     "InfrastructureUnavailableError",
     "PendingApproval",
+    "Lease",
+    "LeaseStore",
     "Proposal",
     "ProposalOutcome",
     "ProposalProvider",
@@ -115,6 +118,8 @@ __all__ = [
     "SkillContract",
     "StepState",
     "TransportGuard",
+    "SqliteLeaseStore",
+    "StaleFencingToken",
     "TrustedActionEnvelope",
     "TrustedEnvelopeConfig",
     "TrustedRequestIds",

@@ -113,6 +113,7 @@ The complete cross-directory transition table is in
 - [Egress policy and credential injection](EGRESS.md)
 - [Checkpoint storage backends](STORAGE_BACKENDS.md)
 - [Supported deployment profile](DEPLOYMENT_PROFILE.md)
+- [Resource leases and fencing tokens](LEASES.md)
 - [External verification](EXTERNAL_VERIFICATION.md)
 - [OpenShell](OPENSHELL.md)
 - [Coding-agent Harness contract](CODING_AGENT_HARNESS.md)

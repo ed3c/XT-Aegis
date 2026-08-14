@@ -60,6 +60,8 @@ project uses Semantic Versioning for published interfaces.
   backwards-compatible default of no DNS-rebinding protection at all, plus a compatibility matrix naming
   the tested SDK version;
 - a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs.
+- per-resource leases with monotonic fencing tokens on SQLite and PostgreSQL, expiry computed by the
+  database rather than the caller, and one conformance suite that runs against both backends.
 
 ### Changed
 
