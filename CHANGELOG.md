@@ -52,7 +52,10 @@ project uses Semantic Versioning for published interfaces.
   `state_version` with a compare-and-set guard on every mutating transition, so the second of two
   concurrent writers is told it lost instead of silently overwriting the first.
 - `xt-aegis sbom`, a deterministic CycloneDX inventory generated from installed distribution metadata using
-  only the standard library, and a deployment-profile document naming tested and unsupported configurations.
+  only the standard library, and a deployment-profile document naming tested and unsupported configurations;
+- a release step that generates that inventory from a clean install of the built wheel, refuses to publish
+  when it does not describe the release being cut, attests it with `actions/attest-sbom`, and attaches it
+  to the GitHub release.
 
 ### Changed
 

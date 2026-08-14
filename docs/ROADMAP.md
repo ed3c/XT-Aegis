@@ -79,8 +79,9 @@ conformance suite on both backends. A recorded migration ledger and compare-and-
 transition (#88) are current on both. Runner wiring remains open — nothing passes an expected version yet —
 and no multi-worker production claim is made.
 
-A deterministic SBOM and the supported deployment profile (#86, part of #17) are current. Signing, SBOM
-release attachment, schema migration policy, and independent assessment remain open.
+A deterministic SBOM, its release attestation and attachment, and the supported deployment profile
+(#86 and #92, both part of #17) are current. Independent signing, vulnerability assessment of the
+inventory, schema migration policy, and independent third-party assessment remain open.
 
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
