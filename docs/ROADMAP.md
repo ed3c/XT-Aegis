@@ -55,6 +55,8 @@ deferred behind named preconditions. No research track promotes a capability cla
 The v0.4 protected side-effect runner (#76, a slice of #15) is implemented against synthetic adapters. The
 resumable notification channel and authenticated decision callback in #15 remain open, and no exactly-once
 delivery claim is made.
+The v0.5 admission decision for mutating MCP calls (#78, a slice of #16) exists as a pure component. No
+mutating tool is registered or callable, and the MCP surface remains read-only by default.
 
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.

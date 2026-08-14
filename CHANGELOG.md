@@ -23,6 +23,9 @@ project uses Semantic Versioning for published interfaces.
   runtime that never launched is reported as `unsupported` instead of as failed repository claims.
 - a protected external side-effect runner that persists intent before dispatch, never repeats a committed
   operation, and records an ambiguous outcome as `unknown` for reconciliation instead of retrying it.
+- a deny-by-default admission decision for mutating MCP calls that refuses before anything else when a
+  required protection is unavailable, rejects replayed nonces, undeclared tools, missing scopes, and any
+  approval that does not cover the exact call. No mutating tool is enabled by it.
 
 ### Changed
 
