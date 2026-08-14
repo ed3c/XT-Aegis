@@ -1,5 +1,6 @@
 """XT-Aegis: evidence-first deterministic controls around agent actions."""
 
+from xt_aegis.candidates import CandidateOutcome, CandidateSelection, select_candidate
 from xt_aegis.controller import (
     ControllerAttempt,
     ControllerBudgets,
@@ -10,7 +11,6 @@ from xt_aegis.controller import (
     DiagnoseRepairController,
     InfrastructureUnavailableError,
 )
-from xt_aegis.candidates import CandidateOutcome, CandidateSelection, select_candidate
 from xt_aegis.models import (
     ActionRequest,
     CommandAction,
