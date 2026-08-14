@@ -15,6 +15,7 @@ from xt_aegis.controller import (
     ProviderAdmission,
 )
 from xt_aegis.controller_state import ControllerStateRecord, ControllerStateStore
+from xt_aegis.mcp_transport import TransportGuard, build_transport_guard
 from xt_aegis.models import (
     ActionRequest,
     CommandAction,
@@ -113,6 +114,7 @@ __all__ = [
     "SkillCompiler",
     "SkillContract",
     "StepState",
+    "TransportGuard",
     "TrustedActionEnvelope",
     "TrustedEnvelopeConfig",
     "TrustedRequestIds",
@@ -125,6 +127,7 @@ __all__ = [
     "select_candidate",
     "build_sbom",
     "write_sbom",
+    "build_transport_guard",
 ]
 
 __version__ = "0.2.0"

@@ -117,9 +117,9 @@ side effect during retry and failover tests.
 - [ ] authenticated subject and audience validation;
 - [ ] per-tool scopes and authorization policy;
 - [ ] approval binding to authenticated identity, exact arguments, expiry, and reason;
-- [ ] host/origin validation and deployment hardening;
+- [x] host/origin validation and deployment hardening for the HTTP transport (#90);
 - [ ] request-level idempotency and bounded structured output;
-- [ ] security assessment and compatibility matrix.
+- [ ] security assessment; the SDK compatibility matrix is in [MCP_TRANSPORT.md](MCP_TRANSPORT.md) (#90).
 
 **Exit criteria:** mutating tools remain absent unless every identity, authorization, approval, sandbox,
 egress, and audit requirement is satisfied.

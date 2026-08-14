@@ -56,6 +56,10 @@ project uses Semantic Versioning for published interfaces.
 - a release step that generates that inventory from a clean install of the built wheel, refuses to publish
   when it does not describe the release being cut, attests it with `actions/attest-sbom`, and attaches it
   to the GitHub release.
+- fail-closed Host and Origin validation on the MCP HTTP transport, which previously ran with the SDK's
+  backwards-compatible default of no DNS-rebinding protection at all, plus a compatibility matrix naming
+  the tested SDK version;
+- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs.
 
 ### Changed
 
