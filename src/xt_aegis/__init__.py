@@ -2,6 +2,7 @@
 
 from xt_aegis.backup import BackupManifest, create_backup, restore_backup, verify_backup
 from xt_aegis.candidates import CandidateOutcome, CandidateSelection, select_candidate
+from xt_aegis.checkpoint_backend import CheckpointBackend
 from xt_aegis.controller import (
     ControllerAttempt,
     ControllerBudgets,
@@ -67,6 +68,7 @@ __all__ = [
     "BackupManifest",
     "CandidateOutcome",
     "CandidateSelection",
+    "CheckpointBackend",
     "CommandAction",
     "CommandSpec",
     "CompiledSkill",

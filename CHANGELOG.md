@@ -45,6 +45,9 @@ project uses Semantic Versioning for published interfaces.
 - a deterministic candidate-selection rule that disqualifies a candidate which started from a drifted
   baseline, failed its assertions, did not succeed, or could not establish rollback integrity, breaks ties
   by proposal digest so the same candidates always select the same one, and names every rejection.
+- a written checkpoint-backend contract and a PostgreSQL implementation, with one conformance suite that
+  proves both backends agree on step reservation, identity conflicts, terminal results, the approval state
+  machine, events, and resume position.
 
 ### Changed
 

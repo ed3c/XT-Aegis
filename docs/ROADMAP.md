@@ -74,6 +74,10 @@ alongside #76. Neither is wired into the runner yet, and no exactly-once deliver
 - [ ] default-deny egress and out-of-band credential injection (#13; the decision plane and credential
   broker are current, while runtime enforcement in the sandbox profile remains #12).
 
+The v0.4 checkpoint-backend contract and PostgreSQL implementation (#84, a slice of #14) pass one shared
+conformance suite on both backends. Migrations, compare-and-set on every transition, and runner wiring
+remain open, and no multi-worker production claim is made.
+
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
 
