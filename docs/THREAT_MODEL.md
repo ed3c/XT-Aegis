@@ -209,7 +209,8 @@ XT-Aegis does not claim:
 3. supported OS/runtime versions and immutable images are documented;
 4. host-secret canaries cannot be read from a malicious test corpus;
 5. source and output mounts cannot be escaped;
-6. denied egress is confirmed from runtime evidence;
+6. denied egress is confirmed from runtime evidence; the destination decision plane and credential broker
+   in [`EGRESS.md`](EGRESS.md) decide but do not enforce at the socket;
 7. CPU, memory, PID, disk, time, output, attempt, and token limits are fault-tested;
 8. runtime and policy digests are retained;
 9. release artifacts have SBOM and provenance attestations;

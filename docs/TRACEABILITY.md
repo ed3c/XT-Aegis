@@ -128,6 +128,7 @@ active rows. Therefore:
 | #30 OpenShell readiness | planned | version-aware probe and doctor/launch consistency tests |
 | #11 reproducible benchmarks | open/unverified | raw schema-valid trials, environment manifest, exact commands, summaries |
 | #12 live runtime conformance | open | pinned OpenShell/rootless OCI adversarial evidence |
+| #13 egress and credentials | decision plane current | socket-level enforcement in the sandbox profile remains #12 |
 | #9 observability | open | schema-versioned event/trace contract and secret-safe exporter tests |
 | #10 crash/deadline recovery | open | kill/restart/cancellation State Machine and fault-injection evidence |
 | #14/#15 | planned | distributed coordination and protected external-side-effect contracts |

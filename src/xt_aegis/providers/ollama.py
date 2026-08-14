@@ -17,6 +17,7 @@ from urllib.request import (
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from xt_aegis.egress import EgressDenied, EgressPolicy, loopback_rules
 from xt_aegis.proposals import (
     Proposal,
     ProposalOutcome,
@@ -202,9 +203,11 @@ class OllamaProposalProvider:
         config: OllamaConfig,
         *,
         transport: OllamaTransport | None = None,
+        egress: EgressPolicy | None = None,
     ) -> None:
         self.config = config
         self.transport = transport or UrllibOllamaTransport()
+        self.egress = egress or EgressPolicy(loopback_rules(), resolver=lambda _host: ["127.0.0.1"])
 
     def propose(self, request: ProposalRequest) -> ProposalOutcome:
         profile = ProviderProfile(
@@ -244,9 +247,16 @@ class OllamaProposalProvider:
             },
             separators=(",", ":"),
         ).encode()
+        destination = f"{self.config.endpoint}/api/generate"
+        try:
+            # The field validator already restricts the endpoint; routing the call through the shared
+            # egress policy keeps one destination decision for every outbound request in the product.
+            self.egress.require(destination, method="POST")
+        except EgressDenied as exc:
+            return self._failure(ProposalStatus.PROVIDER_ERROR, profile, str(exc))
         try:
             response = self.transport.post_json(
-                f"{self.config.endpoint}/api/generate",
+                destination,
                 payload,
                 timeout_seconds,
                 response_limit,
