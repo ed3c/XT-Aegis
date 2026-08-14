@@ -49,7 +49,7 @@ The complete contribution contract is [`AGENTS.md`](AGENTS.md).
 | Streaming subprocess output enforcement | current | PR #54; shared stdout/stderr budget, process-group termination, bounded evidence, rollback on failed mutation |
 | Backend-map static typing compatibility | current | PR #56; mypy 2 compatibility without backend-selection behavior change |
 | Source-bound OpenShell verification | current | PR #23; strong action isolation/readiness remain #27/#30 |
-| Strong mutation isolation | planned | #27; live profile evidence also belongs to #12 |
+| Strong mutation isolation | current for the Docker profile | #27; adversarial live evidence for the pinned OpenShell and rootless Podman profiles still belongs to #12 |
 | Execution-equivalent OpenShell readiness | planned | #30; doctor and launch path must agree |
 | Span vocabulary, attribute allowlist, and offline replay | current | #9; telemetry is off by default and XT-Aegis owns no exporter |
 | Crash-safe transitions, cancellation, and deadlines | current | #10; every transition is kill-tested with a real child process |

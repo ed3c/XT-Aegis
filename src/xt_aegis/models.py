@@ -42,6 +42,7 @@ class ExecutionReasonCode(StrEnum):
     OUTPUT_BUDGET_EXHAUSTED = "output_budget_exhausted"
     CANCELLED = "cancelled"
     DEADLINE_EXCEEDED = "deadline_exceeded"
+    ISOLATION_UNAVAILABLE = "isolation_unavailable"
 
 
 class NetworkPolicy(StrEnum):
@@ -127,6 +128,7 @@ class SkillContract(BaseModel):
     allowed_network_destinations: list[str] = Field(default_factory=list)
     risk_level: RiskLevel = RiskLevel.MEDIUM
     requires_approval: bool = False
+    requires_isolation: bool = False
     max_steps: int = Field(default=8, ge=1, le=100)
     max_total_seconds: float = Field(default=60.0, ge=1.0, le=3600.0)
     max_write_bytes: int = Field(default=131_072, ge=1, le=10_485_760)
@@ -213,6 +215,8 @@ class ExecutionResult(BaseModel):
     output_budget_bytes: int | None = Field(default=None, ge=1)
     rolled_back: bool = False
     rollback_integrity: bool | None = None
+    isolation_backend: str | None = None
+    isolation_verdict: bool | None = None
     workspace_before_sha256: str
     workspace_after_sha256: str
     cached_replay: bool = False

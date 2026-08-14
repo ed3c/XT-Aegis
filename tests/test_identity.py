@@ -89,9 +89,9 @@ def test_request_identity_matches_versioned_test_vector(compiled_skill) -> None:
         action=FileWriteAction(relative_path="sample_project/app.py", content="pass\n"),
     )
     identity = RequestIdentity.from_request(request, skill=compiled_skill)
-    assert identity.version == "1.0"
-    assert identity.policy_digest == "5285d55cb8e910c0f422d83411b47cfc33dc2052c631340119036cf1be7252df"
-    assert identity.digest == "0fd9e42e71c7635d0c05936112677d3acb9735a2044f1a6903f21df27bd26a3c"
+    assert identity.version == "1.1"
+    assert identity.policy_digest == "74517148121c98e9cae8f7eb8d6d7146f2b302b5aed471a4748d869a52685b2b"
+    assert identity.digest == "25d347a652c6117c40fd71ff259027bdbab3386d9173380cb489a200b4d17e94"
 
 
 def test_identity_binds_path_provenance_actor_and_command_arguments(compiled_skill) -> None:  # type: ignore[no-untyped-def]

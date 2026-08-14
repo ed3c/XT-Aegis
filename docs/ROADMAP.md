@@ -43,7 +43,8 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [x] canonical request and policy digest binding for replay and approval (#25; delivered when PR #31 is on `main`);
 - [x] declared command exit-code semantics shared by actions and assertions (#28; delivered when PR #31 is on `main`);
 - [x] provider-neutral proposal adapter and trusted envelope (#26; current on `main`);
-- [ ] strong-isolation mutation backend for Harness actions (#27);
+- [x] strong-isolation mutation backend for Harness actions (#27; live Docker evidence, with the pinned
+  OpenShell and rootless Podman matrix still owned by #12);
 - [ ] bounded diagnose-repair and candidate-selection controller (#29; deterministic finite controller core merged in #52 and streaming command-output enforcement tracked by #53, while hard provider-token admission, restart, selection, and model-backed outcome evidence remain open);
 - [x] schema-versioned events, span vocabulary, and offline trajectory replay (#9);
 - [x] process-kill fault injection at every persisted transition, plus cancellation and deadline

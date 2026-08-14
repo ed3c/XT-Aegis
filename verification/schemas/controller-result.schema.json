@@ -587,7 +587,8 @@
         "identity_conflict",
         "output_budget_exhausted",
         "cancelled",
-        "deadline_exceeded"
+        "deadline_exceeded",
+        "isolation_unavailable"
       ],
       "title": "ExecutionReasonCode",
       "type": "string"
