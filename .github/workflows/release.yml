@@ -13,7 +13,8 @@ jobs:
     environment: pypi
     permissions:
       id-token: write
-      contents: read
+      contents: write
+      attestations: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -21,7 +22,49 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade build
       - run: python -m build
+
+      # The SBOM describes what a user receives, so it is generated from a clean install of the built
+      # wheel rather than from the builder. The builder carries the dev extras; the two inventories are
+      # not close to each other, and publishing the builder's would describe software nobody installs.
+      - name: Generate the SBOM from the built wheel
+        run: |
+          set -euo pipefail
+          python -m venv "${RUNNER_TEMP}/sbom-venv"
+          "${RUNNER_TEMP}/sbom-venv/bin/python" -m pip install --upgrade pip
+          "${RUNNER_TEMP}/sbom-venv/bin/python" -m pip install dist/*.whl
+          "${RUNNER_TEMP}/sbom-venv/bin/xt-aegis" sbom --output sbom.cyclonedx.json --format json
+
+      - name: Fail if the SBOM does not describe this release
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import pathlib
+          import tomllib
+
+          document = json.loads(pathlib.Path("sbom.cyclonedx.json").read_text(encoding="utf-8"))
+          component = document["metadata"]["component"]
+          expected = tomllib.loads(pathlib.Path("pyproject.toml").read_text(encoding="utf-8"))
+          expected_version = expected["project"]["version"]
+          assert document["bomFormat"] == "CycloneDX", document["bomFormat"]
+          assert component["name"] == "xt-aegis", component["name"]
+          assert component["version"] == expected_version, (component["version"], expected_version)
+          assert document["components"], "an SBOM with no components describes nothing"
+          print(f"SBOM: {component['name']} {component['version']}, {len(document['components'])} components")
+          PY
+
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: "dist/*"
+
+      - uses: actions/attest-sbom@v4
+        with:
+          subject-path: "dist/*"
+          sbom-path: sbom.cyclonedx.json
+
+      - name: Attach the SBOM to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" sbom.cyclonedx.json --clobber
+
       - uses: pypa/gh-action-pypi-publish@release/v1

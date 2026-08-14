@@ -43,6 +43,27 @@ def test_checked_in_recipe_files_match_the_registry() -> None:
         }
 
 
+def test_the_release_workflow_builds_its_sbom_from_the_installed_wheel() -> None:
+    """The builder environment carries the dev extras; the wheel's does not.
+
+    Generating the SBOM in the builder would describe software nobody installs — locally that is 52
+    components against the 7 a clean wheel install produces. This pins the property, not the wording.
+    """
+
+    import yaml
+
+    workflow = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8"))
+    job = workflow["jobs"]["pypi"]
+    runs = " ".join(step.get("run", "") for step in job["steps"])
+    uses = [step.get("uses", "") for step in job["steps"]]
+
+    assert "pip install dist/*.whl" in runs, "the SBOM must come from the built wheel, not the builder"
+    assert "bin/xt-aegis" in runs and "sbom --output" in runs
+    assert any(action.startswith("actions/attest-sbom@") for action in uses)
+    assert job["permissions"]["attestations"] == "write"
+    assert job["permissions"]["contents"] == "write", "uploading the SBOM to the release needs this"
+
+
 def test_public_documentation_uses_user_facing_entry_points() -> None:
     expected = {
         ROOT / "docs" / "USER_DEMO.md",
