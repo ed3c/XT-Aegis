@@ -16,7 +16,13 @@ project uses Semantic Versioning for published interfaces.
 - an optional loopback-only Ollama adapter with bounded no-proxy/no-redirect stdlib HTTP transport and
   typed refusal, timeout, malformed, oversized, truncated, and provider-error outcomes;
 - an argv-only sandbox launcher that confines recipe working directories beneath the uploaded source root;
-- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs.
+- a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs;
+- a fixed span vocabulary (`run`, `policy.evaluate`, `approval.wait`, `action.execute`, `assertion.check`,
+  `workspace.rollback`, `checkpoint.persist`) with an attribute allowlist, a local-only recorder, and an
+  optional OpenTelemetry bridge that owns no exporter or endpoint;
+- `xt-aegis replay`, which reconstructs an execution timeline from a persisted JSONL trajectory without
+  invoking a model or a tool;
+- a `schema_version` field on every JSONL trajectory record, with a fail-closed compatibility rule.
 
 ### Changed
 

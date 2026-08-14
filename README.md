@@ -51,6 +51,7 @@ The complete contribution contract is [`AGENTS.md`](AGENTS.md).
 | Source-bound OpenShell verification | current | PR #23; strong action isolation/readiness remain #27/#30 |
 | Strong mutation isolation | planned | #27; live profile evidence also belongs to #12 |
 | Execution-equivalent OpenShell readiness | planned | #30; doctor and launch path must agree |
+| Span vocabulary, attribute allowlist, and offline replay | current | #9; telemetry is off by default and XT-Aegis owns no exporter |
 | Model-backed correctness/performance evidence | unverified | #11, #24, #29 |
 | Git Town repository-side workflow | merged contract | exact unattended Worker remains deployment-blocked by #44 |
 

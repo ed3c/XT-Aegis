@@ -25,6 +25,7 @@ revision. Do not derive current state from a branch name or an old PR descriptio
 | Source-bound OpenShell verification | `verification.py`, integration docs; PR #23 | `current` | strong action isolation and execution-equivalent readiness remain #27/#30 |
 | Strong isolation for mutating commands | issue #27 | `planned` | live conformance remains gated by #12 |
 | Execution-equivalent OpenShell readiness | issue #30 | `planned` | version-pinned doctor/execution agreement required |
+| Span vocabulary, attribute allowlist, versioned event envelope, offline replay | `telemetry.py`, `replay.py`, `events.py`; issue #9 | `current` | telemetry is off by default; a trace is not evidence of semantic correctness |
 | Model-backed Harness uplift and performance evidence | issues #11/#24/#29 | `unverified` | pinned corpus, equal baselines, raw failed/timed-out trials |
 | Git Town repository-side Worker contract | `scripts/git-town/`; PR #41 | `merged contract` | exact live Worker profile remains `deployment-blocked` by #44 |
 
