@@ -10,6 +10,7 @@ from xt_aegis.controller import (
     DiagnoseRepairController,
     InfrastructureUnavailableError,
 )
+from xt_aegis.leases import Lease, LeaseStore, SqliteLeaseStore, StaleFencingToken
 from xt_aegis.models import (
     ActionRequest,
     CommandAction,
@@ -64,6 +65,8 @@ __all__ = [
     "FileWriteAction",
     "HarnessRunner",
     "InfrastructureUnavailableError",
+    "Lease",
+    "LeaseStore",
     "Proposal",
     "ProposalOutcome",
     "ProposalProvider",
@@ -78,6 +81,8 @@ __all__ = [
     "SecureRequestIdentitySource",
     "SkillCompiler",
     "SkillContract",
+    "SqliteLeaseStore",
+    "StaleFencingToken",
     "TrustedActionEnvelope",
     "TrustedEnvelopeConfig",
     "TrustedRequestIds",

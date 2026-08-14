@@ -48,6 +48,10 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
 - [ ] OpenShell readiness and conformance gate (#30);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
 
+The v0.4 lease and fencing-token layer (#74, a slice of #14) is implemented and tested against SQLite and a
+real PostgreSQL. The checkpoint port, migrations, and optimistic concurrency in #14 remain open, and no
+multi-worker production claim is made.
+
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
 
