@@ -7,7 +7,7 @@ import time
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from enum import StrEnum
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -248,4 +248,7 @@ def otlp_exporter(endpoint: str = "http://127.0.0.1:4318/v1/traces") -> Iterator
     try:
         yield
     finally:
-        processor.shutdown()
+        # The SDK's `shutdown` is untyped. A bare `# type: ignore` cannot be used: with
+        # `warn_unused_ignores` it becomes an error in the default install, where the whole module is
+        # `Any`. A cast is correct in both environments.
+        cast(Any, processor).shutdown()
