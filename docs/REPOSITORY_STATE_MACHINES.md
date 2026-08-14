@@ -181,9 +181,17 @@ an attempt whose `proposal_status` and `provider_profile` are `null`; those two 
 for attempts that actually reached a provider. Each call receives the **remaining** budget rather than the
 run total, so a cooperative provider cannot spend the whole run on one call.
 
-The controller is current as a finite core with token admission. Streaming execution-output enforcement is
-also current. Issue #29 remains open for restart-safe state, candidate selection, and pinned model-backed
-acceptance.
+A run given a run identifier persists its state after every attempt and at its terminal exit. A restart
+either resumes the persisted attempt number, token totals, repair context, and cycle counters, or it
+terminates with `recovery_failed` before calling the provider. It refuses when the state schema is stale or
+unreadable, when the task, run context, budgets, or declared provider admission profile changed, when an
+attempt was still in flight and its workspace outcome is therefore unknown, or when the run already reached
+a terminal state. A refused resume never overwrites the record it refused to trust.
+
+The controller is current as a finite core with token admission and restart-safe state. Streaming
+execution-output enforcement is also current. Issue #29 remains open for candidate selection and pinned
+model-backed acceptance. Distributed coordination remains #14, and an interrupted attempt's external side
+effects remain #15.
 
 ## 4. Deterministic runner State Machine
 

@@ -80,7 +80,7 @@ acceptance work must be split rather than delivered as one large PR.
 | Negative eval | missing usage/tokenizer, zero remaining budget, overflow, profile mismatch fail before another call |
 | Claim boundary | exact provider/tokenizer profile only; no universal token-count guarantee |
 
-### Leaf 29-B — restart-safe controller state
+### Leaf 29-B — restart-safe controller state (owned by #68)
 
 | Field | Required content |
 |---|---|

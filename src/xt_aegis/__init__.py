@@ -11,6 +11,7 @@ from xt_aegis.controller import (
     InfrastructureUnavailableError,
     ProviderAdmission,
 )
+from xt_aegis.controller_state import ControllerStateRecord, ControllerStateStore
 from xt_aegis.models import (
     ActionRequest,
     CommandAction,
@@ -56,6 +57,8 @@ __all__ = [
     "ControllerCheckEvidence",
     "ControllerResult",
     "ControllerRunContext",
+    "ControllerStateRecord",
+    "ControllerStateStore",
     "ControllerStopReason",
     "DiagnoseRepairController",
     "ExecutionReasonCode",
