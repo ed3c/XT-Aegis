@@ -1,0 +1,285 @@
+{
+  "schema_version": "1.0",
+  "project": "XT-Aegis",
+  "project_version": "0.2.0",
+  "environment": {
+    "commit": "6b366d1ab4c0aa0858d38ebbf044f2bcb4949af0",
+    "source_dirty": false,
+    "operating_system": "Darwin",
+    "release": "25.4.0",
+    "architecture": "arm64",
+    "cpu_count": 10,
+    "python_version": "3.14.6",
+    "python_implementation": "CPython",
+    "dependency_digest": "bb4db41ae63749cd6ae744a5705645292e89c90a670dace4a981a4024d3e9cc5"
+  },
+  "workload": {
+    "files": 32,
+    "file_bytes": 4096,
+    "warmup": 1,
+    "trials": 5,
+    "seed": 0,
+    "timeout_seconds": 120.0
+  },
+  "reproduction_command": "xt-aegis benchmark --case tree-hash --case snapshot --case rollback --case checkpoint-write --case policy-evaluate --files 32 --file-bytes 4096 --warmup 1 --trials 5 --seed 0 --timeout-seconds 120",
+  "trials": [
+    {
+      "case": "tree-hash",
+      "index": 1,
+      "outcome": "passed",
+      "duration_ms": 1.3770830119028687,
+      "error": ""
+    },
+    {
+      "case": "tree-hash",
+      "index": 2,
+      "outcome": "passed",
+      "duration_ms": 1.3645829167217016,
+      "error": ""
+    },
+    {
+      "case": "tree-hash",
+      "index": 3,
+      "outcome": "passed",
+      "duration_ms": 1.4171670190989971,
+      "error": ""
+    },
+    {
+      "case": "tree-hash",
+      "index": 4,
+      "outcome": "passed",
+      "duration_ms": 1.412459067068994,
+      "error": ""
+    },
+    {
+      "case": "tree-hash",
+      "index": 5,
+      "outcome": "passed",
+      "duration_ms": 1.5573750715702772,
+      "error": ""
+    },
+    {
+      "case": "snapshot",
+      "index": 1,
+      "outcome": "passed",
+      "duration_ms": 13.518040999770164,
+      "error": ""
+    },
+    {
+      "case": "snapshot",
+      "index": 2,
+      "outcome": "passed",
+      "duration_ms": 11.045042076148093,
+      "error": ""
+    },
+    {
+      "case": "snapshot",
+      "index": 3,
+      "outcome": "passed",
+      "duration_ms": 11.397208902053535,
+      "error": ""
+    },
+    {
+      "case": "snapshot",
+      "index": 4,
+      "outcome": "passed",
+      "duration_ms": 10.629249969497323,
+      "error": ""
+    },
+    {
+      "case": "snapshot",
+      "index": 5,
+      "outcome": "passed",
+      "duration_ms": 10.124749969691038,
+      "error": ""
+    },
+    {
+      "case": "rollback",
+      "index": 1,
+      "outcome": "passed",
+      "duration_ms": 20.86862502619624,
+      "error": ""
+    },
+    {
+      "case": "rollback",
+      "index": 2,
+      "outcome": "passed",
+      "duration_ms": 27.948415954597294,
+      "error": ""
+    },
+    {
+      "case": "rollback",
+      "index": 3,
+      "outcome": "passed",
+      "duration_ms": 24.371791048906744,
+      "error": ""
+    },
+    {
+      "case": "rollback",
+      "index": 4,
+      "outcome": "passed",
+      "duration_ms": 25.42958303820342,
+      "error": ""
+    },
+    {
+      "case": "rollback",
+      "index": 5,
+      "outcome": "passed",
+      "duration_ms": 24.74258397705853,
+      "error": ""
+    },
+    {
+      "case": "checkpoint-write",
+      "index": 1,
+      "outcome": "passed",
+      "duration_ms": 1.094415900297463,
+      "error": ""
+    },
+    {
+      "case": "checkpoint-write",
+      "index": 2,
+      "outcome": "passed",
+      "duration_ms": 1.3015830190852284,
+      "error": ""
+    },
+    {
+      "case": "checkpoint-write",
+      "index": 3,
+      "outcome": "passed",
+      "duration_ms": 1.2810829794034362,
+      "error": ""
+    },
+    {
+      "case": "checkpoint-write",
+      "index": 4,
+      "outcome": "passed",
+      "duration_ms": 1.1624170001596212,
+      "error": ""
+    },
+    {
+      "case": "checkpoint-write",
+      "index": 5,
+      "outcome": "passed",
+      "duration_ms": 1.4590000500902534,
+      "error": ""
+    },
+    {
+      "case": "policy-evaluate",
+      "index": 1,
+      "outcome": "passed",
+      "duration_ms": 0.06666698027402163,
+      "error": ""
+    },
+    {
+      "case": "policy-evaluate",
+      "index": 2,
+      "outcome": "passed",
+      "duration_ms": 0.06304203998297453,
+      "error": ""
+    },
+    {
+      "case": "policy-evaluate",
+      "index": 3,
+      "outcome": "passed",
+      "duration_ms": 0.06462505552917719,
+      "error": ""
+    },
+    {
+      "case": "policy-evaluate",
+      "index": 4,
+      "outcome": "passed",
+      "duration_ms": 0.05908298771828413,
+      "error": ""
+    },
+    {
+      "case": "policy-evaluate",
+      "index": 5,
+      "outcome": "passed",
+      "duration_ms": 0.06154098082333803,
+      "error": ""
+    }
+  ],
+  "summaries": [
+    {
+      "case": "tree-hash",
+      "description": "Full workspace tree hash",
+      "trials": 5,
+      "passed": 5,
+      "failed": 0,
+      "timed_out": 0,
+      "median_ms": 1.412459067068994,
+      "p90_ms": 1.5573750715702772,
+      "p95_ms": 1.5573750715702772,
+      "p99_ms": 1.5573750715702772,
+      "min_ms": 1.3645829167217016,
+      "max_ms": 1.5573750715702772,
+      "stdev_ms": 0.07695024749390095
+    },
+    {
+      "case": "snapshot",
+      "description": "Workspace snapshot creation and commit",
+      "trials": 5,
+      "passed": 5,
+      "failed": 0,
+      "timed_out": 0,
+      "median_ms": 11.045042076148093,
+      "p90_ms": 13.518040999770164,
+      "p95_ms": 13.518040999770164,
+      "p99_ms": 13.518040999770164,
+      "min_ms": 10.124749969691038,
+      "max_ms": 13.518040999770164,
+      "stdev_ms": 1.3053824173631345
+    },
+    {
+      "case": "rollback",
+      "description": "Snapshot rollback with hash verification",
+      "trials": 5,
+      "passed": 5,
+      "failed": 0,
+      "timed_out": 0,
+      "median_ms": 24.74258397705853,
+      "p90_ms": 27.948415954597294,
+      "p95_ms": 27.948415954597294,
+      "p99_ms": 27.948415954597294,
+      "min_ms": 20.86862502619624,
+      "max_ms": 27.948415954597294,
+      "stdev_ms": 2.5431084361065746
+    },
+    {
+      "case": "checkpoint-write",
+      "description": "SQLite WAL event append and JSONL persistence",
+      "trials": 5,
+      "passed": 5,
+      "failed": 0,
+      "timed_out": 0,
+      "median_ms": 1.2810829794034362,
+      "p90_ms": 1.4590000500902534,
+      "p95_ms": 1.4590000500902534,
+      "p99_ms": 1.4590000500902534,
+      "min_ms": 1.094415900297463,
+      "max_ms": 1.4590000500902534,
+      "stdev_ms": 0.14028074060080317
+    },
+    {
+      "case": "policy-evaluate",
+      "description": "Policy validation of one file-write request",
+      "trials": 5,
+      "passed": 5,
+      "failed": 0,
+      "timed_out": 0,
+      "median_ms": 0.06304203998297453,
+      "p90_ms": 0.06666698027402163,
+      "p95_ms": 0.06666698027402163,
+      "p99_ms": 0.06666698027402163,
+      "min_ms": 0.05908298771828413,
+      "max_ms": 0.06666698027402163,
+      "stdev_ms": 0.0028965793308847886
+    }
+  ],
+  "limitations": [
+    "Results describe only the recorded environment, workload, and source revision.",
+    "Wall-clock timings from a shared or virtualized host are not a production performance claim.",
+    "The deadline is observed after each repetition; it does not interrupt an in-process call.",
+    "Failed and timed-out trials remain in this artifact and are excluded only from the latency distribution, never from the counts."
+  ]
+}
