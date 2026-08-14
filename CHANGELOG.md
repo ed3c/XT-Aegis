@@ -37,6 +37,10 @@ project uses Semantic Versioning for published interfaces.
   attempt reported no usage, and each call receives the remaining budget instead of the run total;
 - a controller attempt that never reached a provider records `proposal_status` and `provider_profile` as
   `null`, so a refusal is distinguishable from a provider outcome;
+- controller runs given a run identifier persist their attempt number, token totals, repair context, and
+  cycle counters, and a restart either resumes them or terminates with `recovery_failed`; a changed task,
+  run context, budget, or provider admission profile, an unreadable or stale state record, an attempt still
+  in flight, and an already-terminal run each refuse without calling the provider;
 - command actions now honor `CommandSpec.expected_exit_codes` instead of requiring exit code zero;
 - action, precondition, postcondition, and terminal evidence record actual and expected exit codes;
 - OpenShell verification now uploads the selected checkout into `/workspace`, disables automatic providers,

@@ -45,7 +45,7 @@ The complete contribution contract is [`AGENTS.md`](AGENTS.md).
 | Canonical request identity, approval binding, exact replay | current | PR #31; `identity.py`, `checkpoint.py`, `runner.py` |
 | Declared command exit-code semantics | current | PR #31; `models.py`, `runner.py` |
 | Provider-neutral proposal and trusted envelope | current | PR #51; `proposals.py`, `providers/ollama.py` |
-| Finite diagnose-repair controller core | current partial | PRs #52 and #60; provider-token admission is current, issue #29 retains restart, candidate, and model-evidence leaves |
+| Finite diagnose-repair controller core | current partial | PRs #52, #60, and #68; token admission and restart-safe state are current, issue #29 retains candidate selection and model evidence |
 | Streaming subprocess output enforcement | current | PR #54; shared stdout/stderr budget, process-group termination, bounded evidence, rollback on failed mutation |
 | Backend-map static typing compatibility | current | PR #56; mypy 2 compatibility without backend-selection behavior change |
 | Source-bound OpenShell verification | current | PR #23; strong action isolation/readiness remain #27/#30 |

@@ -5,11 +5,18 @@ from __future__ import annotations
 import hashlib
 import time
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from xt_aegis.controller_state import (
+    ControllerStateError,
+    ControllerStateRecord,
+    ControllerStateStore,
+    conditions_digest,
+)
 from xt_aegis.models import (
     ActionRequest,
     CheckResult,
@@ -205,6 +212,21 @@ class InfrastructureUnavailableError(RuntimeError):
     """A required execution backend cannot safely run the trusted request."""
 
 
+@dataclass
+class _RunState:
+    """Mutable per-run bookkeeping; it exists so the terminal exit can persist without extra arguments."""
+
+    run_id: str | None
+    digest: str
+    next_attempt_number: int = 1
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    usage_reported: bool = True
+    repair_task: str | None = None
+    in_flight_attempt: int | None = None
+    cycle_counts: dict[str, int] = field(default_factory=dict)
+
+
 class DiagnoseRepairController:
     """Classify proposal outcomes before any deterministic execution."""
 
@@ -219,6 +241,7 @@ class DiagnoseRepairController:
         context: ControllerRunContext,
         admission: ProviderAdmission | None = None,
         identity_source: RequestIdentitySource | None = None,
+        state_store: ControllerStateStore | None = None,
         clock: Callable[[], float] | None = None,
     ) -> None:
         self.provider = provider
@@ -229,18 +252,43 @@ class DiagnoseRepairController:
         self.context = context
         self.admission = admission
         self.identity_source = identity_source or SecureRequestIdentitySource()
+        self.state_store = state_store
         self.clock = clock or time.monotonic
+        self._state = _RunState(run_id=None, digest="")
 
-    def run(self, *, task: str) -> ControllerResult:
+    def run(self, *, task: str, run_id: str | None = None) -> ControllerResult:
         started = self.clock()
         attempts: list[ControllerAttempt] = []
-        total_prompt_tokens = 0
-        total_completion_tokens = 0
-        cycle_counts: dict[str, int] = {}
-        usage_reported = True
-        next_task = task
+        digest = conditions_digest(
+            task=task,
+            context=self.context,
+            budgets=self.budgets,
+            admission=self.admission,
+        )
+        self._state = _RunState(run_id=run_id, digest=digest)
+        refusal = self._resume(task=task, run_id=run_id, digest=digest, started=started)
+        if refusal is not None:
+            return refusal
+        total_prompt_tokens = self._state.total_prompt_tokens
+        total_completion_tokens = self._state.total_completion_tokens
+        cycle_counts: dict[str, int] = dict(self._state.cycle_counts)
+        usage_reported = self._state.usage_reported
+        next_task = self._state.repair_task or task
+        start_attempt = self._state.next_attempt_number
+        if start_attempt > self.budgets.max_attempts:
+            return self._result(
+                started=started,
+                attempts=attempts,
+                stop_reason=ControllerStopReason.BUDGET_EXHAUSTED,
+                total_prompt_tokens=total_prompt_tokens,
+                total_completion_tokens=total_completion_tokens,
+                diagnostic=(
+                    f"attempt budget exhausted before resume: {start_attempt - 1} of "
+                    f"{self.budgets.max_attempts} attempts were already recorded"
+                ),
+            )
 
-        for attempt_number in range(1, self.budgets.max_attempts + 1):
+        for attempt_number in range(start_attempt, self.budgets.max_attempts + 1):
             admission_reason = self._admission_reason(
                 total_prompt_tokens=total_prompt_tokens,
                 total_completion_tokens=total_completion_tokens,
@@ -276,6 +324,13 @@ class DiagnoseRepairController:
                         f"wall-clock budget exceeded: {elapsed:.3f}s > {self.budgets.max_wall_seconds:.3f}s"
                     ),
                 )
+            self._state.next_attempt_number = attempt_number
+            self._state.in_flight_attempt = attempt_number
+            self._state.total_prompt_tokens = total_prompt_tokens
+            self._state.total_completion_tokens = total_completion_tokens
+            self._state.usage_reported = usage_reported
+            self._state.repair_task = next_task if attempt_number > 1 else None
+            self._save_state()
             outcome = self.provider.propose(
                 ProposalRequest(
                     task=next_task,
@@ -584,6 +639,14 @@ class DiagnoseRepairController:
             next_task = (
                 f"{task}\n\nRepair attempt {attempt_number + 1}. Prior {classification.value}: {diagnostic}"
             )
+            self._state.next_attempt_number = attempt_number + 1
+            self._state.in_flight_attempt = None
+            self._state.total_prompt_tokens = total_prompt_tokens
+            self._state.total_completion_tokens = total_completion_tokens
+            self._state.usage_reported = usage_reported
+            self._state.repair_task = next_task
+            self._state.cycle_counts = dict(cycle_counts)
+            self._save_state()
 
         raise AssertionError("finite controller loop exited without a terminal result")
 
@@ -612,6 +675,88 @@ class DiagnoseRepairController:
             diagnostic=diagnostic,
             limitations=self.context.limitations,
             **evidence,
+        )
+
+    def _resume(
+        self,
+        *,
+        task: str,
+        run_id: str | None,
+        digest: str,
+        started: float,
+    ) -> ControllerResult | None:
+        """Seed the run from persisted state, or return the terminal refusal that replaces it."""
+
+        del task
+        if self.state_store is None or run_id is None:
+            return None
+        try:
+            record = self.state_store.load(run_id)
+        except ControllerStateError as exc:
+            return self._refuse_resume(started, str(exc))
+        if record is None:
+            return None
+        if record.terminal_stop_reason is not None:
+            return self._refuse_resume(
+                started,
+                f"run {run_id} already reached the terminal state {record.terminal_stop_reason}",
+            )
+        if record.conditions_digest != digest:
+            return self._refuse_resume(
+                started,
+                "the declared task, run context, budgets, or provider admission profile changed since "
+                "this run was persisted",
+            )
+        if record.in_flight_attempt is not None:
+            return self._refuse_resume(
+                started,
+                f"attempt {record.in_flight_attempt} was still in flight when the run stopped; its "
+                "workspace outcome is unknown",
+            )
+        self._state = _RunState(
+            run_id=run_id,
+            digest=digest,
+            next_attempt_number=record.next_attempt_number,
+            total_prompt_tokens=record.total_prompt_tokens,
+            total_completion_tokens=record.total_completion_tokens,
+            usage_reported=record.usage_reported,
+            repair_task=record.repair_task,
+            cycle_counts=dict(record.cycle_counts),
+        )
+        return None
+
+    def _refuse_resume(self, started: float, diagnostic: str) -> ControllerResult:
+        """A resume that cannot be trusted is terminal; no provider call is made."""
+
+        return self._result(
+            started=started,
+            attempts=[],
+            stop_reason=ControllerStopReason.RECOVERY_FAILED,
+            total_prompt_tokens=0,
+            total_completion_tokens=0,
+            diagnostic=diagnostic,
+            persist=False,
+        )
+
+    def _save_state(self, *, terminal_stop_reason: str | None = None) -> None:
+        """Persist the current run state; a run without a store or identifier is a no-op."""
+
+        state = self._state
+        if self.state_store is None or state.run_id is None:
+            return
+        self.state_store.save(
+            ControllerStateRecord(
+                run_id=state.run_id,
+                conditions_digest=state.digest,
+                next_attempt_number=state.next_attempt_number,
+                total_prompt_tokens=state.total_prompt_tokens,
+                total_completion_tokens=state.total_completion_tokens,
+                usage_reported=state.usage_reported,
+                repair_task=state.repair_task,
+                in_flight_attempt=state.in_flight_attempt,
+                cycle_counts=dict(state.cycle_counts),
+                terminal_stop_reason=terminal_stop_reason,
+            )
         )
 
     def _admission_reason(
@@ -674,7 +819,16 @@ class DiagnoseRepairController:
         total_prompt_tokens: int,
         total_completion_tokens: int,
         diagnostic: str | None = None,
+        persist: bool = True,
     ) -> ControllerResult:
+        if persist:
+            # Every terminal path goes through here, so the terminal record cannot be forgotten at a
+            # return site. A refused resume passes persist=False so it cannot overwrite the state it
+            # refused to trust.
+            self._state.total_prompt_tokens = total_prompt_tokens
+            self._state.total_completion_tokens = total_completion_tokens
+            self._state.in_flight_attempt = None
+            self._save_state(terminal_stop_reason=stop_reason.value)
         return ControllerResult(
             success=stop_reason == ControllerStopReason.PASSED,
             stop_reason=stop_reason,
