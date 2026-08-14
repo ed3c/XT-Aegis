@@ -128,6 +128,7 @@ active rows. Therefore:
 | #30 OpenShell readiness | current adapter probe | live version-pinned smoke proving doctor selection and verification execution agree |
 | #11 reproducible benchmarks | open/unverified | raw schema-valid trials, environment manifest, exact commands, summaries |
 | #12 live runtime conformance | open | pinned OpenShell/rootless OCI adversarial evidence |
+| #18 research tracks | decided | six notes in `docs/design/` with promote/defer/split/reject decisions; no claim promoted |
 | #9 observability | open | schema-versioned event/trace contract and secret-safe exporter tests |
 | #10 crash/deadline recovery | open | kill/restart/cancellation State Machine and fault-injection evidence |
 | #14/#15 | planned | distributed coordination and protected external-side-effect contracts |

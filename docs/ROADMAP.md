@@ -49,6 +49,10 @@ provider proposal -> trusted envelope -> canonical identity -> strong isolation
   `main`, while live version-pinned doctor/execution agreement evidence remains #12);
 - [ ] benchmark corpus and reproducible outcome evidence (#11).
 
+Research tracks (#18) are decided in `docs/design/`: branch-and-evaluate and provider adapters are
+promoted, AST scopes and model-authored memory are rejected, and signed skills and knowledge caches are
+deferred behind named preconditions. No research track promotes a capability claim.
+
 See [Harness-Based Coding Agent](CODING_AGENT_HARNESS.md). A model-facing loop is not a current capability
 until the unchecked items above are implemented and verified.
 
