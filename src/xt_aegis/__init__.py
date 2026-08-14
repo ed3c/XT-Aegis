@@ -10,6 +10,7 @@ from xt_aegis.controller import (
     DiagnoseRepairController,
     InfrastructureUnavailableError,
 )
+from xt_aegis.mcp_transport import TransportGuard, build_transport_guard
 from xt_aegis.models import (
     ActionRequest,
     CommandAction,
@@ -78,12 +79,14 @@ __all__ = [
     "SecureRequestIdentitySource",
     "SkillCompiler",
     "SkillContract",
+    "TransportGuard",
     "TrustedActionEnvelope",
     "TrustedEnvelopeConfig",
     "TrustedRequestIds",
     "VerificationResult",
     "VerificationStatus",
     "build_action_request",
+    "build_transport_guard",
 ]
 
 __version__ = "0.2.0"

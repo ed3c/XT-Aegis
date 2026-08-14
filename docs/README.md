@@ -112,6 +112,7 @@ The complete cross-directory transition table is in
 - [Issue and PR contract](ISSUE_PR_CONTRACT.md)
 - [Reusable Agent prompts](prompts/README.md)
 - [Prompt-injection and policy integrity](PROMPT_INJECTION.md)
+- [MCP transport security](MCP_TRANSPORT.md)
 - [Engineering references](REFERENCES.md)
 - [Design provenance](design/README.md)
 

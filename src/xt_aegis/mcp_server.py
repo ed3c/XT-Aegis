@@ -8,6 +8,11 @@ from inspect import Parameter, signature
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from xt_aegis.mcp_transport import (
+    TransportSecurityUnavailable,
+    build_transport_guard,
+    require_transport_security,
+)
 from xt_aegis.verification import (
     doctor,
     load_registry,
@@ -73,14 +78,34 @@ def _run_server(
     transport: Literal["stdio", "streamable-http"],
     host: str,
     port: int,
+    max_request_bytes: int | None = None,
+    extra_hosts: tuple[str, ...] = (),
 ) -> None:
-    """Run through MCP SDK v1 or v2 while keeping transport settings in the right layer."""
+    """Run through MCP SDK v1 or v2 while keeping transport settings in the right layer.
+
+    stdio has no Host header and is not reachable from a browser, so it needs no guard. HTTP does, and it
+    does not start without one.
+    """
 
     if transport == "stdio":
         server.run()
         return
+
+    runner = getattr(server, "run_streamable_http_async", None)
+    if runner is None:
+        raise TransportSecurityUnavailable(
+            "the installed MCP SDK exposes no streamable-http runner to configure; refusing to serve HTTP"
+        )
+    require_transport_security(runner)
+    settings: dict[str, Any] = {
+        "transport_security": build_transport_guard(
+            host=host, port=port, extra_hosts=extra_hosts
+        ).as_settings(),
+    }
+    if max_request_bytes is not None:
+        settings["max_request_body_size"] = max_request_bytes
     if _constructor_accepts_transport_settings(type(server)):
-        server.run(transport="streamable-http")
+        server.run(transport="streamable-http", **settings)
         return
     server.run(
         transport="streamable-http",
@@ -88,6 +113,7 @@ def _run_server(
         port=port,
         stateless_http=True,
         json_response=True,
+        **settings,
     )
 
 
@@ -244,6 +270,19 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument(
+        "--max-request-bytes",
+        type=int,
+        default=None,
+        help="Bound the HTTP request body. Omitted leaves the SDK default in place.",
+    )
+    parser.add_argument(
+        "--extra-host",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="Additional Host value to admit, for a reverse proxy that keeps its own name.",
+    )
     return parser
 
 
@@ -259,7 +298,14 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - transport
         port=args.port,
     )
     transport: Literal["stdio", "streamable-http"] = args.transport
-    _run_server(server, transport=transport, host=args.host, port=args.port)
+    _run_server(
+        server,
+        transport=transport,
+        host=args.host,
+        port=args.port,
+        max_request_bytes=args.max_request_bytes,
+        extra_hosts=tuple(args.extra_host),
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

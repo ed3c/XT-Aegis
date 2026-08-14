@@ -16,6 +16,9 @@ project uses Semantic Versioning for published interfaces.
 - an optional loopback-only Ollama adapter with bounded no-proxy/no-redirect stdlib HTTP transport and
   typed refusal, timeout, malformed, oversized, truncated, and provider-error outcomes;
 - an argv-only sandbox launcher that confines recipe working directories beneath the uploaded source root;
+- fail-closed Host and Origin validation on the MCP HTTP transport, which previously ran with the SDK's
+  backwards-compatible default of no DNS-rebinding protection at all, plus a compatibility matrix naming
+  the tested SDK version;
 - a pinned, artifact-producing OpenShell live-conformance workflow for user-triggered and relevant pull-request runs.
 
 ### Changed
