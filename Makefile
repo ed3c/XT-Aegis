@@ -8,6 +8,11 @@ test:
 
 lint:
 	ruff check .
+	@if command -v shellcheck >/dev/null 2>&1; then \
+	  scripts/git-town/lint.sh; \
+	else \
+	  echo 'shellcheck not installed; scripts/git-town not linted'; \
+	fi
 
 format-check:
 	ruff format --check .

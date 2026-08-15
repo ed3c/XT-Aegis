@@ -12,9 +12,13 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
 GIT_DIR="$(git -C "$SCRIPT_DIR" rev-parse --absolute-git-dir 2>/dev/null || true)"
 LOCK_FILE="$SCRIPT_DIR/git-town.lock"
+# shellcheck disable=SC2034  # read by bootstrap.sh and verify-stack.sh, not by this file
 MANIFEST_FILE="$SCRIPT_DIR/stack.tsv"
 STATE_DIR="${XT_AEGIS_GIT_TOWN_STATE_DIR:-${GIT_DIR:-$SCRIPT_DIR}/xt-aegis/git-town}"
 LOCK_DIR=""
+# Assigned by each entry point before the first run_logged call. Declared here so the dependency is
+# part of this library's contract rather than something every caller has to remember.
+LOG_FILE=""
 MAX_LOG_BYTES="${XT_AEGIS_GIT_TOWN_MAX_LOG_BYTES:-1048576}"
 GIT_TOWN_TIMEOUT_SECONDS="${XT_AEGIS_GIT_TOWN_TIMEOUT_SECONDS:-1800}"
 
@@ -25,14 +29,15 @@ GIT_TOWN_TIMEOUT_SECONDS="${XT_AEGIS_GIT_TOWN_TIMEOUT_SECONDS:-1800}"
 # shellcheck source=git-town.lock
 source "$LOCK_FILE"
 
-[[ "$MAX_LOG_BYTES" =~ ^[0-9]+$ ]] && (( MAX_LOG_BYTES >= 65536 && MAX_LOG_BYTES <= 8388608 )) || {
+if ! [[ "$MAX_LOG_BYTES" =~ ^[0-9]+$ ]] || (( MAX_LOG_BYTES < 65536 || MAX_LOG_BYTES > 8388608 )); then
   printf 'error: XT_AEGIS_GIT_TOWN_MAX_LOG_BYTES must be between 65536 and 8388608\n' >&2
   exit 1
-}
-[[ "$GIT_TOWN_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] && (( GIT_TOWN_TIMEOUT_SECONDS >= 1 && GIT_TOWN_TIMEOUT_SECONDS <= 7200 )) || {
+fi
+if ! [[ "$GIT_TOWN_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] ||
+  (( GIT_TOWN_TIMEOUT_SECONDS < 1 || GIT_TOWN_TIMEOUT_SECONDS > 7200 )); then
   printf 'error: XT_AEGIS_GIT_TOWN_TIMEOUT_SECONDS must be between 1 and 7200\n' >&2
   exit 1
-}
+fi
 
 die() {
   printf 'error: %s\n' "$*" >&2
@@ -216,6 +221,7 @@ bound_file() {
 }
 
 run_logged() {
+  [[ -n "$LOG_FILE" ]] || die "run_logged requires LOG_FILE; the entry point must set it first"
   local rc
   if "$@" >>"$LOG_FILE" 2>&1; then
     rc=0
@@ -229,7 +235,9 @@ run_logged() {
 bounded_tail() {
   local path=$1
   local lines=${2:-200}
-  [[ -f "$path" ]] && tail -n "$lines" -- "$path" || true
+  if [[ -f "$path" ]]; then
+    tail -n "$lines" -- "$path" || true
+  fi
 }
 
 abort_git_operations() {

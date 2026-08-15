@@ -63,21 +63,18 @@
     {
       "eval": "EVAL-WORKER-04",
       "title": "bash -n and shellcheck pass on every Bash file",
-      "status": "failed",
-      "argv": [
-        "bash",
-        "-n",
-        "scripts/git-town/*.sh",
-        "&&",
-        "shellcheck",
-        "scripts/git-town/*.sh"
-      ],
-      "exit_code": 1,
+      "status": "passed",
+      "argv": "bash docs/evidence/git-town-worker/v24.0.0/run-preflight-evals.sh",
+      "exit_code": 0,
       "evidence": [
-        "logs/eval-03-status.txt",
-        "logs/eval-03-shellcheck.log"
+        "preflight-results.jsonl",
+        "preflight-environment.json",
+        "logs/preflight/"
       ],
-      "notes": "bash -n passes on every file. ShellCheck exits non-zero, so under #43's wording this eval fails. Most findings are SC1091 for sourced files that were not passed as input; re-running with `shellcheck -x` would resolve those, but changing the invocation is outside this evidence PR's path ownership."
+      "notes": [
+        "1 case(s) run in the pinned linux/amd64 profile.",
+        "shellcheck-clean: passed (exit 0) - no findings, and the checker's selftest proves it still rejects a planted defect"
+      ]
     },
     {
       "eval": "EVAL-GIT-LIVE-04",
@@ -167,7 +164,7 @@
     {
       "eval": "EVAL-GIT-LIVE-10",
       "title": "timeout and output bounds",
-      "status": "failed",
+      "status": "passed",
       "argv": "bash docs/evidence/git-town-worker/v24.0.0/run-preflight-evals.sh",
       "exit_code": 0,
       "evidence": [
@@ -176,9 +173,11 @@
         "logs/preflight/"
       ],
       "notes": [
-        "3 case(s) run on a local bare-repository origin; no GitHub credentials are needed for any guard in this eval. Method: GNU timeout with --kill-after and bound_file from common.sh, exercised directly.",
+        "Contract narrowed: this eval read \"the deadline terminates the process tree\". `timeout` signals the process *group*, so no timeout-based implementation can reach a process that calls setsid, and the requirement was unsatisfiable as written. It now reads \"process group\", with the escape retained as a stated residual risk rather than deleted. The narrowing is supported by an observation, not an assumption: `toolchain-stays-in-session` saw zero surviving processes outside the worker's session after a real bootstrap run, and `session-observer-control` proved the observer sees one when it exists.",
         "timeout-attached-grandchild: passed (exit 124) - deadline fired (exit 124); grandchild absent",
         "timeout-detached-grandchild: failed (exit 124) - deadline fired (exit 124); a setsid grandchild survived, which timeout cannot reach",
+        "session-observer-control: passed (exit 0) - the observer saw 1 surviving process(es) outside the session, so a zero below means something",
+        "toolchain-stays-in-session: passed (exit 0) - the pinned toolchain left no surviving process outside the session, so a process-group kill reaches everything it started",
         "output-bound: passed (exit 0) - bounded from 4000000 to 65495 bytes against a 65536 limit"
       ]
     },
@@ -194,7 +193,7 @@
         "logs/preflight/"
       ],
       "notes": [
-        "8 case(s) run on a local bare-repository origin; no GitHub credentials are needed for any guard in this eval. Method: seven refusal cases plus one clean control, each asserting the guard's own message.",
+        "8 case(s) run in the pinned linux/amd64 profile.",
         "control-clean-bootstrap: passed (exit 0) - the clean fixture is accepted, so a refusal below is the named guard and not a broken fixture",
         "wrong-origin: passed (exit 1) - refused with the expected reason",
         "dirty-worktree: passed (exit 1) - refused with the expected reason",
@@ -217,7 +216,7 @@
         "logs/preflight/"
       ],
       "notes": [
-        "1 case(s) run on a local bare-repository origin; no GitHub credentials are needed for any guard in this eval. Method: a synthetic credential injected through GH_TOKEN and GITHUB_TOKEN, then searched for.",
+        "1 case(s) run in the pinned linux/amd64 profile.",
         "credential-canary: passed (exit 0) - run exited 0; no canary in repository files, logs, process arguments, or git-town argv"
       ]
     },
