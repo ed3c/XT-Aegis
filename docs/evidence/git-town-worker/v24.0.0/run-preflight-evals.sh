@@ -56,7 +56,7 @@ install_toolchain() {
   apt-get -qq install -y --no-install-recommends \
     ca-certificates curl git jq shellcheck coreutils procps >/dev/null
 
-  # shellcheck disable=SC1090
+  # shellcheck disable=SC1090,SC1091  # $SRC is a runtime mount point; the path cannot be resolved statically
   source "$SRC/scripts/git-town/git-town.lock"
   local url="https://github.com/git-town/git-town/releases/download/${GIT_TOWN_UPSTREAM_TAG}/${GIT_TOWN_LINUX_AMD64_PACKAGE}"
   curl -sfSL -o /tmp/git-town.deb "$url"
@@ -296,6 +296,70 @@ eval_10_timeout_and_bounds() {
       "logs/timeout-${variant}.log"
   done
 
+  # Whether the detached case is reachable at all with the pinned toolchain is an empirical question, and
+  # the answer decides how much the failure above means. Observed, not asserted.
+  #
+  # A process that leaves the session and then exits is harmless: the deadline exists to stop work that
+  # hangs. The hazard is one that leaves the session and *survives*, so the observation looks for
+  # survivors after the command has already returned.
+  observe_strays() {
+    local label=$1
+    shift
+    local own_sid orc
+    own_sid="$(ps -o sid= -p $$ | tr -d ' ')"
+    ps -eo pid= | tr -d ' ' | sort >"$OUT/logs/pids-before-${label}.txt"
+    set +e
+    "$@" >"$OUT/logs/session-${label}.log" 2>&1
+    orc=$?
+    set -e
+    sleep 1
+    ps -eo pid=,sid=,args= >"$OUT/logs/ps-after-${label}.txt"
+    awk -v own="$own_sid" 'NR==FNR { seen[$1]=1; next }
+                           { if (!($1 in seen) && $2 != own) print }' \
+      "$OUT/logs/pids-before-${label}.txt" "$OUT/logs/ps-after-${label}.txt" \
+      >"$OUT/logs/strays-${label}.txt"
+    STRAY_COUNT="$(wc -l <"$OUT/logs/strays-${label}.txt" | tr -d ' ')"
+    STRAY_RC="$orc"
+  }
+
+  # Control first. An observer that cannot see an escape is no evidence that nothing escaped.
+  #
+  # The escapee has to be backgrounded. A foreground `setsid sleep 60` runs to completion before the
+  # observation happens, so the observer correctly reports nothing and the control silently becomes
+  # vacuous -- which is exactly the shape of a check that always passes.
+  observe_strays control bash -c 'setsid sleep 60 >/dev/null 2>&1 &'
+  local control_strays=$STRAY_COUNT
+  local stray_pid
+  while read -r stray_pid _; do
+    [[ -n "$stray_pid" ]] && kill -9 "$stray_pid" 2>/dev/null
+  done <"$OUT/logs/strays-control.txt" || true
+  if (( control_strays >= 1 )); then
+    record EVAL-GIT-LIVE-10 session-observer-control passed 0 "setsid sleep 60" \
+      "the observer saw ${control_strays} surviving process(es) outside the session, so a zero below means something" \
+      "logs/strays-control.txt"
+  else
+    record EVAL-GIT-LIVE-10 session-observer-control failed 0 "setsid sleep 60" \
+      "the observer saw no escape from a deliberate setsid, so it cannot support any claim below" \
+      "logs/strays-control.txt"
+  fi
+
+  # The real worker path reachable without a forge: bootstrap.sh drives git and the pinned git-town binary.
+  reset_fixture
+  observe_strays toolchain env "XT_AEGIS_GIT_TOWN_EXPECTED_ORIGIN_URL=$FIXTURE/remote.git" \
+    bash -c "cd '$WORK' && bash '$W/bootstrap.sh' --apply"
+  local toolchain_strays=$STRAY_COUNT
+  if (( control_strays >= 1 )) && (( toolchain_strays == 0 )); then
+    record EVAL-GIT-LIVE-10 toolchain-stays-in-session passed "$STRAY_RC" \
+      "bootstrap.sh --apply, observed for surviving processes outside the worker's session" \
+      "the pinned toolchain left no surviving process outside the session, so a process-group kill reaches everything it started" \
+      "logs/strays-toolchain.txt"
+  else
+    record EVAL-GIT-LIVE-10 toolchain-stays-in-session failed "$STRAY_RC" \
+      "bootstrap.sh --apply, observed for surviving processes outside the worker's session" \
+      "observed ${toolchain_strays} surviving process(es) outside the session; the control saw ${control_strays}" \
+      "logs/strays-toolchain.txt"
+  fi
+
   # The bound is applied by `bound_file`, so exercise that function rather than a copy of its rule.
   local flood="$OUT/logs/output-flood.log"
   head -c 4000000 /dev/zero | tr '\0' 'x' >"$flood"
@@ -304,7 +368,7 @@ eval_10_timeout_and_bounds() {
   (
     cd "$WORK"
     export XT_AEGIS_GIT_TOWN_MAX_LOG_BYTES=65536
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1090,SC1091  # $W points into the runtime fixture, not into this checkout
     source "$W/common.sh"
     bound_file "$flood"
   )
@@ -390,8 +454,44 @@ write_environment() {
 
 # ---------------------------------------------------------------------------- main
 
+# ---------------------------------------------------------------------------- EVAL-WORKER-04
+
+eval_worker_04_shell_analysis() {
+  # The committed invocation, not a remembered one. Every script here carries a `# shellcheck source=`
+  # directive, and those directives are inert without `-x`; checking the files one at a time also hides
+  # cross-file use. Run that way this directory reports fifteen findings, seven of them SC1091 "not
+  # following" -- the linter reporting that it was invoked without permission to resolve what the scripts
+  # already declare.
+  local logfile="$OUT/logs/shellcheck.log"
+  set +e
+  bash "$SRC/scripts/git-town/lint.sh" >"$logfile" 2>&1
+  local rc=$?
+  set -e
+
+  local selftest_log="$OUT/logs/shellcheck-selftest.log"
+  set +e
+  bash "$SRC/scripts/git-town/lint.sh" --selftest >"$selftest_log" 2>&1
+  local src=$?
+  set -e
+
+  local status detail
+  if (( rc == 0 && src == 0 )); then
+    status=passed
+    detail="no findings, and the checker's selftest proves it still rejects a planted defect"
+  elif (( src != 0 )); then
+    status=failed
+    detail="the checker's selftest failed, so a clean result would not be evidence"
+  else
+    status=failed
+    detail="shellcheck reported findings; see the log"
+  fi
+  record EVAL-WORKER-04 shellcheck-clean "$status" "$rc" "scripts/git-town/lint.sh" "$detail" \
+    "logs/shellcheck.log"
+}
+
 install_toolchain
 write_environment
+eval_worker_04_shell_analysis
 build_fixture
 eval_11_preflight_isolation
 eval_10_timeout_and_bounds

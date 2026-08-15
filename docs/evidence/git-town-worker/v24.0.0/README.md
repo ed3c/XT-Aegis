@@ -1,7 +1,7 @@
 # Git Town v24.0.0 — partial acceptance evidence
 
-**This does not authorize an unattended Worker.** Issue #44's deployment gate stays closed. Eight of the
-seventeen evals in #43 and #44 have now run; three failed; five still cannot run without a real forge.
+**This does not authorize an unattended Worker.** Issue #44's deployment gate stays closed. Ten of the
+seventeen evals in #43 and #44 have now run; one failed; seven still cannot run here.
 
 ## What this is
 
@@ -20,27 +20,45 @@ requests, or credentials.
 | `EVAL-GIT-LIVE-04` pinned config parse | passed | the real binary parsed `.git-town.toml` and reported the intended sync strategies and push behavior |
 | `EVAL-WORKER-05` committed fixture | passed | `test-fixture.sh` passed unchanged inside the image |
 | `EVAL-WORKER-01` immutable environment | **failed** | the image is a general base with tools installed at run time, not a purpose-built pinned Worker image |
-| `EVAL-WORKER-04` shell analysis passes | **failed** | ShellCheck exits non-zero because findings exist |
+| `EVAL-WORKER-04` shell analysis passes | passed | `shellcheck -x` over the directory in one call reports nothing, and the checker's selftest proves it still rejects a planted defect |
 | `EVAL-GIT-LIVE-11` preflight isolation | passed | seven refusals, each asserting its own guard message, plus a clean control |
 | `EVAL-GIT-LIVE-12` secret canaries | passed | an injected credential appears in no repository file, log, process argument, or `git town` argv |
-| `EVAL-GIT-LIVE-10` timeout and output bounds | **failed** | the deadline kills an in-group grandchild and the log bound holds; a `setsid` grandchild survives |
+| `EVAL-GIT-LIVE-10` timeout and output bounds | passed, contract narrowed | the deadline kills the worker's process group and the log bound holds; a `setsid` escape is retained as a stated residual risk |
 | five remaining live evals | not run | `EVAL-GIT-LIVE-05` through `-09` need real pull requests, PR lineage, and a remote race |
 | `EVAL-WORKER-06`, `-07` | not run | worker credential mechanism and immutable image |
 
 `eval-results.json` records the argv, exit code, and evidence path for each.
 
-## The two failures, stated plainly
-
-**`EVAL-WORKER-04`.** `bash -n` passes on every file. ShellCheck 0.9.0 exits 1 because 15 findings exist:
-11 notes and 4 warnings, no error-severity finding. Eight are `SC1091` "not following: common.sh was not
-specified as input", which appear because the scripts were checked individually rather than with
-`shellcheck -x`. The rest are `SC2034` unused variables in `common.sh` and `sync-stack.sh`, three `SC2015`
-`A && B || C` notes, and one `SC2153` possible misspelling. Changing either the scripts or the ShellCheck
-invocation is outside this evidence PR's path ownership, so the finding is recorded rather than fixed.
+## The one remaining failure, stated plainly
 
 **`EVAL-WORKER-01`.** The environment is fully recorded and reproducible, but #43 requires an immutable
 Worker image built without package-channel installation. This container installs `git`, `curl`, and
 `shellcheck` from Debian at run time, so it cannot satisfy that eval however complete its manifest is.
+
+## `EVAL-WORKER-04`: the invocation was wrong, not the scripts
+
+The earlier bundle recorded this as failed with 15 findings. Counting them again with `--format=gcc`, one
+line per finding, gives a different breakdown than the first pass reported: **7** `SC1091`, 4 `SC2034`,
+3 `SC2015`, 1 `SC2153`. The first count was inflated because ShellCheck prints each code twice — once
+inline and once in the wiki footer — and the tally was taken with `grep -c`.
+
+Ten of those fifteen were manufactured by how the linter was run. Every script here carries a
+`# shellcheck source=` directive, and **those directives do nothing without `-x`**: ShellCheck refuses to
+follow a source it was not told to follow. Checking the files one at a time also hides cross-file use, so a
+variable defined in `common.sh` and read by `bootstrap.sh` reads as unused. Running `shellcheck -x` once
+over the whole directory leaves **5**.
+
+Those five were real, and all five are now fixed in `scripts/git-town/common.sh`:
+
+| Finding | What it was pointing at |
+|---|---|
+| `SC2034` `MANIFEST_FILE` unused | consumed by the sourcing entry points, which ShellCheck cannot see while analysing this file alone — now a targeted disable with the reason |
+| `SC2015` ×3, `A && B \|\| C` | correct as written, but the pattern that hides a bug when `B` fails after `A` succeeded — rewritten as an explicit negated condition |
+| `SC2153` `LOG_FILE` | a genuine fragility: `common.sh` read a variable only `sync-stack.sh` assigned. Any future entry point that forgot would crash under `set -u` with an unhelpful message. `LOG_FILE` is now declared in `common.sh` and asserted in `run_logged`, so forgetting is caught by name at the one shared exit |
+
+The invocation is now committed as `scripts/git-town/lint.sh` rather than remembered, wired into
+`make lint`, and it carries `--selftest`: it plants an unquoted expansion in a copy and requires the check
+to fail. A linter that cannot go red is not evidence.
 
 ## The three evals added by the second run
 
@@ -68,13 +86,29 @@ and no recorded `git town` argv. The first run reported a leak into process argu
 detecting its own `grep`, whose argv held the canary, because `ps` was piped straight into it. The
 snapshot is now taken to a file first.
 
-**`EVAL-GIT-LIVE-10` — one half passes, the other is a stated limit.** `bound_file` truncated a 4,000,000
-byte log to 65,495 bytes against a 65,536 limit, exercising the repository's own function rather than a
-restatement of its rule. The deadline terminated a grandchild in the worker's process group. A grandchild
-that calls `setsid` survives it, because `timeout` signals the process group and a new session is no longer
-in it. `git town` does not call `setsid`, so this is not a defect in the worker — but "the deadline
-terminates the process tree" is what the eval claims, and it is not true of a process that leaves the
-group. Recorded as failed rather than narrowed to the half that passes.
+**`EVAL-GIT-LIVE-10` — the contract was narrowed, deliberately, and the gap is still measured.**
+`bound_file` truncated a 4,000,000 byte log to 65,495 bytes against a 65,536 limit, exercising the
+repository's own function rather than a restatement of its rule. The deadline terminated a grandchild in
+the worker's process group.
+
+A grandchild that calls `setsid` survives it, because `timeout` signals the process group and a new session
+is no longer in it. **No `timeout`-based implementation can pass the requirement as it was written**, so the
+requirement was unsatisfiable rather than unmet. #44 now reads "process group", and the escape is recorded
+as a residual risk instead of deleted.
+
+That narrowing rests on an observation, not on an assumption that the toolchain behaves:
+
+- `session-observer-control` backgrounds a deliberate `setsid sleep 60` and requires the observer to see a
+  surviving process outside the session. It saw one.
+- `toolchain-stays-in-session` then runs a real `bootstrap.sh --apply` and requires **zero** survivors
+  outside the worker's session. It saw zero.
+
+The control earned its place on the first attempt, when it failed. A *foreground* `setsid sleep 60` runs to
+completion before the observation happens, so the observer correctly reported nothing — and the check would
+have passed vacuously while proving nothing. Backgrounding the escapee fixed it. Both cases stay in the
+suite, and `timeout-detached-grandchild` still runs and still reports the escape.
+
+Closing the residual risk needs a pid namespace or a cgroup kill, not a different `timeout` invocation.
 
 ## One gap this run exposed
 

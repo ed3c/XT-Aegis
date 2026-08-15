@@ -1,0 +1,1 @@
+shellcheck -x: no findings in /src/scripts/git-town
