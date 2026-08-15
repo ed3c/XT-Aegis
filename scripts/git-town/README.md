@@ -49,12 +49,21 @@ and worktree cleanliness.
 
 ## Required environment
 
+None for artifact identity. Every digest — package, installed binary, license, and config — comes from
+`git-town.lock`, so no caller can declare what the binary is expected to hash to.
+
+The Worker image provides credentials only. It pins Bash 4+, Git, GitHub CLI, GNU `timeout`, ShellCheck,
+and the exact Git Town version declared by `git-town.lock`.
+
+## Linting
+
 ```bash
-export GIT_TOWN_BINARY_SHA256="<approved SHA-256 of the installed git-town binary>"
+scripts/git-town/lint.sh            # shellcheck -x over the directory, in one call
+scripts/git-town/lint.sh --selftest # prove the checker still rejects a planted defect
 ```
 
-The Worker image provides credentials and platform checksum inputs. It pins Bash 4+, Git, GitHub CLI,
-GNU `timeout`, ShellCheck, and the exact Git Town version declared by `git-town.lock`.
+The flags matter: every script here carries a `# shellcheck source=` directive, and those directives are
+inert without `-x`.
 
 Optional Worker-controlled limits:
 
