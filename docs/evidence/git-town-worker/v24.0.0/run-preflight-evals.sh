@@ -102,6 +102,8 @@ build_fixture() {
   mkdir -p "$WORK/$SCRIPTS"
   cp "$SRC"/scripts/git-town/*.sh "$SRC"/scripts/git-town/git-town.lock "$WORK/$SCRIPTS/"
   cp "$SRC/.git-town.toml" "$WORK/.git-town.toml"
+  mkdir -p "$WORK/third_party/git-town"
+  cp "$SRC/third_party/git-town/LICENSE" "$WORK/third_party/git-town/LICENSE"
   write_manifest
   printf 'base\n' >"$WORK/file.txt"
 
@@ -247,6 +249,82 @@ eval_11_preflight_isolation() {
 
   reset_fixture
   unset XT_AEGIS_GIT_TOWN_EXPECTED_ORIGIN_URL
+}
+
+# ---------------------------------------------------------------------------- EVAL-WORKER-05
+
+eval_worker_05_contract_fixture() {
+  # The no-network contract fixture, run against this checkout. It builds its own disposable repository
+  # and a stub `git-town`, so it covers the flow; the accepting side of the real binary pin is covered by
+  # EVAL-GIT-LIVE-02 below, with the genuine package.
+  local logfile="$OUT/logs/test-fixture.log"
+  local root="$FIXTURE/fixture-source"
+  mkdir -p "$root"
+  cp -R "$SRC"/scripts "$SRC"/third_party "$root/"
+  cp "$SRC/.git-town.toml" "$root/"
+  set +e
+  ( cd "$root" && XT_AEGIS_FIXTURE_SOURCE_ROOT="$root" bash scripts/git-town/test-fixture.sh ) \
+    >"$logfile" 2>&1
+  local rc=$?
+  set -e
+  local status=passed detail="the contract fixture passed unchanged"
+  if (( rc != 0 )); then
+    status=failed
+    detail="the contract fixture failed; see the log"
+  fi
+  record EVAL-WORKER-05 contract-fixture "$status" "$rc" "scripts/git-town/test-fixture.sh" "$detail" \
+    "logs/test-fixture.log"
+}
+
+# ---------------------------------------------------------------------------- EVAL-02
+
+eval_02_binary_identity() {
+  reset_fixture
+  local W="$WORK/$SCRIPTS"
+  # Without /usr/local/bin the argv-recording shim is out of the way and `git-town` resolves to the real
+  # installed binary.
+  local clean_path=/usr/bin:/bin:/usr/sbin:/sbin
+
+  local logfile="$OUT/logs/binary-pin-accepts.log"
+  set +e
+  ( cd "$WORK" && PATH="$clean_path" bash "$W/verify-license.sh" ) >"$logfile" 2>&1
+  local rc=$?
+  set -e
+  if (( rc == 0 )) && grep -q "binary_sha256=" "$logfile"; then
+    record EVAL-GIT-LIVE-02 binary-pin-accepts-real passed "$rc" "verify-license.sh" \
+      "the genuine installed binary matches the digest pinned in git-town.lock" \
+      "logs/binary-pin-accepts.log"
+  else
+    record EVAL-GIT-LIVE-02 binary-pin-accepts-real failed "$rc" "verify-license.sh" \
+      "the real binary was refused; the pinned digest does not describe what the package installs" \
+      "logs/binary-pin-accepts.log"
+  fi
+
+  # A wrapper earlier on PATH is a different binary. The argv-recording shim this script installs is
+  # exactly that, so it doubles as the attack: `command -v` must resolve to it and the check must refuse.
+  guard_case EVAL-GIT-LIVE-02 binary-pin-rejects-wrapper "installed git-town binary SHA-256 mismatch" \
+    bash "$W/verify-license.sh"
+
+  # And the expectation itself must be load-bearing: corrupt the pinned value and the same run must fail.
+  reset_fixture
+  sed -i 's/^GIT_TOWN_LINUX_AMD64_BINARY_SHA256=.*/GIT_TOWN_LINUX_AMD64_BINARY_SHA256="0000000000000000000000000000000000000000000000000000000000000000"/' \
+    "$W/git-town.lock"
+  commit_all
+  local tampered="$OUT/logs/binary-pin-tampered.log"
+  set +e
+  ( cd "$WORK" && PATH="$clean_path" bash "$W/verify-license.sh" ) >"$tampered" 2>&1
+  local trc=$?
+  set -e
+  if (( trc != 0 )) && grep -q "installed git-town binary SHA-256 mismatch" "$tampered"; then
+    record EVAL-GIT-LIVE-02 binary-pin-rejects-tampered-lock passed "$trc" "verify-license.sh" \
+      "a corrupted pinned digest refuses the genuine binary, so the comparison is real" \
+      "logs/binary-pin-tampered.log"
+  else
+    record EVAL-GIT-LIVE-02 binary-pin-rejects-tampered-lock failed "$trc" "verify-license.sh" \
+      "a corrupted pinned digest did not refuse, so the comparison proves nothing" \
+      "logs/binary-pin-tampered.log"
+  fi
+  reset_fixture
 }
 
 # ---------------------------------------------------------------------------- EVAL-10
@@ -493,6 +571,8 @@ install_toolchain
 write_environment
 eval_worker_04_shell_analysis
 build_fixture
+eval_02_binary_identity
+eval_worker_05_contract_fixture
 eval_11_preflight_isolation
 eval_10_timeout_and_bounds
 eval_12_secret_canaries

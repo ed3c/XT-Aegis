@@ -64,7 +64,9 @@ A Worker Agent may run Git Town only when:
    separately pinned and reviewed;
 2. `checksums.txt`, package SHA-256, package metadata, tag, and release commit agree;
 3. `git town --version` exactly reports `24.0.0`;
-4. the worker supplies `GIT_TOWN_BINARY_SHA256` from its immutable image manifest;
+4. the resolved `git-town` on `PATH` matches `GIT_TOWN_LINUX_AMD64_BINARY_SHA256` in `git-town.lock`,
+   which the worker cannot override — an expectation supplied by whoever started the run would verify
+   the run against its own claim;
 5. the installed binary and copied MIT license match their pinned digests;
 6. Bash, Git, GitHub CLI, GNU `timeout`, and ShellCheck versions are pinned;
 7. credentials are injected outside repository files, prompts, arguments, logs, and evidence;

@@ -15,7 +15,7 @@ requests, or credentials.
 | Eval | Status | What it establishes |
 |---|---|---|
 | `EVAL-GIT-LIVE-01` release package identity | passed | the release `checksums.txt`, its entry for the package, and the downloaded package all match the pinned lock; DEB reports `24.0.0` / `amd64` |
-| `EVAL-GIT-LIVE-02` installed identity | passed | the installed binary reports `24.0.0` and the copied MIT text matches the pinned digest |
+| `EVAL-GIT-LIVE-02` installed identity | passed | the installed binary reports `24.0.0`, the copied MIT text matches, and the binary digest is now pinned in the lock — accepted for the genuine binary, refused for a `PATH` wrapper and for a corrupted pin |
 | `EVAL-GIT-LIVE-03` shell analysis | passed | all 15 ShellCheck findings preserved with the tool version |
 | `EVAL-GIT-LIVE-04` pinned config parse | passed | the real binary parsed `.git-town.toml` and reported the intended sync strategies and push behavior |
 | `EVAL-WORKER-05` committed fixture | passed | `test-fixture.sh` passed unchanged inside the image |
@@ -110,18 +110,39 @@ suite, and `timeout-detached-grandchild` still runs and still reports the escape
 
 Closing the residual risk needs a pid namespace or a cgroup kill, not a different `timeout` invocation.
 
-## One gap this run exposed
+## The gap this run exposed, now closed
 
-`scripts/git-town/git-town.lock` pins the release artifact, the license blob, and the config digest, but it
-does **not** pin `GIT_TOWN_BINARY_SHA256`. `verify-license.sh` reads that value from the environment and
-accepts the run when it is unset, so the installed-binary identity is currently unpinned. This run observed:
+An earlier version of this document said `verify-license.sh` "accepts the run when the value is unset".
+**That was wrong** — it always died with `GIT_TOWN_BINARY_SHA256 must contain the approved worker-image
+checksum`. The real gap was narrower and different: the expectation was read from the **environment**, so
+whoever started the worker declared what the binary should hash to. The run verified itself against its own
+claim.
 
-```text
-dbaba38145246f602940e7261190f394cb4cd6dbc0d079233e3a15c42a11f461  /usr/bin/git-town
-```
+`GIT_TOWN_LINUX_AMD64_BINARY_SHA256` is now pinned in `git-town.lock` and the environment is no longer
+consulted. The value is a **derived constant of the already-pinned package**, not an observation of one
+host — three independent arrivals agree:
 
-That value came from a package whose digest matches the pinned lock, so it is a defensible candidate to
-pin. Pinning it belongs to a change that owns `scripts/git-town/**`, not to this evidence bundle.
+| Arrival | Result |
+|---|---|
+| `dpkg-deb -x` on the digest-verified package | `dbaba381…` |
+| `command -v git-town` after `dpkg -i` | `dbaba381…` |
+| the path `dpkg -L git-town` reports it owns | `dbaba381…` |
+
+Three cases prove the pin bites, in both directions:
+
+- **accepts the genuine binary** — `verify-license.sh` exits 0 and prints the full identity line.
+- **refuses a `PATH` wrapper** — this suite's own argv-recording shim sits earlier on `PATH`, so it doubles
+  as the attack. `command -v` resolves to it and the check refuses, naming both digests and the resolved
+  path. That is deliberate: the property worth checking is the identity of the binary the worker will
+  actually run, not of a file the package happens to own.
+- **refuses a corrupted pin** — with the lock's value zeroed, the genuine binary is refused, so the
+  comparison is real rather than a constant `true`.
+
+The same change removed a self-certification in `test-fixture.sh`. It hashed its own stub `git-town` at run
+time and fed the result back in as the approved value, so the accepting case could never fail — it proved
+that `sha256sum` is deterministic. The stub's digest is now a **committed constant**, verified two ways: a
+corrupted constant is rejected, and a single changed byte inside the stub is rejected with the corrected
+value printed.
 
 ## Reproduction
 
@@ -155,7 +176,6 @@ docker run --rm --platform linux/amd64 \
     git config --global --add safe.directory /repo
     bash scripts/git-town/verify-release-artifact.sh /tmp/git-town_linux_intel_64.deb
     dpkg -i /tmp/git-town_linux_intel_64.deb
-    GIT_TOWN_BINARY_SHA256="$(sha256sum "$(command -v git-town)" | cut -d" " -f1)" \
       bash scripts/git-town/verify-license.sh
     for s in scripts/git-town/*.sh; do bash -n "$s"; done
     shellcheck --format=gcc scripts/git-town/*.sh || true

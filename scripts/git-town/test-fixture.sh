@@ -76,6 +76,21 @@ git switch -q agent/git-town-unattended-stack
 cp -R -- "$REPO_ROOT/scripts" .
 cp -R -- "$REPO_ROOT/third_party" .
 cp -- "$REPO_ROOT/.git-town.toml" .
+
+# This fixture runs a stub `git-town`, so it cannot exercise the accepting side of the real binary pin --
+# that needs the genuine package and runs in docs/evidence/git-town-worker/v24.0.0/run-preflight-evals.sh.
+# What it can do is exercise the flow against a consistent fake world, by pinning the stub in the fixture's
+# own copy of the lock. The repository's lock is untouched.
+#
+# The expectation is a committed constant, not a runtime `sha256sum` of the stub. Hashing the thing under
+# test and calling the result approved is what the previous version did, and it can never fail. With a
+# constant, editing the stub turns this red until someone updates it on purpose.
+FIXTURE_STUB_SHA256="5d5fc38cb0b971cf5b528f62a665f48fe1e0c152a9fe42253b0d5d276edc07aa"
+FIXTURE_LOCK="$FIXTURE/scripts/git-town/git-town.lock"
+pin_fixture_binary_sha() {
+  sed -i "s|^GIT_TOWN_LINUX_AMD64_BINARY_SHA256=.*|GIT_TOWN_LINUX_AMD64_BINARY_SHA256=\"$1\"|" "$FIXTURE_LOCK"
+}
+pin_fixture_binary_sha "$FIXTURE_STUB_SHA256"
 # The repository manifest is intentionally empty when no real stack is active.
 # Populate a synthetic active topology only inside this disposable fixture.
 cat >scripts/git-town/stack.tsv <<'FIXTURE_STACK'
@@ -193,8 +208,13 @@ chmod +x "$BIN/gh"
 export PATH="$BIN:$PATH"
 export FAKE_GIT_TOWN_STATE="$FAKE_STATE"
 export XT_AEGIS_GIT_TOWN_EXPECTED_ORIGIN_URL="$BARE"
-export GIT_TOWN_BINARY_SHA256
-GIT_TOWN_BINARY_SHA256="$(sha256sum "$BIN/git-town" | awk '{print $1}')"
+
+observed_stub_sha="$(sha256sum "$BIN/git-town" | awk '{print $1}')"
+[[ "$observed_stub_sha" == "$FIXTURE_STUB_SHA256" ]] || {
+  printf 'error: the fixture stub changed; update FIXTURE_STUB_SHA256 to %s after reviewing the edit\n' \
+    "$observed_stub_sha" >&2
+  exit 1
+}
 
 # Establish explicit local parent metadata without rebasing or switching branches.
 scripts/git-town/bootstrap.sh --apply >/dev/null
@@ -272,15 +292,21 @@ set -e
 [[ $rc -ne 0 ]]
 grep -q 'Git Town version mismatch' <<<"$output"
 
-approved_sha="$GIT_TOWN_BINARY_SHA256"
-GIT_TOWN_BINARY_SHA256="$(printf '0%.0s' {1..64})"
+# The binary digest must be load-bearing: corrupt the pinned value in the fixture's lock and the same run
+# has to fail. This replaces an older check that set an environment variable to zeroes, which only proved
+# that two different strings compare unequal -- the expectation is no longer caller-supplied at all.
+pin_fixture_binary_sha "$(printf '0%.0s' {1..64})"
+git add scripts/git-town/git-town.lock
+git commit -qm 'tamper pinned binary digest for negative eval'
 set +e
 output="$(scripts/git-town/verify-license.sh 2>&1)"
 rc=$?
 set -e
 [[ $rc -ne 0 ]]
 grep -q 'installed git-town binary SHA-256 mismatch' <<<"$output"
-GIT_TOWN_BINARY_SHA256="$approved_sha"
+pin_fixture_binary_sha "$FIXTURE_STUB_SHA256"
+git add scripts/git-town/git-town.lock
+git commit -qm 'restore pinned binary digest'
 
 cp .git-town.toml "$TMP_ROOT/git-town.toml"
 printf '\n# tampered\n' >>.git-town.toml

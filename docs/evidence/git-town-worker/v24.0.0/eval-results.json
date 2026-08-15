@@ -31,17 +31,19 @@
       "eval": "EVAL-GIT-LIVE-02",
       "title": "installed binary identity and copied license",
       "status": "passed",
-      "argv": [
-        "bash",
-        "scripts/git-town/verify-license.sh"
-      ],
+      "argv": "bash docs/evidence/git-town-worker/v24.0.0/run-preflight-evals.sh",
       "exit_code": 0,
       "evidence": [
-        "logs/eval-02-verify-license.log",
-        "logs/binary-sha256.txt",
-        "logs/git-town-version.txt"
+        "preflight-results.jsonl",
+        "preflight-environment.json",
+        "logs/preflight/"
       ],
-      "notes": "the installed binary reports 24.0.0 and the copied MIT text matches the pinned digest; the binary SHA-256 was supplied for this run because the lock does not pin one"
+      "notes": [
+        "The binary digest is now pinned in git-town.lock as GIT_TOWN_LINUX_AMD64_BINARY_SHA256 and is no longer read from the environment. It is a derived constant of the already-pinned package: `dpkg-deb -x`, `command -v git-town` after `dpkg -i`, and `dpkg -L git-town` all produce dbaba38145246f602940e7261190f394cb4cd6dbc0d079233e3a15c42a11f461.",
+        "binary-pin-accepts-real: passed (exit 0) - the genuine installed binary matches the digest pinned in git-town.lock",
+        "binary-pin-rejects-wrapper: passed (exit 1) - refused with the expected reason",
+        "binary-pin-rejects-tampered-lock: passed (exit 1) - a corrupted pinned digest refuses the genuine binary, so the comparison is real"
+      ]
     },
     {
       "eval": "EVAL-GIT-LIVE-03",
@@ -95,15 +97,17 @@
       "eval": "EVAL-WORKER-05",
       "title": "committed fixture passes unchanged inside the image",
       "status": "passed",
-      "argv": [
-        "bash",
-        "scripts/git-town/test-fixture.sh"
-      ],
+      "argv": "bash docs/evidence/git-town-worker/v24.0.0/run-preflight-evals.sh",
       "exit_code": 0,
       "evidence": [
-        "logs/eval-05-test-fixture.log"
+        "preflight-results.jsonl",
+        "preflight-environment.json",
+        "logs/preflight/"
       ],
-      "notes": "run unmodified with a 600s deadline; ends with 'Git Town worker fixture passed'"
+      "notes": [
+        "1 case(s) run in the pinned linux/amd64 profile.",
+        "contract-fixture: passed (exit 0) - the contract fixture passed unchanged"
+      ]
     },
     {
       "eval": "EVAL-WORKER-01",
