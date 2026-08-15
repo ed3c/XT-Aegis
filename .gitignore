@@ -27,6 +27,12 @@ verification-out/
 *.db-shm
 *.db-wal
 
+# Agent tooling. Nothing under .claude/ is project content in this repository: it holds per-machine tool
+# settings and the disposable git worktrees sessions check out. If shared configuration is ever committed
+# here, switch this to `.claude/*` with explicit negations, because git will not descend into an ignored
+# directory to honour one.
+.claude/
+
 # IDE and OS
 .DS_Store
 .idea/
