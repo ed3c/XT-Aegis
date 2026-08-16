@@ -53,7 +53,7 @@ jobs:
           print(f"SBOM: {component['name']} {component['version']}, {len(document['components'])} components")
           PY
 
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: "dist/*"
 

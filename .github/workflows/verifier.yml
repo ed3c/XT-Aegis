@@ -63,7 +63,7 @@ jobs:
             ghcr.io/ed3c/xt-aegis-verifier:${{ github.ref_name }}
             ghcr.io/ed3c/xt-aegis-verifier:latest
       - name: Attest image provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ghcr.io/ed3c/xt-aegis-verifier
           subject-digest: ${{ steps.push.outputs.digest }}
